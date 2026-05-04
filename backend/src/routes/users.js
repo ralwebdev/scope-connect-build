@@ -58,6 +58,9 @@ const adminCreateSchema = z.object({
   role_variant: z.enum(roleVariants).optional(),
   send_invite: z.boolean().optional().default(false),
   password: z.string().min(8).max(128).optional(),
+}).refine((body) => body.send_invite || Boolean(body.password), {
+  path: ["password"],
+  message: "password is required when send_invite is false",
 });
 
 const adminPatchSchema = z.object({
@@ -155,12 +158,12 @@ adminUsersRouter.use(authMiddleware, requirePermission("manage_users"));
 adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req, res) => {
   const existing = await User.findOne({ email: req.body.email.toLowerCase() });
   if (existing) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
-  const inviteToken = req.body.send_invite ? crypto.randomUUID?.() || `${Date.now()}` : null;
+  const inviteToken = req.body.send_invite ? crypto.randomUUID() : null;
   const derived = deriveRoleFromEmail(req.body.email, req.body.role);
   const user = await User.create({
     email: req.body.email,
     name: req.body.name,
-    passwordHash: await bcrypt.hash(req.body.password || inviteToken || "ChangeMe123!", 12),
+    passwordHash: await bcrypt.hash(req.body.password || inviteToken, 12),
     role: req.body.role || derived.role,
     roleVariant: req.body.role_variant || derived.roleVariant,
     founder: derived.founder,

@@ -6,6 +6,14 @@ const profileSchema = new mongoose.Schema(
     handle: { type: String, unique: true, sparse: true, trim: true },
     headline: String,
     bio: String,
+    skills: [{ type: String }],
+    interests: [{ type: String }],
+    availability: {
+      type: String,
+      enum: ["Open to collab", "Building solo", "Hiring teammates", "Looking for internship"],
+      default: "Open to collab",
+    },
+    avatarColor: { type: String, default: "#00D1FF" },
     avatarUrl: String,
     coverUrl: String,
     location: String,
@@ -39,4 +47,3 @@ profileSchema.virtual("id").get(function getId() {
 profileSchema.set("toJSON", { virtuals: true, versionKey: false });
 
 export const Profile = mongoose.model("Profile", profileSchema);
-

@@ -25,10 +25,10 @@ export async function serializeUser(user, options = {}) {
       ? { id: idOf(institution._id), name: institution.name }
       : null,
     campus: institution?.name || "",
-    skills: [],
-    interests: [],
-    availability: "Open to collab",
-    avatarColor: "#00D1FF",
+    skills: profile?.skills || [],
+    interests: profile?.interests || [],
+    availability: profile?.availability || "Open to collab",
+    avatarColor: profile?.avatarColor || "#00D1FF",
     joinedAt: user.createdAt ? new Date(user.createdAt).getTime() : Date.now(),
     links: {
       website: profile?.website || null,

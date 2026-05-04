@@ -70,6 +70,10 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
   await Profile.create({
     user: user._id,
     handle: user.email.split("@")[0].toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+    skills: [],
+    interests: [],
+    availability: "Open to collab",
+    avatarColor: "#00D1FF",
     xp: 120,
     level: 1,
     streakDays: 1,
@@ -148,4 +152,3 @@ authRouter.get("/me", authMiddleware, asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate({ path: "profile", populate: { path: "institution" } });
   sendSuccess(res, { user: await serializeUser(user, { includePrivate: true }) });
 }));
-

@@ -11,6 +11,8 @@ import {
   interestTags,
 } from "./mock-data";
 import { seedsForRole, type NotificationSeed } from "./notifications-seed";
+import { backendAuth, backendUsers } from "./api/endpoints";
+import { tokenStore } from "./api/client";
 
 /* ----------------------------- Types ----------------------------- */
 
@@ -22,7 +24,18 @@ export type ScopeUser = {
   bio: string;
   skills: string[];
   interests: string[];
-  links: { website?: string; github?: string; twitter?: string };
+  links: {
+    website?: string | null;
+    github?: string | null;
+    twitter?: string | null;
+    github_url?: string | null;
+    twitter_url?: string | null;
+    linkedin_url?: string | null;
+    instagram_url?: string | null;
+    portfolio_website?: string | null;
+    resume_url?: string | null;
+    portfolio_pdf_url?: string | null;
+  };
   availability: "Open to collab" | "Building solo" | "Hiring teammates" | "Looking for internship";
   avatarColor: string;
   joinedAt: number;
@@ -33,8 +46,16 @@ export type ScopeUser = {
   portfolioPdfUrl?: string;
   instagramUrl?: string;
   primaryDomain?: string;
+  primary_domain?: string;
   specialization?: string;
   portfolioLinks?: Record<string, string>;
+  institution?: { id: string; name: string } | null;
+  role?: string;
+  role_variant?: string;
+  founder?: boolean;
+  stats?: { xp: number; level: number; streak_days: number };
+  verification?: { email_verified: boolean; institution_verified: boolean; trust_score: number };
+  portfolio_links?: { id: string; key: string; label: string; url: string; category?: string }[];
 };
 
 export type FeedPost = {
@@ -200,28 +221,84 @@ function write<T>(key: string, value: T) {
   }
 }
 
+function writeNow<T>(key: string, value: T) {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: [key] } }));
+  } catch {
+    /* noop */
+  }
+}
+
 /* --------------------------- Auth flow --------------------------- */
 
-const AVATAR_COLORS = ["#E63946", "#00D1FF", "#FB923C", "#A78BFA", "#34D399", "#F472B6"];
+function normalizeApiUser(user: ScopeUser): ScopeUser {
+  const links = user.links ?? {};
+  const portfolioLinks = user.portfolioLinks ?? Object.fromEntries(
+    (user.portfolio_links ?? []).map((link) => [link.key, link.url]),
+  );
 
-function newUserFromSignup(input: {
-  name: string;
-  email: string;
-  campus: string;
-  interests: string[];
-}): ScopeUser {
   return {
-    id: `u_${Date.now().toString(36)}`,
-    name: input.name || input.email.split("@")[0] || "Builder",
-    email: input.email,
-    campus: input.campus || "IIT Bombay",
-    bio: "",
-    skills: [],
-    interests: input.interests,
-    links: {},
-    availability: "Open to collab",
-    avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-    joinedAt: Date.now(),
+    ...user,
+    bio: user.bio ?? "",
+    campus: user.campus || user.institution?.name || "",
+    skills: user.skills ?? [],
+    interests: user.interests ?? [],
+    links: {
+      website: links.website ?? undefined,
+      github: links.github ?? links.github_url ?? undefined,
+      twitter: links.twitter ?? links.twitter_url ?? undefined,
+    },
+    availability: user.availability ?? "Open to collab",
+    avatarColor: user.avatarColor ?? "#00D1FF",
+    joinedAt: user.joinedAt ?? Date.now(),
+    linkedinUrl: user.linkedinUrl ?? links.linkedin_url ?? undefined,
+    portfolioWebsite: user.portfolioWebsite ?? links.portfolio_website ?? undefined,
+    resumeUrl: user.resumeUrl ?? links.resume_url ?? undefined,
+    portfolioPdfUrl: user.portfolioPdfUrl ?? links.portfolio_pdf_url ?? undefined,
+    instagramUrl: user.instagramUrl ?? links.instagram_url ?? undefined,
+    primaryDomain: user.primaryDomain ?? user.primary_domain ?? undefined,
+    specialization: user.specialization ?? undefined,
+    portfolioLinks,
+  };
+}
+
+function persistApiSession(payload: {
+  user: ScopeUser;
+  access_token: string;
+  refresh_token: string;
+}) {
+  const user = normalizeApiUser(payload.user);
+  tokenStore.set(payload.access_token, payload.refresh_token);
+  writeNow(KEYS.user, user);
+  writeNow(KEYS.loggedIn, true);
+  writeNow(KEYS.points, user.stats?.xp ?? read<number>(KEYS.points, 0));
+  writeNow(KEYS.streak, user.stats?.streak_days ?? read<number>(KEYS.streak, 0));
+  return user;
+}
+
+function profilePatchForApi(patch: Partial<ScopeUser>) {
+  return {
+    ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.bio !== undefined && { bio: patch.bio }),
+    ...(patch.linkedinUrl !== undefined || patch.portfolioWebsite !== undefined || patch.resumeUrl !== undefined ||
+      patch.portfolioPdfUrl !== undefined || patch.instagramUrl !== undefined || patch.links !== undefined
+      ? {
+          links: {
+            ...(patch.links?.website !== undefined && { website: patch.links.website }),
+            ...(patch.links?.github !== undefined && { github_url: patch.links.github }),
+            ...(patch.links?.twitter !== undefined && { twitter_url: patch.links.twitter }),
+            ...(patch.linkedinUrl !== undefined && { linkedin_url: patch.linkedinUrl }),
+            ...(patch.portfolioWebsite !== undefined && { portfolio_website: patch.portfolioWebsite }),
+            ...(patch.resumeUrl !== undefined && { resume_url: patch.resumeUrl }),
+            ...(patch.portfolioPdfUrl !== undefined && { portfolio_pdf_url: patch.portfolioPdfUrl }),
+            ...(patch.instagramUrl !== undefined && { instagram_url: patch.instagramUrl }),
+          },
+        }
+      : {}),
+    ...(patch.primaryDomain !== undefined && { primary_domain: patch.primaryDomain }),
+    ...(patch.specialization !== undefined && { specialization: patch.specialization }),
   };
 }
 
@@ -232,34 +309,40 @@ export const auth = {
   getUser(): ScopeUser | null {
     return read<ScopeUser | null>(KEYS.user, null);
   },
-  signup(input: { name: string; email: string; campus: string; interests: string[] }) {
-    const user = newUserFromSignup(input);
-    write(KEYS.user, user);
-    write(KEYS.loggedIn, true);
-    write(KEYS.points, 120); // welcome bonus
-    write(KEYS.streak, 1);
-    write(KEYS.streakDate, todayStamp());
-    write(KEYS.visits, 1);
+  async signup(input: { name: string; email: string; campus: string; interests: string[]; password: string }) {
+    const payload = await backendAuth.signup({
+      name: input.name,
+      email: input.email,
+      password: input.password,
+    });
+    const user = persistApiSession(payload);
     notifications.push({ icon: "spark", text: "Welcome to Scope Connect! +120 XP signup bonus.", dedupKey: `welcome_bonus:${user.id}` });
     notifications.push({ icon: "trophy", text: "You're ranked #142 nationally. Climb today.", dedupKey: `welcome_rank:${user.id}` });
     return user;
   },
-  login(email: string) {
-    const existing = auth.getUser();
-    if (existing) {
-      write(KEYS.loggedIn, true);
-      streak.tick();
-      return existing;
-    }
-    // Auto-create a profile for any login attempt (fake auth).
-    return auth.signup({
-      name: email.split("@")[0].replace(/[._-]/g, " "),
-      email,
-      campus: "IIT Bombay",
-      interests: ["AI", "Startup"],
-    });
+  async login(email: string, password: string) {
+    const payload = await backendAuth.login({ email, password });
+    const user = persistApiSession(payload);
+    streak.tick();
+    return user;
+  },
+  async restoreSession() {
+    if (!isBrowser || !localStorage.getItem("scope_access_token")) return null;
+    const { user } = await backendAuth.me();
+    const normalized = normalizeApiUser(user);
+    writeNow(KEYS.user, normalized);
+    writeNow(KEYS.loggedIn, true);
+    writeNow(KEYS.points, normalized.stats?.xp ?? read<number>(KEYS.points, 0));
+    writeNow(KEYS.streak, normalized.stats?.streak_days ?? read<number>(KEYS.streak, 0));
+    return normalized;
   },
   logout() {
+    const refreshToken = isBrowser ? tokenStore.refreshToken() : null;
+    if (refreshToken) {
+      backendAuth.logout(refreshToken).catch(() => {
+        /* best-effort */
+      });
+    }
     // 🧨 Hard Sign Out — sweep ALL scope_* keys so no role/permission/sidebar
     // state survives. Only the schema version is preserved (cheap to recompute,
     // avoids unnecessary re-seeding loops on next login).
@@ -287,6 +370,26 @@ export const auth = {
     if (!u) return null;
     const next = { ...u, ...patch };
     write(KEYS.user, next);
+    const apiPatch = profilePatchForApi(patch);
+    const requests: Promise<unknown>[] = [];
+    if (Object.keys(apiPatch).length > 0) {
+      requests.push(backendUsers.update(u.id, apiPatch));
+    }
+    if (patch.portfolioLinks) {
+      requests.push(backendUsers.setPortfolioLinks(patch.portfolioLinks));
+    }
+    if (requests.length) {
+      Promise.all(requests)
+        .then((responses) => {
+          const responseWithUser = responses.find((response): response is { user: ScopeUser } =>
+            Boolean(response && typeof response === "object" && "user" in response),
+          );
+          if (responseWithUser?.user) writeNow(KEYS.user, normalizeApiUser(responseWithUser.user));
+        })
+        .catch(() => {
+          /* keep optimistic local edits; UI can retry on next save */
+        });
+    }
     return next;
   },
 };
@@ -625,7 +728,7 @@ export const events = {
 
 const SEED_OPPS: Opportunity[] = [
   { id: "o_1", title: "Need UI Designer for HealthTech MVP", by: "MediMatch AI", campus: "IIT Bombay", category: "Design", description: "Design 8 mobile screens. 2-week sprint. Equity available.", match: 92 },
-  { id: "o_2", title: "React Developer — Campus Marketplace", by: "CampusDAO", campus: "BITS Pilani", category: "Engineering", description: "Build storefront + cart with Tailwind & Supabase.", match: 88 },
+  { id: "o_2", title: "React Developer — Campus Marketplace", by: "CampusDAO", campus: "BITS Pilani", category: "Engineering", description: "Build storefront + cart with Tailwind and the Scope API.", match: 88 },
   { id: "o_3", title: "Co-founder wanted — EdTech for Tier-3", by: "Diya Sharma", campus: "BITS Pilani", category: "Founder", description: "Looking for a technical co-founder, 50/50 equity.", match: 81 },
   { id: "o_4", title: "Pitch Deck Expert — YC application", by: "Layerly", campus: "Recruiter", category: "Pitch", description: "Polish a 10-slide deck for YC W26 application.", match: 76 },
   { id: "o_5", title: "Marketing Lead for hackathon launch", by: "Sprintly", campus: "ContentCo Hyderabad", category: "Marketing", description: "Drive registrations for Scope Hack '26.", match: 71 },

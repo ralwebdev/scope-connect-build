@@ -20,6 +20,18 @@ npm run dev
 
 The API listens on `http://localhost:8080` by default.
 
+## Demo Data
+
+Seed MongoDB with a fresh demo workspace:
+
+```bash
+npm run seed
+```
+
+This clears the backend app collections, then inserts demo institutions, users,
+profiles, portfolio links, projects, applications, notifications, and analytics.
+All seeded users use `Password123!`.
+
 ## Required Environment
 
 Copy/update `.env` values before running in production:

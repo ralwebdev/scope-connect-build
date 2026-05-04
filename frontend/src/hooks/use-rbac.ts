@@ -14,8 +14,8 @@ export function useRole(): RoleId {
       const loggedIn = localStorage.getItem("scope_logged_in");
       if (loggedIn !== "true") return "viewer";
       const raw = localStorage.getItem("scope_user_profile");
-      const u = raw ? (JSON.parse(raw) as { email?: string }) : null;
-      return roleFromEmail(u?.email);
+      const u = raw ? (JSON.parse(raw) as { email?: string; role_variant?: RoleId }) : null;
+      return u?.role_variant ?? roleFromEmail(u?.email);
     } catch {
       return "viewer";
     }
