@@ -9,6 +9,7 @@ import { useIsLoggedIn } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
 import { roleFromEmail, landingRouteForRole, ROLE_LABELS } from "@/lib/rbac";
+import { backendInstitutions } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -26,12 +27,21 @@ const STAGES = [
   "Calibrating your campus rank…",
 ];
 
+type SignupInstitution = {
+  id: string;
+  name: string;
+  city?: string;
+  state?: string;
+};
+
 function AuthPage() {
   const navigate = useNavigate();
   const isAuthed = useIsLoggedIn();
   const [mode, setMode] = useState<"login" | "signup">("signup");
   const [name, setName] = useState("");
   const [campus, setCampus] = useState("IIT Bombay");
+  const [institutionId, setInstitutionId] = useState("");
+  const [institutions, setInstitutions] = useState<SignupInstitution[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["AI", "Startup"]);
@@ -46,6 +56,26 @@ function AuthPage() {
       navigate({ to: landingRouteForRole(role) });
     }
   }, [isAuthed, navigate]);
+
+  useEffect(() => {
+    if (mode !== "signup") return;
+    let cancelled = false;
+    backendInstitutions.publicList()
+      .then(({ items }) => {
+        if (cancelled) return;
+        setInstitutions(items);
+        const first = items[0];
+        if (first && !institutionId) {
+          setInstitutionId(first.id);
+          setCampus(first.name);
+        }
+      })
+      .catch((error) => {
+        console.warn("Institution list failed", error);
+        toast.error("Could not load institutions.");
+      });
+    return () => { cancelled = true; };
+  }, [mode, institutionId]);
 
   // Fire signup_started once when user first interacts with a signup field.
   const markStarted = () => {
@@ -70,6 +100,10 @@ function AuthPage() {
       toast.error("Password should be at least 8 characters.");
       return;
     }
+    if (mode === "signup" && !institutionId) {
+      toast.error("Please select your institution.");
+      return;
+    }
     setLoading(true);
     setStage(0);
     const t1 = setTimeout(() => setStage(1), 450);
@@ -80,7 +114,7 @@ function AuthPage() {
     try {
       let signedInUser;
       if (mode === "signup") {
-        signedInUser = await auth.signup({ name: name || email.split("@")[0], email, campus, interests: selectedInterests, password });
+        signedInUser = await auth.signup({ name: name || email.split("@")[0], email, campus, institutionId, interests: selectedInterests, password });
         auth.updateProfile({ campus, interests: selectedInterests });
         analytics.track("signup_completed");
         toast.success("Welcome to Scope Connect. You're in.");
@@ -201,7 +235,24 @@ function AuthPage() {
                 </div>
                 <div>
                   <Label htmlFor="campus">Campus</Label>
-                  <Input id="campus" value={campus} onChange={(e) => setCampus(e.target.value)} placeholder="IIT Bombay" required className="mt-1.5" />
+                  <select
+                    id="campus"
+                    value={institutionId}
+                    onChange={(e) => {
+                      const selected = institutions.find((institution) => institution.id === e.target.value);
+                      setInstitutionId(e.target.value);
+                      setCampus(selected?.name ?? "");
+                    }}
+                    required
+                    className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {institutions.length === 0 && <option value="">No institutions available</option>}
+                    {institutions.map((institution) => (
+                      <option key={institution.id} value={institution.id}>
+                        {institution.name}{institution.city ? ` · ${institution.city}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}

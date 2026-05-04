@@ -9,7 +9,7 @@ export type AuthPayload = {
 };
 
 export const backendAuth = {
-  signup(body: { email: string; password: string; name: string }) {
+  signup(body: { email: string; password: string; name: string; institution_id?: string }) {
     return api<AuthPayload>("/api/auth/signup", {
       method: "POST",
       body: JSON.stringify(body),
@@ -33,10 +33,23 @@ export const backendAuth = {
 };
 
 export const backendUsers = {
+  list(params: { institutionId?: string; role?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.institutionId) qs.set("institution_id", params.institutionId);
+    if (params.role) qs.set("role", params.role);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ items: ScopeUser[]; next_cursor: string | null; has_more: boolean }>(`/api/users${suffix}`);
+  },
   update(id: string, body: Record<string, unknown>) {
     return api<{ user: ScopeUser }>(`/api/users/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+    });
+  },
+  updateMemberStatus(id: string, studentStatus: "pending_verification" | "active" | "rejected") {
+    return api<{ user: ScopeUser }>(`/api/users/${id}/member-status`, {
+      method: "PATCH",
+      body: JSON.stringify({ student_status: studentStatus }),
     });
   },
   setPortfolioLinks(portfolioLinks: Record<string, string>) {
@@ -53,6 +66,20 @@ export const backendUsers = {
       method: "POST",
       body: JSON.stringify({ portfolio_links: links }),
     });
+  },
+};
+
+type BackendInstitution = {
+  id: string;
+  name: string;
+  city?: string;
+  state?: string;
+  pipeline_stage?: string;
+};
+
+export const backendInstitutions = {
+  publicList() {
+    return api<{ items: BackendInstitution[]; next_cursor: string | null; has_more: boolean }>("/api/institutions/public");
   },
 };
 

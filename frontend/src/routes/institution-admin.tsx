@@ -17,7 +17,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { useStoreValue } from "@/hooks/use-scope";
-import { crm } from "@/lib/crm-store";
+import { crm, type Institution } from "@/lib/crm-store";
+import { backendUsers } from "@/lib/api/endpoints";
+import type { ScopeUser } from "@/lib/scope-store";
 import { rbac, type PermissionKey } from "@/lib/rbac";
 import { toast } from "sonner";
 
@@ -33,6 +35,26 @@ function useMyInstitution() {
   const data = useStoreValue(() => crm.all());
   return useMemo(() => {
     if (!user) return data.institutions[0] ?? null;
+    if (user.institution?.id) {
+      const fallback: Institution = {
+        id: user.institution.id,
+        name: user.institution.name,
+        type: "Other",
+        city: "",
+        state: "",
+        contactPerson: "",
+        designation: "",
+        phone: "",
+        email: "",
+        ownerId: "",
+        priority: 3,
+        potentialValue: 0,
+        stage: "Live Chapter",
+        notes: "",
+        updatedAt: Date.now(),
+      };
+      return data.institutions.find((i) => i.id === user.institution?.id) ?? fallback;
+    }
     const handle = user.email?.split("@")[0]?.toLowerCase() ?? "";
     const match = data.institutions.find((i) => handle && i.name.toLowerCase().includes(handle.split(".")[0]));
     return match ?? data.institutions[0] ?? null;
@@ -315,13 +337,41 @@ function seedMembers(): Member[] {
 }
 
 function MembersView({ institutionId }: { institutionId: string }) {
-  const members = useStoreValue(() => readMembers(institutionId));
+  const [remoteMembers, setRemoteMembers] = useState<Member[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingMembers(true);
+    backendUsers.list({ institutionId })
+      .then(({ items }) => {
+        if (cancelled) return;
+        setRemoteMembers(items.map(memberFromUser));
+      })
+      .catch((error) => {
+        console.warn("Member sync failed", error);
+        toast.error(error instanceof Error ? error.message : "Could not load institution members.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMembers(false);
+      });
+    return () => { cancelled = true; };
+  }, [institutionId]);
+  const members = remoteMembers;
   const [filter, setFilter] = useState<"all" | "pending" | "active" | "deactivated">("all");
   const list = filter === "all" ? members : members.filter(m => m.status === filter);
-  const update = (id: string, patch: Partial<Member>) => {
-    const next = readMembers(institutionId).map(m => m.id === id ? { ...m, ...patch } : m);
-    writeMembers(institutionId, next);
-    toast.success("Updated");
+  const update = async (id: string, patch: Partial<Member>) => {
+    if (patch.status) {
+      const studentStatus = patch.status === "active" ? "active" : patch.status === "pending" ? "pending_verification" : "rejected";
+      try {
+        const { user } = await backendUsers.updateMemberStatus(id, studentStatus);
+        setRemoteMembers((current) => current.map((member) => member.id === id ? memberFromUser(user) : member));
+        toast.success("Updated");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not update member.");
+      }
+      return;
+    }
+    setRemoteMembers((current) => current.map((member) => member.id === id ? { ...member, ...patch } : member));
   };
   return (
     <Card className="p-5">
@@ -345,7 +395,8 @@ function MembersView({ institutionId }: { institutionId: string }) {
             </tr>
           </thead>
           <tbody>
-            {list.map(m => (
+            {loadingMembers && <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">Loading members...</td></tr>}
+            {!loadingMembers && list.map(m => (
               <tr key={m.id} className="border-b border-border/50">
                 <td className="py-3 font-semibold">{m.name}</td>
                 <td className="py-3 text-xs text-muted-foreground">{m.email}</td>
@@ -374,12 +425,25 @@ function MembersView({ institutionId }: { institutionId: string }) {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No members in this filter.</td></tr>}
+            {!loadingMembers && list.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No members in this filter.</td></tr>}
           </tbody>
         </table>
       </div>
     </Card>
   );
+}
+
+function memberFromUser(user: ScopeUser): Member {
+  const variant = user.role_variant;
+  const role: Member["role"] = variant === "campus_leader" ? "campus_leader" : variant === "faculty_coordinator" || user.role === "faculty" ? "faculty_coordinator" : "student";
+  const status: Member["status"] = user.student_status === "pending_verification" ? "pending" : user.student_status === "rejected" ? "deactivated" : "active";
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role,
+    status,
+  };
 }
 
 function AnalyticsView({ institutionId }: { institutionId: string }) {

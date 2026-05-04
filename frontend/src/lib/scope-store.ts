@@ -60,6 +60,7 @@ export type ScopeUser = {
   institution?: { id: string; name: string } | null;
   role?: string;
   role_variant?: string;
+  student_status?: "pending_verification" | "active" | "rejected";
   founder?: boolean;
   stats?: { xp: number; level: number; streak_days: number };
   verification?: { email_verified: boolean; institution_verified: boolean; trust_score: number };
@@ -321,11 +322,12 @@ export const auth = {
   getUser(): ScopeUser | null {
     return read<ScopeUser | null>(KEYS.user, null);
   },
-  async signup(input: { name: string; email: string; campus: string; interests: string[]; password: string }) {
+  async signup(input: { name: string; email: string; campus: string; interests: string[]; password: string; institutionId?: string }) {
     const payload = await backendAuth.signup({
       email: input.email,
       password: input.password,
       name: input.name,
+      institution_id: input.institutionId,
     });
     const user = persistApiSession(payload);
     const nextUser = { ...user, campus: input.campus, interests: input.interests };
