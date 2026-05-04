@@ -48,6 +48,11 @@ const institutionSchema = z.object({
   notes: z.string().max(10000).optional(),
 });
 
+institutionsRouter.get("/public", asyncHandler(async (_req, res) => {
+  const institutions = await Institution.find().sort({ name: 1 });
+  sendSuccess(res, { items: institutions.map(serializeInstitution), next_cursor: null, has_more: false });
+}));
+
 institutionsRouter.use(authMiddleware);
 
 const visitSchema = z.object({

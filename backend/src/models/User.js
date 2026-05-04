@@ -9,6 +9,12 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: roles, default: "student", index: true },
     roleVariant: { type: String, enum: roleVariants, default: "student" },
     institution: { type: mongoose.Schema.Types.ObjectId, ref: "Institution", default: null, index: true },
+    studentStatus: {
+      type: String,
+      enum: ["pending_verification", "active", "rejected"],
+      default: "active",
+      index: true,
+    },
     founder: { type: Boolean, default: false },
     disabledAt: { type: Date, default: null },
   },

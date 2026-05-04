@@ -65,6 +65,7 @@ export async function serializeUser(user, options = {}) {
     body.role_variant = user.roleVariant;
     body.founder = user.founder;
     body.disabled_at = user.disabledAt || null;
+    body.student_status = user.studentStatus;
     body.created_at = user.createdAt;
     body.updated_at = user.updatedAt;
   }

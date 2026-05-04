@@ -31,6 +31,7 @@ export async function authMiddleware(req, _res, next) {
       email: user.email,
       role: user.role,
       roleVariant: user.roleVariant,
+      institution: user.institution,
       founder: user.founder,
     };
     next();
@@ -38,4 +39,3 @@ export async function authMiddleware(req, _res, next) {
     next(error);
   }
 }
-

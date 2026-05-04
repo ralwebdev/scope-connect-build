@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { User, Profile, Session } from "../models/index.js";
+import { User, Profile, Session, Institution } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { authRateLimit } from "../middleware/rate-limit.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -19,6 +19,7 @@ const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
   name: z.string().min(1).max(120),
+  institution_id: z.string().optional(),
   role: z.enum(["student", "scope_admin", "super_admin"]).optional(),
 });
 
@@ -71,6 +72,8 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
   const email = req.body.email.toLowerCase();
   const existing = await User.findOne({ email });
   if (existing) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
+  const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
+  if (req.body.institution_id && !institution) throw new AppError(404, "INSTITUTION_NOT_FOUND", "Institution not found");
 
   const derived = deriveRoleFromEmail(email, req.body.role);
   const user = await User.create({
@@ -79,6 +82,8 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
     name: req.body.name,
     role: derived.role,
     roleVariant: derived.roleVariant,
+    institution: institution?._id ?? null,
+    studentStatus: institution && derived.role === "student" ? "pending_verification" : "active",
     founder: derived.founder,
   });
 
@@ -86,6 +91,7 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
     await Profile.create({
       user: user._id,
       handle: await createUniqueHandle(email),
+      institution: institution?._id ?? null,
       skills: [],
       interests: [],
       availability: "Open to collab",
@@ -93,6 +99,7 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
       xp: 120,
       level: 1,
       streakDays: 1,
+      institutionVerified: false,
     });
   } catch (error) {
     await User.deleteOne({ _id: user._id });

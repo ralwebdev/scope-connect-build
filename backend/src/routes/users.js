@@ -10,7 +10,7 @@ import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
-import { deriveRoleFromEmail, roles, roleVariants } from "../utils/roles.js";
+import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
 import { serializeUser } from "../utils/serializers.js";
 
 export const usersRouter = express.Router();
@@ -80,6 +80,10 @@ const adminPatchSchema = z.object({
   founder: z.boolean().optional(),
 });
 
+const memberStatusSchema = z.object({
+  student_status: z.enum(["pending_verification", "active", "rejected"]),
+});
+
 async function findHydratedUser(id) {
   return User.findById(id).populate({ path: "profile", populate: { path: "institution" } });
 }
@@ -112,9 +116,15 @@ function canCreateAdminUser(req) {
 
 usersRouter.use(authMiddleware);
 
-usersRouter.get("/", requirePermission("manage_users"), asyncHandler(async (req, res) => {
+usersRouter.get("/", asyncHandler(async (req, res) => {
+  const institutionId = req.query.institution_id;
+  if (!hasPermission(req.user, "manage_users")) {
+    const canViewInstitutionMembers = hasPermission(req.user, "manage_members") && institutionId && req.user.institution?.toString() === String(institutionId);
+    if (!canViewInstitutionMembers) throw forbidden();
+  }
   const { limit, cursor, sort } = parsePagination(req.query, ["createdAt"]);
   const filter = { ...cursorFilter(cursor, sort) };
+  if (institutionId) filter.institution = institutionId;
   if (req.query.role) filter.role = req.query.role;
   if (req.query.q) {
     filter.$or = [
@@ -134,6 +144,30 @@ usersRouter.get("/", requirePermission("manage_users"), asyncHandler(async (req,
   });
 }));
 
+usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) throw notFound("User not found");
+  const sameInstitution = user.institution?.toString() && user.institution.toString() === req.user.institution?.toString();
+  if (!sameInstitution || !hasPermission(req.user, "approve_students")) throw forbidden();
+  user.studentStatus = req.body.student_status;
+  await user.save();
+  await Profile.findOneAndUpdate(
+    { user: user._id },
+    { institutionVerified: req.body.student_status === "active" },
+  );
+  await AnalyticsEvent.create({
+    user: req.user._id,
+    event: "student_verification",
+    props: {
+      target_user_id: user.id,
+      institution_id: user.institution?.toString(),
+      status: req.body.student_status,
+      actor_role: req.user.role,
+    },
+  });
+  sendSuccess(res, { user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }) });
+}));
+
 usersRouter.get("/:id", asyncHandler(async (req, res) => {
   const user = await findHydratedUser(req.params.id);
   if (!user) throw notFound("User not found");
@@ -151,6 +185,7 @@ usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, re
     user.email = req.body.email;
   }
   if (req.body.name) user.name = req.body.name;
+  if (req.body.institution_id !== undefined) user.institution = req.body.institution_id;
   await user.save();
 
   const profile = await Profile.findOneAndUpdate(
