@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useIsLoggedIn } from "@/hooks/use-scope";
 import { useUserSession } from "@/hooks/use-session";
-import { auth, streak, notifications } from "@/lib/scope-store";
+import { streak, notifications } from "@/lib/scope-store";
 
 /** Wrap any page that requires auth — redirects guests to /auth.
  *  Defers all auth-driven rendering until after client mount to avoid SSR/CSR mismatch. */
@@ -15,13 +15,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (!mounted || isAuthed) return;
-    auth.restoreSession().catch(() => {
-      /* session restore is best-effort; unauthenticated flow handles redirect */
-    });
-  }, [isAuthed, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
