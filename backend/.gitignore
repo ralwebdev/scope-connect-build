@@ -1,0 +1,9 @@
+.env
+node_modules/
+dist/
+coverage/
+uploads/*
+!uploads/.gitkeep
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
