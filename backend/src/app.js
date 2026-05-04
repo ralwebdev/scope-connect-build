@@ -16,6 +16,10 @@ import { analyticsRouter } from "./routes/analytics.js";
 import { uploadRouter, filesRouter } from "./routes/upload.js";
 import { healthRouter } from "./routes/health.js";
 
+function isAllowedDevOrigin(origin) {
+  return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+}
+
 export function createApp() {
   const app = express();
 
@@ -25,7 +29,9 @@ export function createApp() {
   app.use(compression());
   app.use(cors({
     origin(origin, callback) {
-      if (!origin || env.corsAllowedOrigins.includes(origin)) return callback(null, true);
+      if (!origin || env.corsAllowedOrigins.includes(origin) || isAllowedDevOrigin(origin)) {
+        return callback(null, true);
+      }
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -55,4 +61,3 @@ export function createApp() {
 
   return app;
 }
-

@@ -36,6 +36,20 @@ const logoutSchema = z.object({
   all_sessions: z.boolean().optional().default(false),
 });
 
+function handleBaseFromEmail(email) {
+  const base = email.split("@")[0].toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return base || `user-${Date.now().toString(36)}`;
+}
+
+async function createUniqueHandle(email) {
+  const base = handleBaseFromEmail(email);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    if (!(await Profile.exists({ handle: candidate }))) return candidate;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
 async function issueSession(req, user) {
   const refreshToken = createRefreshToken();
   await Session.create({
@@ -54,12 +68,13 @@ async function issueSession(req, user) {
 }
 
 authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(async (req, res) => {
-  const existing = await User.findOne({ email: req.body.email.toLowerCase() });
+  const email = req.body.email.toLowerCase();
+  const existing = await User.findOne({ email });
   if (existing) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
 
-  const derived = deriveRoleFromEmail(req.body.email, req.body.role);
+  const derived = deriveRoleFromEmail(email, req.body.role);
   const user = await User.create({
-    email: req.body.email,
+    email,
     passwordHash: await bcrypt.hash(req.body.password, 12),
     name: req.body.name,
     role: derived.role,
@@ -67,17 +82,22 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
     founder: derived.founder,
   });
 
-  await Profile.create({
-    user: user._id,
-    handle: user.email.split("@")[0].toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-    skills: [],
-    interests: [],
-    availability: "Open to collab",
-    avatarColor: "#00D1FF",
-    xp: 120,
-    level: 1,
-    streakDays: 1,
-  });
+  try {
+    await Profile.create({
+      user: user._id,
+      handle: await createUniqueHandle(email),
+      skills: [],
+      interests: [],
+      availability: "Open to collab",
+      avatarColor: "#00D1FF",
+      xp: 120,
+      level: 1,
+      streakDays: 1,
+    });
+  } catch (error) {
+    await User.deleteOne({ _id: user._id });
+    throw error;
+  }
 
   const tokens = await issueSession(req, user);
   const hydrated = await User.findById(user._id).populate({ path: "profile", populate: { path: "institution" } });

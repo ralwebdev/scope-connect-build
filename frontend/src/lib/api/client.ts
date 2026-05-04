@@ -2,6 +2,15 @@ const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const ACCESS_KEY = "scope_access_token";
 const REFRESH_KEY = "scope_refresh_token";
 
+function networkError(path: string) {
+  const target = BASE || (typeof window !== "undefined" ? window.location.origin : "");
+  return new ApiException(
+    0,
+    "NETWORK_ERROR",
+    `Cannot reach the backend API at ${target}${path}. Make sure the backend server is running.`,
+  );
+}
+
 export type ApiSuccess<T> = { success: true; data: T; message?: string };
 export type ApiError = {
   success: false;
@@ -33,11 +42,16 @@ async function doRefresh(): Promise<void> {
   const token = localStorage.getItem(REFRESH_KEY);
   if (!token) throw new ApiException(401, "INVALID_REFRESH_TOKEN", "No refresh token");
 
-  const res = await fetch(`${BASE}/api/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: token }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: token }),
+    });
+  } catch {
+    throw networkError("/api/auth/refresh");
+  }
   const json = (await res.json()) as ApiSuccess<{ access_token: string; refresh_token: string }> | ApiError;
   if (!json.success) {
     throw new ApiException(res.status, json.error.code, json.error.message, json.error.details);
@@ -57,7 +71,12 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   const access = typeof window !== "undefined" ? localStorage.getItem(ACCESS_KEY) : null;
   if (access) headers.set("Authorization", `Bearer ${access}`);
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { ...init, headers });
+  } catch {
+    throw networkError(path);
+  }
   const json = (await res.json().catch(() => ({}))) as ApiSuccess<T> | ApiError;
 
   if (!json.success) {
@@ -88,4 +107,3 @@ export const tokenStore = {
   },
   clear: clearSession,
 };
-
