@@ -127,6 +127,8 @@ export function serializeInstitution(institution) {
     id: idOf(institution._id),
     name: institution.name,
     slug: institution.slug,
+    type: institution.type,
+    board: institution.board,
     city: institution.city,
     state: institution.state,
     country: institution.country,
@@ -134,6 +136,42 @@ export function serializeInstitution(institution) {
     verified: institution.verified,
     logo_url: institution.logoUrl,
     mou_status: institution.mouStatus,
+    contact_person: institution.contactPerson,
+    designation: institution.designation,
+    phone: institution.phone,
+    email: institution.email,
+    owner_id: idOf(institution.owner?._id || institution.owner),
+    priority: institution.priority,
+    potential_value: institution.potentialValue,
+    pipeline_stage: institution.pipelineStage,
+    notes: institution.notes,
     created_at: institution.createdAt,
+    updated_at: institution.updatedAt,
+  };
+}
+
+export function serializeCrmVisit(visit) {
+  return {
+    id: idOf(visit._id),
+    institution_id: idOf(visit.institution?._id || visit.institution),
+    owner_id: idOf(visit.owner?._id || visit.owner),
+    date: visit.date,
+    time: visit.time,
+    status: visit.status,
+    notes: visit.notes,
+    created_at: visit.createdAt,
+    updated_at: visit.updatedAt,
+  };
+}
+
+export function serializeLaunchChecklist(checklist) {
+  return {
+    institution_id: idOf(checklist.institution?._id || checklist.institution),
+    faculty_assigned: Boolean(checklist.facultyAssigned),
+    leader_shortlisted: Boolean(checklist.leaderShortlisted),
+    launch_scheduled: Boolean(checklist.launchScheduled),
+    registrations_started: Boolean(checklist.registrationsStarted),
+    page_live: Boolean(checklist.pageLive),
+    challenge_activated: Boolean(checklist.challengeActivated),
   };
 }

@@ -1,9 +1,29 @@
 import mongoose from "mongoose";
 
+export const pipelineStages = [
+  "Prospect",
+  "Contacted",
+  "Meeting Scheduled",
+  "Meeting Completed",
+  "Proposal Sent",
+  "Negotiation",
+  "MoU Draft Shared",
+  "MoU Signed",
+  "Launch Pending",
+  "Live Chapter",
+  "Dormant",
+];
+
 const institutionSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    type: {
+      type: String,
+      enum: ["University", "Engineering College", "School", "Polytechnic", "Other"],
+      default: "Other",
+    },
+    board: String,
     city: String,
     state: String,
     country: { type: String, default: "IN" },
@@ -11,8 +31,17 @@ const institutionSchema = new mongoose.Schema(
     verified: { type: Boolean, default: false },
     logoUrl: String,
     mouStatus: { type: String, enum: ["none", "in_discussion", "signed"], default: "none" },
+    contactPerson: String,
+    designation: String,
+    phone: String,
+    email: String,
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    priority: { type: Number, min: 1, max: 5, default: 3 },
+    potentialValue: { type: Number, default: 0 },
+    pipelineStage: { type: String, enum: pipelineStages, default: "Prospect", index: true },
+    notes: { type: String, default: "" },
   },
-  { timestamps: { createdAt: true, updatedAt: false } },
+  { timestamps: true },
 );
 
 institutionSchema.virtual("id").get(function getId() {
@@ -21,4 +50,3 @@ institutionSchema.virtual("id").get(function getId() {
 institutionSchema.set("toJSON", { virtuals: true, versionKey: false });
 
 export const Institution = mongoose.model("Institution", institutionSchema);
-

@@ -1,5 +1,7 @@
-// Internal CRM store for Scope Admin + Super Admin portals.
-// Pure localStorage; emits scope:store-change so use-scope hooks re-render.
+import { api } from "@/lib/api/client";
+
+// Backend-backed CRM store for Scope Admin + Super Admin portals.
+// Keeps a small local cache so existing synchronous store hooks can render instantly.
 
 export type PipelineStage =
   | "Prospect"
@@ -31,9 +33,9 @@ export type Institution = {
   designation: string;
   phone: string;
   email: string;
-  ownerId: string; // admin id
+  ownerId: string;
   priority: 1 | 2 | 3 | 4 | 5;
-  potentialValue: number; // INR
+  potentialValue: number;
   stage: PipelineStage;
   notes: string;
   updatedAt: number;
@@ -42,8 +44,8 @@ export type Institution = {
 export type Visit = {
   id: string;
   institutionId: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:mm
+  date: string;
+  time: string;
   ownerId: string;
   status: "scheduled" | "checked_in" | "completed" | "cancelled";
   notes?: string;
@@ -72,6 +74,66 @@ export type AdminProfile = {
   target: number;
 };
 
+type BackendInstitution = {
+  id: string;
+  name: string;
+  type?: Institution["type"];
+  board?: string;
+  city?: string;
+  state?: string;
+  contact_person?: string;
+  designation?: string;
+  phone?: string;
+  email?: string;
+  owner_id?: string | null;
+  priority?: number;
+  potential_value?: number;
+  pipeline_stage?: PipelineStage;
+  notes?: string;
+  updated_at?: string;
+  created_at?: string;
+};
+
+type BackendVisit = {
+  id: string;
+  institution_id: string;
+  owner_id: string;
+  date: string;
+  time: string;
+  status: Visit["status"];
+  notes?: string;
+};
+
+type BackendLaunch = {
+  institution_id: string;
+  faculty_assigned: boolean;
+  leader_shortlisted: boolean;
+  launch_scheduled: boolean;
+  registrations_started: boolean;
+  page_live: boolean;
+  challenge_activated: boolean;
+};
+
+type BackendAdmin = {
+  id: string;
+  name: string;
+  email: string;
+  region?: string;
+  focus?: string;
+  meetings?: number;
+  closures?: number;
+  last_active?: string;
+  status?: AdminProfile["status"];
+  target?: number;
+};
+
+type BackendCrmData = {
+  institutions: BackendInstitution[];
+  visits: BackendVisit[];
+  launches: BackendLaunch[];
+  admins: BackendAdmin[];
+};
+
 const KEY = "sc_crm_v1";
 
 type CrmData = {
@@ -81,6 +143,8 @@ type CrmData = {
   admins: AdminProfile[];
 };
 
+const emptyData = (): CrmData => ({ institutions: [], visits: [], launches: {}, admins: [] });
+
 function notify() {
   if (typeof window === "undefined") return;
   try {
@@ -88,47 +152,113 @@ function notify() {
   } catch { /* noop */ }
 }
 
-function seed(): CrmData {
-  const now = Date.now();
+function toMillis(value?: string) {
+  return value ? new Date(value).getTime() : Date.now();
+}
+
+function clampPriority(value?: number): Institution["priority"] {
+  const n = Number(value);
+  if (n >= 1 && n <= 5) return n as Institution["priority"];
+  return 3;
+}
+
+function mapInstitution(item: BackendInstitution): Institution {
   return {
-    admins: [
-      { id: "a1", name: "Aniket Roy", email: "aniket.scope-admin@scope.in", region: "Kolkata", focus: "Engineering Colleges", meetings: 18, closures: 4, lastActive: now - 36e5, status: "active", target: 6 },
-      { id: "a2", name: "Priya Sen", email: "priya.scope-admin@scope.in", region: "West Bengal Schools", focus: "CBSE Schools", meetings: 26, closures: 7, lastActive: now - 3 * 36e5, status: "active", target: 8 },
-      { id: "a3", name: "Rahul Das", email: "rahul.scope-admin@scope.in", region: "Durgapur", focus: "Polytechnics", meetings: 11, closures: 2, lastActive: now - 26 * 36e5, status: "active", target: 5 },
-    ],
-    institutions: [
-      { id: "i1", name: "ABC University", type: "University", board: "UGC", city: "Kolkata", state: "West Bengal", contactPerson: "Dr. S. Mehta", designation: "Dean Student Affairs", phone: "+91 98300 11122", email: "dean@abcu.edu.in", ownerId: "a1", priority: 5, potentialValue: 250000, stage: "Negotiation", notes: "Interested in flagship chapter Q1.", updatedAt: now },
-      { id: "i2", name: "XYZ College of Engineering", type: "Engineering College", board: "AICTE", city: "Durgapur", state: "West Bengal", contactPerson: "Prof. R. Kapoor", designation: "Principal", phone: "+91 98311 44455", email: "principal@xyzce.in", ownerId: "a3", priority: 4, potentialValue: 180000, stage: "MoU Signed", notes: "Awaiting launch date.", updatedAt: now },
-      { id: "i3", name: "Heritage Public School", type: "School", board: "CBSE", city: "Kolkata", state: "West Bengal", contactPerson: "Ms. N. Bose", designation: "Principal", phone: "+91 98302 77788", email: "office@heritageps.in", ownerId: "a2", priority: 3, potentialValue: 90000, stage: "Proposal Sent", notes: "Sent pricing deck v2.", updatedAt: now },
-      { id: "i4", name: "Eastern Institute of Tech", type: "Engineering College", board: "AICTE", city: "Kolkata", state: "West Bengal", contactPerson: "Dr. K. Iyer", designation: "Director", phone: "+91 98304 22233", email: "director@eit.ac.in", ownerId: "a1", priority: 4, potentialValue: 200000, stage: "Live Chapter", notes: "Chapter live since Sep.", updatedAt: now },
-      { id: "i5", name: "Shree Vidya Bhavan", type: "School", board: "ICSE", city: "Howrah", state: "West Bengal", contactPerson: "Mr. A. Ganguly", designation: "Vice Principal", phone: "+91 98305 88899", email: "vp@shreevidya.in", ownerId: "a2", priority: 2, potentialValue: 60000, stage: "Contacted", notes: "Initial call done.", updatedAt: now },
-      { id: "i6", name: "Bengal Polytechnic", type: "Polytechnic", board: "WBSCTE", city: "Asansol", state: "West Bengal", contactPerson: "Mr. T. Saha", designation: "Coordinator", phone: "+91 98307 99900", email: "coord@bp.edu.in", ownerId: "a3", priority: 2, potentialValue: 70000, stage: "Prospect", notes: "Cold outreach pending.", updatedAt: now },
-      { id: "i7", name: "Royal CBSE Academy", type: "School", board: "CBSE", city: "Siliguri", state: "West Bengal", contactPerson: "Ms. P. Roy", designation: "Principal", phone: "+91 98309 11200", email: "p@royalcbse.in", ownerId: "a2", priority: 4, potentialValue: 110000, stage: "MoU Draft Shared", notes: "Legal review.", updatedAt: now },
-      { id: "i8", name: "Tech Valley Institute", type: "Engineering College", board: "AICTE", city: "Bhubaneswar", state: "Odisha", contactPerson: "Dr. M. Patro", designation: "Dean", phone: "+91 98432 22211", email: "dean@tvi.ac.in", ownerId: "a1", priority: 3, potentialValue: 160000, stage: "Meeting Completed", notes: "Decision in 2 weeks.", updatedAt: now },
-    ],
-    visits: [
-      { id: "v1", institutionId: "i1", date: new Date().toISOString().slice(0,10), time: "11:00", ownerId: "a1", status: "scheduled" },
-      { id: "v2", institutionId: "i3", date: new Date().toISOString().slice(0,10), time: "15:30", ownerId: "a2", status: "scheduled" },
-      { id: "v3", institutionId: "i6", date: new Date(Date.now() + 864e5).toISOString().slice(0,10), time: "10:00", ownerId: "a3", status: "scheduled" },
-    ],
-    launches: {
-      i2: { institutionId: "i2", facultyAssigned: true, leaderShortlisted: true, launchScheduled: true, registrationsStarted: false, pageLive: false, challengeActivated: false },
-      i4: { institutionId: "i4", facultyAssigned: true, leaderShortlisted: true, launchScheduled: true, registrationsStarted: true, pageLive: true, challengeActivated: true },
-    },
+    id: item.id,
+    name: item.name,
+    type: item.type ?? "Other",
+    board: item.board,
+    city: item.city ?? "",
+    state: item.state ?? "",
+    contactPerson: item.contact_person ?? "",
+    designation: item.designation ?? "",
+    phone: item.phone ?? "",
+    email: item.email ?? "",
+    ownerId: item.owner_id ?? "",
+    priority: clampPriority(item.priority),
+    potentialValue: item.potential_value ?? 0,
+    stage: item.pipeline_stage ?? "Prospect",
+    notes: item.notes ?? "",
+    updatedAt: toMillis(item.updated_at ?? item.created_at),
+  };
+}
+
+function mapVisit(item: BackendVisit): Visit {
+  return {
+    id: item.id,
+    institutionId: item.institution_id,
+    ownerId: item.owner_id,
+    date: item.date,
+    time: item.time,
+    status: item.status,
+    notes: item.notes,
+  };
+}
+
+function mapLaunch(item: BackendLaunch): LaunchChecklist {
+  return {
+    institutionId: item.institution_id,
+    facultyAssigned: item.faculty_assigned,
+    leaderShortlisted: item.leader_shortlisted,
+    launchScheduled: item.launch_scheduled,
+    registrationsStarted: item.registrations_started,
+    pageLive: item.page_live,
+    challengeActivated: item.challenge_activated,
+  };
+}
+
+function mapAdmin(item: BackendAdmin): AdminProfile {
+  return {
+    id: item.id,
+    name: item.name,
+    email: item.email,
+    region: item.region ?? "Assigned Territory",
+    focus: item.focus ?? "Partnerships",
+    meetings: item.meetings ?? 0,
+    closures: item.closures ?? 0,
+    lastActive: toMillis(item.last_active),
+    status: item.status ?? "active",
+    target: item.target ?? 6,
+  };
+}
+
+function fromBackend(data: BackendCrmData): CrmData {
+  const launches = Object.fromEntries(data.launches.map((launch) => [launch.institution_id, mapLaunch(launch)]));
+  return {
+    institutions: data.institutions.map(mapInstitution),
+    visits: data.visits.map(mapVisit),
+    launches,
+    admins: data.admins.map(mapAdmin),
+  };
+}
+
+function institutionBody(inst: Partial<Institution>) {
+  return {
+    ...(inst.name !== undefined && { name: inst.name }),
+    ...(inst.type !== undefined && { type: inst.type }),
+    ...(inst.board !== undefined && { board: inst.board }),
+    ...(inst.city !== undefined && { city: inst.city }),
+    ...(inst.state !== undefined && { state: inst.state }),
+    ...(inst.contactPerson !== undefined && { contact_person: inst.contactPerson }),
+    ...(inst.designation !== undefined && { designation: inst.designation }),
+    ...(inst.phone !== undefined && { phone: inst.phone }),
+    ...(inst.email !== undefined && { email: inst.email }),
+    ...(inst.ownerId ? { owner_id: inst.ownerId } : {}),
+    ...(inst.priority !== undefined && { priority: inst.priority }),
+    ...(inst.potentialValue !== undefined && { potential_value: inst.potentialValue }),
+    ...(inst.stage !== undefined && { pipeline_stage: inst.stage }),
+    ...(inst.notes !== undefined && { notes: inst.notes }),
   };
 }
 
 function read(): CrmData {
-  if (typeof window === "undefined") return seed();
+  if (typeof window === "undefined") return emptyData();
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) {
-      const s = seed();
-      localStorage.setItem(KEY, JSON.stringify(s));
-      return s;
-    }
-    return JSON.parse(raw) as CrmData;
-  } catch { return seed(); }
+    return raw ? JSON.parse(raw) as CrmData : emptyData();
+  } catch {
+    return emptyData();
+  }
 }
 
 function write(d: CrmData) {
@@ -145,6 +275,11 @@ export const crm = {
   institutions(): Institution[] { return read().institutions; },
   visits(): Visit[] { return read().visits; },
   admins(): AdminProfile[] { return read().admins; },
+  async syncFromBackend() {
+    const data = fromBackend(await api<BackendCrmData>("/api/institutions/crm"));
+    write(data);
+    return data;
+  },
   launch(id: string): LaunchChecklist {
     const d = read();
     return d.launches[id] ?? { institutionId: id, facultyAssigned: false, leaderShortlisted: false, launchScheduled: false, registrationsStarted: false, pageLive: false, challengeActivated: false };
@@ -155,6 +290,26 @@ export const crm = {
     if (idx >= 0) d.institutions[idx] = { ...inst, updatedAt: Date.now() };
     else d.institutions.unshift({ ...inst, updatedAt: Date.now() });
     write(d);
+
+    const isNew = inst.id.startsWith("i") && /^\d+$/.test(inst.id.slice(1));
+    const request = isNew
+      ? api<{ institution: BackendInstitution }>("/api/institutions/crm/institutions", {
+          method: "POST",
+          body: JSON.stringify(institutionBody(inst)),
+        })
+      : api<{ institution: BackendInstitution }>(`/api/institutions/crm/institutions/${inst.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(institutionBody(inst)),
+        });
+
+    void request.then(({ institution }) => {
+      const next = read();
+      const mapped = mapInstitution(institution);
+      const localIndex = next.institutions.findIndex((i) => i.id === inst.id || i.id === mapped.id);
+      if (localIndex >= 0) next.institutions[localIndex] = mapped;
+      else next.institutions.unshift(mapped);
+      write(next);
+    }).catch((error) => console.warn("CRM institution sync failed", error));
   },
   moveStage(id: string, stage: PipelineStage) {
     const d = read();
@@ -163,6 +318,10 @@ export const crm = {
     i.stage = stage;
     i.updatedAt = Date.now();
     write(d);
+    void api<{ institution: BackendInstitution }>(`/api/institutions/crm/institutions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ pipeline_stage: stage }),
+    }).catch((error) => console.warn("CRM stage sync failed", error));
   },
   addNote(id: string, note: string) {
     const d = read();
@@ -171,11 +330,32 @@ export const crm = {
     i.notes = note ? `${note}\n${i.notes ?? ""}`.trim() : i.notes;
     i.updatedAt = Date.now();
     write(d);
+    void api<{ institution: BackendInstitution }>(`/api/institutions/crm/institutions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes: i.notes }),
+    }).catch((error) => console.warn("CRM note sync failed", error));
   },
   scheduleVisit(v: Omit<Visit, "id" | "status">) {
     const d = read();
-    d.visits.unshift({ ...v, id: `v${Date.now()}`, status: "scheduled" });
+    const temp = { ...v, id: `v${Date.now()}`, status: "scheduled" as const };
+    d.visits.unshift(temp);
     write(d);
+    void api<{ visit: BackendVisit }>("/api/institutions/crm/visits", {
+      method: "POST",
+      body: JSON.stringify({
+        institution_id: v.institutionId,
+        owner_id: v.ownerId,
+        date: v.date,
+        time: v.time,
+        notes: v.notes,
+      }),
+    }).then(({ visit }) => {
+      const next = read();
+      const idx = next.visits.findIndex((item) => item.id === temp.id);
+      if (idx >= 0) next.visits[idx] = mapVisit(visit);
+      else next.visits.unshift(mapVisit(visit));
+      write(next);
+    }).catch((error) => console.warn("CRM visit sync failed", error));
   },
   setVisitStatus(id: string, status: Visit["status"], notes?: string) {
     const d = read();
@@ -184,6 +364,10 @@ export const crm = {
     v.status = status;
     if (notes !== undefined) v.notes = notes;
     write(d);
+    void api<{ visit: BackendVisit }>(`/api/institutions/crm/visits/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, ...(notes !== undefined && { notes }) }),
+    }).catch((error) => console.warn("CRM visit status sync failed", error));
   },
   toggleLaunchStep(id: string, key: keyof Omit<LaunchChecklist, "institutionId">) {
     const d = read();
@@ -191,6 +375,10 @@ export const crm = {
     cur[key] = !cur[key];
     d.launches[id] = cur;
     write(d);
+    void api<{ launch: BackendLaunch }>(`/api/institutions/crm/launches/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ key, value: cur[key] }),
+    }).catch((error) => console.warn("CRM launch sync failed", error));
   },
   upsertAdmin(a: AdminProfile) {
     const d = read();
@@ -206,5 +394,11 @@ export const crm = {
     a.status = status;
     write(d);
   },
-  reset() { if (typeof window !== "undefined") { localStorage.removeItem(KEY); notify(); } },
+  reset() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(KEY);
+      notify();
+      void crm.syncFromBackend().catch((error) => console.warn("CRM reset sync failed", error));
+    }
+  },
 };

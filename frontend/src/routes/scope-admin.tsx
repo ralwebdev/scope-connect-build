@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useStoreValue } from "@/hooks/use-scope";
+import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { crm, PIPELINE_STAGES, type Institution, type PipelineStage } from "@/lib/crm-store";
 import { toast } from "sonner";
@@ -39,17 +39,25 @@ const STAGE_COLORS: Record<PipelineStage, string> = {
 
 function ScopeAdminPortal() {
   const role = useRole();
+  const user = useUser();
   const isAllowed = role === "scope_admin" || role === "scope_super_admin" || role === "super_admin";
 
   const all = useStoreValue(() => crm.all());
-  // Scope_admin sees only their own (mocked: a1). Super sees all.
-  const myAdminId = role === "scope_admin" ? "a1" : null;
+  useEffect(() => {
+    if (!isAllowed) return;
+    void crm.syncFromBackend().catch((error) => {
+      console.warn("CRM sync failed", error);
+      toast.error(error instanceof Error ? error.message : "Could not load CRM data.");
+    });
+  }, [isAllowed]);
+
+  const myAdminId = role === "scope_admin" ? user?.id ?? null : null;
   const institutions = useMemo(
-    () => myAdminId ? all.institutions.filter(i => i.ownerId === myAdminId) : all.institutions,
+    () => myAdminId ? all.institutions.filter(i => !i.ownerId || i.ownerId === myAdminId) : all.institutions,
     [all.institutions, myAdminId],
   );
   const visits = useMemo(
-    () => myAdminId ? all.visits.filter(v => v.ownerId === myAdminId) : all.visits,
+    () => myAdminId ? all.visits.filter(v => !v.ownerId || v.ownerId === myAdminId) : all.visits,
     [all.visits, myAdminId],
   );
 
@@ -88,7 +96,7 @@ function ScopeAdminPortal() {
             <h1 className="text-3xl font-bold tracking-tight">Territory Command</h1>
             <p className="mt-1 text-sm text-muted-foreground">Every visit can create a chapter. Turn meetings into movements.</p>
           </div>
-          <NewLeadDialog ownerId={myAdminId ?? "a1"} />
+          <NewLeadDialog ownerId={myAdminId ?? user?.id ?? ""} />
         </header>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -110,7 +118,7 @@ function ScopeAdminPortal() {
           </TabsList>
 
           <TabsContent value="crm" className="mt-6"><PipelineBoard institutions={institutions} /></TabsContent>
-          <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? "a1"} /></TabsContent>
+          <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? user?.id ?? ""} /></TabsContent>
           <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
           <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} /></TabsContent>
