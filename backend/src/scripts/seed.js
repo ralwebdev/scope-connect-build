@@ -43,6 +43,7 @@ async function createUser(input, index) {
     name: input.name,
     role: input.role,
     roleVariant: input.roleVariant,
+    institution: input.institution?._id ?? null,
     founder: input.founder || false,
   });
 

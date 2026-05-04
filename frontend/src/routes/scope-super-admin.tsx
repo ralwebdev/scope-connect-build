@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Brain, Building2, Users, TrendingUp, MapPin, IndianRupee, Sliders, ShieldCheck, Sparkles, Trophy, AlertTriangle, CheckCircle2, XCircle, Plus, ArrowUpRight, Activity, Flame } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -15,8 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useStoreValue } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
-import { crm, type AdminProfile, PIPELINE_STAGES } from "@/lib/crm-store";
+import { crm, type AdminProfile, type Institution, PIPELINE_STAGES } from "@/lib/crm-store";
 import { configStore } from "@/lib/config-store";
+import { backendAdminUsers } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/scope-super-admin")({
@@ -29,6 +30,14 @@ function SuperAdminPortal() {
   const isAllowed = role === "scope_super_admin" || role === "super_admin";
   const data = useStoreValue(() => crm.all());
   const config = useStoreValue(() => configStore.get());
+
+  useEffect(() => {
+    if (!isAllowed) return;
+    void crm.syncFromBackend().catch((error) => {
+      console.warn("CRM sync failed", error);
+      toast.error(error instanceof Error ? error.message : "Could not load CRM data.");
+    });
+  }, [isAllowed]);
 
   const kpis = useMemo(() => {
     const live = data.institutions.filter(i => i.stage === "Live Chapter").length;
@@ -413,45 +422,221 @@ function NationalCRM({ data }: { data: ReturnType<typeof crm.all> }) {
   const ownerName = (id: string) => data.admins.find(a => a.id === id)?.name ?? "Unassigned";
 
   return (
+    <div className="space-y-4">
+      <InstitutionAccountForm institutions={data.institutions} />
+
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-bold">All institutions ({filtered.length})</h3>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
+              <option value="all">All states</option>
+              {states.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={filterStage} onChange={(e) => setFilterStage(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
+              <option value="all">All stages</option>
+              {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-muted-foreground">
+              <tr className="border-b border-border">
+                <th className="py-2 text-left">Institution</th>
+                <th className="py-2 text-left">City</th>
+                <th className="py-2 text-left">Stage</th>
+                <th className="py-2 text-left">Owner</th>
+                <th className="py-2 text-right">Value ₹</th>
+                <th className="py-2 text-right">Login</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(i => (
+                <tr key={i.id} className="border-b border-border/50">
+                  <td className="py-3 font-semibold">{i.name}</td>
+                  <td className="py-3">{i.city}</td>
+                  <td className="py-3"><Badge variant="outline">{i.stage}</Badge></td>
+                  <td className="py-3 text-xs text-muted-foreground">{ownerName(i.ownerId)}</td>
+                  <td className="py-3 text-right">₹{(i.potentialValue/1000).toFixed(0)}k</td>
+                  <td className="py-3 text-right"><InstitutionLoginDialog institution={i} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function InstitutionAccountForm({ institutions }: { institutions: Institution[] }) {
+  const firstInstitution = institutions[0];
+  const [loading, setLoading] = useState(false);
+  const [institutionId, setInstitutionId] = useState(firstInstitution?.id ?? "");
+  const selected = institutions.find((institution) => institution.id === institutionId) ?? firstInstitution;
+  const [form, setForm] = useState({
+    name: firstInstitution ? `${firstInstitution.name} Admin` : "",
+    email: firstInstitution?.email ?? "",
+    password: "Password123!",
+  });
+
+  useEffect(() => {
+    if (institutionId || !firstInstitution) return;
+    setInstitutionId(firstInstitution.id);
+    setForm((current) => ({
+      ...current,
+      name: current.name || `${firstInstitution.name} Admin`,
+      email: current.email || firstInstitution.email,
+    }));
+  }, [firstInstitution, institutionId]);
+
+  const selectInstitution = (id: string) => {
+    const institution = institutions.find((item) => item.id === id);
+    setInstitutionId(id);
+    if (!institution) return;
+    setForm((current) => ({
+      ...current,
+      name: `${institution.name} Admin`,
+      email: institution.email || current.email,
+    }));
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selected) {
+      toast.error("Create an institution first.");
+      return;
+    }
+    if (!form.name || !form.email || form.password.length < 8) {
+      toast.error("Name, email, and an 8+ character password are required.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await backendAdminUsers.create({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: "institution_admin",
+        role_variant: "institutional_admin",
+        institution_id: selected.id,
+      });
+      toast.success(`${selected.name} login created.`);
+      setForm({ name: `${selected.name} Admin`, email: "", password: "Password123!" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create institution login.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
     <Card className="p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-bold">All institutions ({filtered.length})</h3>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
-            <option value="all">All states</option>
-            {states.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={filterStage} onChange={(e) => setFilterStage(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
-            <option value="all">All stages</option>
-            {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-bold">Create Institution Login</h3>
+          <p className="text-xs text-muted-foreground">Creates an institution_admin user linked to the selected institution.</p>
+        </div>
+        {selected && <Badge variant="outline">{selected.name}</Badge>}
+      </div>
+      <form onSubmit={submit} className="mt-4 grid gap-3 lg:grid-cols-5">
+        <div className="lg:col-span-2">
+          <Label>Institution</Label>
+          <select
+            value={institutionId}
+            onChange={(event) => selectInstitution(event.target.value)}
+            className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {institutions.length === 0 && <option value="">No institutions</option>}
+            {institutions.map((institution) => (
+              <option key={institution.id} value={institution.id}>{institution.name}</option>
+            ))}
           </select>
         </div>
-      </div>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-xs uppercase text-muted-foreground">
-            <tr className="border-b border-border">
-              <th className="py-2 text-left">Institution</th>
-              <th className="py-2 text-left">City</th>
-              <th className="py-2 text-left">Stage</th>
-              <th className="py-2 text-left">Owner</th>
-              <th className="py-2 text-right">Value ₹</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(i => (
-              <tr key={i.id} className="border-b border-border/50">
-                <td className="py-3 font-semibold">{i.name}</td>
-                <td className="py-3">{i.city}</td>
-                <td className="py-3"><Badge variant="outline">{i.stage}</Badge></td>
-                <td className="py-3 text-xs text-muted-foreground">{ownerName(i.ownerId)}</td>
-                <td className="py-3 text-right">₹{(i.potentialValue/1000).toFixed(0)}k</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div>
+          <Label>Admin name</Label>
+          <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5" />
+        </div>
+        <div>
+          <Label>Username / email</Label>
+          <Input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1.5" />
+        </div>
+        <div>
+          <Label>Password</Label>
+          <Input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1.5" />
+        </div>
+        <div className="lg:col-span-5">
+          <Button type="submit" disabled={loading || !selected} className="bg-gradient-brand text-brand-foreground">
+            {loading ? "Creating..." : "Create linked account"}
+          </Button>
+        </div>
+      </form>
     </Card>
+  );
+}
+
+function InstitutionLoginDialog({ institution }: { institution: Institution }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    name: `${institution.name} Admin`,
+    email: institution.email || "",
+    password: "Password123!",
+  });
+
+  const submit = async () => {
+    if (!form.name || !form.email || form.password.length < 8) {
+      toast.error("Name, email, and an 8+ character password are required.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await backendAdminUsers.create({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: "institution_admin",
+        role_variant: "institutional_admin",
+        institution_id: institution.id,
+      });
+      toast.success("Institution login created.");
+      setOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create institution login.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button size="sm" variant="outline">Create</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Create institution login</DialogTitle></DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label>Institution</Label>
+            <Input value={institution.name} disabled />
+          </div>
+          <div>
+            <Label>Username / email</Label>
+            <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <Label>Admin name</Label>
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div>
+            <Label>Password</Label>
+            <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </div>
+          <Button disabled={loading} onClick={submit} className="bg-gradient-brand text-brand-foreground">
+            {loading ? "Creating..." : "Create login"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

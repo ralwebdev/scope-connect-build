@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     role: { type: String, enum: roles, default: "student", index: true },
     roleVariant: { type: String, enum: roleVariants, default: "student" },
+    institution: { type: mongoose.Schema.Types.ObjectId, ref: "Institution", default: null, index: true },
     founder: { type: Boolean, default: false },
     disabledAt: { type: Date, default: null },
   },
@@ -29,4 +30,3 @@ userSchema.set("toJSON", {
 });
 
 export const User = mongoose.model("User", userSchema);
-

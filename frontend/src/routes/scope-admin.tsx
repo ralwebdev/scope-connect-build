@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { crm, PIPELINE_STAGES, type Institution, type PipelineStage } from "@/lib/crm-store";
+import { backendAdminUsers } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/scope-admin")({
@@ -117,7 +118,12 @@ function ScopeAdminPortal() {
             <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="crm" className="mt-6"><PipelineBoard institutions={institutions} /></TabsContent>
+          <TabsContent value="crm" className="mt-6">
+            <div className="space-y-4">
+              <InstitutionAccountForm institutions={institutions} />
+              <PipelineBoard institutions={institutions} />
+            </div>
+          </TabsContent>
           <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? user?.id ?? ""} /></TabsContent>
           <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
           <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
@@ -137,6 +143,112 @@ function KpiCard({ label, value, icon: Icon, accent = false }: { label: string; 
         <Icon className={`h-4 w-4 ${accent ? "text-brand" : "text-muted-foreground"}`} />
       </div>
       <div className="mt-2 text-2xl font-bold tracking-tight">{value}</div>
+    </Card>
+  );
+}
+
+function InstitutionAccountForm({ institutions }: { institutions: Institution[] }) {
+  const firstInstitution = institutions[0];
+  const [loading, setLoading] = useState(false);
+  const [institutionId, setInstitutionId] = useState(firstInstitution?.id ?? "");
+  const selected = institutions.find((institution) => institution.id === institutionId) ?? firstInstitution;
+  const [form, setForm] = useState({
+    name: firstInstitution ? `${firstInstitution.name} Admin` : "",
+    email: firstInstitution?.email ?? "",
+    password: "Password123!",
+  });
+
+  useEffect(() => {
+    if (institutionId || !firstInstitution) return;
+    setInstitutionId(firstInstitution.id);
+    setForm((current) => ({
+      ...current,
+      name: current.name || `${firstInstitution.name} Admin`,
+      email: current.email || firstInstitution.email,
+    }));
+  }, [firstInstitution, institutionId]);
+
+  const selectInstitution = (id: string) => {
+    const institution = institutions.find((item) => item.id === id);
+    setInstitutionId(id);
+    if (!institution) return;
+    setForm((current) => ({
+      ...current,
+      name: `${institution.name} Admin`,
+      email: institution.email || current.email,
+    }));
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selected) {
+      toast.error("Create an institution lead first.");
+      return;
+    }
+    if (!form.name || !form.email || form.password.length < 8) {
+      toast.error("Name, email, and an 8+ character password are required.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await backendAdminUsers.create({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: "institution_admin",
+        role_variant: "institutional_admin",
+        institution_id: selected.id,
+      });
+      toast.success(`${selected.name} login created.`);
+      setForm({ name: `${selected.name} Admin`, email: "", password: "Password123!" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create institution login.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-bold">Create Institution Login</h3>
+          <p className="text-xs text-muted-foreground">Creates an institution_admin account linked to an assigned institution.</p>
+        </div>
+        {selected && <Badge variant="outline">{selected.name}</Badge>}
+      </div>
+      <form onSubmit={submit} className="mt-4 grid gap-3 lg:grid-cols-5">
+        <div className="lg:col-span-2">
+          <Label>Institution</Label>
+          <select
+            value={institutionId}
+            onChange={(event) => selectInstitution(event.target.value)}
+            className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {institutions.length === 0 && <option value="">No institutions</option>}
+            {institutions.map((institution) => (
+              <option key={institution.id} value={institution.id}>{institution.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>Admin name</Label>
+          <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5" />
+        </div>
+        <div>
+          <Label>Username / email</Label>
+          <Input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1.5" />
+        </div>
+        <div>
+          <Label>Password</Label>
+          <Input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1.5" />
+        </div>
+        <div className="lg:col-span-5">
+          <Button type="submit" disabled={loading || !selected} className="bg-gradient-brand text-brand-foreground">
+            {loading ? "Creating..." : "Create linked account"}
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 }

@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { User, Profile, PortfolioLink, Session } from "../models/index.js";
+import { Institution, User, Profile, PortfolioLink, Session } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -61,22 +61,53 @@ const adminCreateSchema = z.object({
   name: z.string().min(1).max(120),
   role: z.enum(roles),
   role_variant: z.enum(roleVariants).optional(),
+  institution_id: z.string().optional().nullable(),
   send_invite: z.boolean().optional().default(false),
   password: z.string().min(8).max(128).optional(),
 }).refine((body) => body.send_invite || Boolean(body.password), {
   path: ["password"],
   message: "password is required when send_invite is false",
+}).refine((body) => body.role !== "institution_admin" || Boolean(body.institution_id), {
+  path: ["institution_id"],
+  message: "institution_id is required for institution_admin users",
 });
 
 const adminPatchSchema = z.object({
   role: z.enum(roles).optional(),
   role_variant: z.enum(roleVariants).optional(),
+  institution_id: z.string().nullable().optional(),
   disabled_at: z.string().datetime().nullable().optional(),
   founder: z.boolean().optional(),
 });
 
 async function findHydratedUser(id) {
   return User.findById(id).populate({ path: "profile", populate: { path: "institution" } });
+}
+
+function roleVariantFor(role, requested) {
+  if (requested) return requested;
+  if (role === "institution_admin") return "institutional_admin";
+  if (role === "faculty") return "faculty_coordinator";
+  if (role === "super_admin") return "scope_super_admin";
+  return role;
+}
+
+function handleFromEmail(email) {
+  return email.split("@")[0].toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+async function uniqueHandle(email) {
+  const base = handleFromEmail(email) || `user-${Date.now().toString(36)}`;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    if (!(await Profile.exists({ handle: candidate }))) return candidate;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+function canCreateAdminUser(req) {
+  if (req.user.role === "super_admin") return true;
+  return req.user.role === "scope_admin" && req.body.role === "institution_admin" && Boolean(req.body.institution_id);
 }
 
 usersRouter.use(authMiddleware);
@@ -167,36 +198,66 @@ usersRouter.post("/profile", validate(portfolioSchema), asyncHandler(async (req,
   sendSuccess(res, { user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
 }));
 
-adminUsersRouter.use(authMiddleware, requirePermission("manage_users"));
+adminUsersRouter.use(authMiddleware);
 
 adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req, res) => {
-  const existing = await User.findOne({ email: req.body.email.toLowerCase() });
+  if (!canCreateAdminUser(req)) throw forbidden();
+  const email = req.body.email.toLowerCase();
+  const existing = await User.findOne({ email });
   if (existing) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
+  const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
+  if (req.body.institution_id && !institution) throw notFound("Institution not found");
   const inviteToken = req.body.send_invite ? crypto.randomUUID() : null;
-  const derived = deriveRoleFromEmail(req.body.email, req.body.role);
+  const derived = deriveRoleFromEmail(email, req.body.role);
   const user = await User.create({
-    email: req.body.email,
+    email,
     name: req.body.name,
     passwordHash: await bcrypt.hash(req.body.password || inviteToken, 12),
     role: req.body.role || derived.role,
-    roleVariant: req.body.role_variant || derived.roleVariant,
+    roleVariant: roleVariantFor(req.body.role || derived.role, req.body.role_variant),
+    institution: institution?._id ?? null,
     founder: derived.founder,
   });
-  await Profile.create({ user: user._id, handle: user.email.split("@")[0].replace(/[^a-z0-9-]/gi, "-") });
+  try {
+    await Profile.create({
+      user: user._id,
+      handle: await uniqueHandle(email),
+      institution: institution?._id ?? null,
+      institutionVerified: Boolean(institution),
+      availability: "Open to collab",
+      avatarColor: "#00D1FF",
+    });
+  } catch (error) {
+    await User.deleteOne({ _id: user._id });
+    throw error;
+  }
   sendSuccess(res, {
     user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }),
     invite_token: inviteToken,
   }, "User created", 201);
 }));
 
-adminUsersRouter.patch("/:id", validate(adminPatchSchema), asyncHandler(async (req, res) => {
+adminUsersRouter.patch("/:id", requirePermission("manage_users"), validate(adminPatchSchema), asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
   if (req.body.role !== undefined) user.role = req.body.role;
-  if (req.body.role_variant !== undefined) user.roleVariant = req.body.role_variant;
+  if (req.body.role_variant !== undefined || req.body.role !== undefined) {
+    user.roleVariant = roleVariantFor(req.body.role || user.role, req.body.role_variant);
+  }
   if (req.body.disabled_at !== undefined) user.disabledAt = req.body.disabled_at ? new Date(req.body.disabled_at) : null;
   if (req.body.founder !== undefined) user.founder = req.body.founder;
   await user.save();
+  if (req.body.institution_id !== undefined) {
+    const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
+    if (req.body.institution_id && !institution) throw notFound("Institution not found");
+    user.institution = institution?._id ?? null;
+    await user.save();
+    await Profile.findOneAndUpdate(
+      { user: user._id },
+      { institution: institution?._id ?? null, institutionVerified: Boolean(institution) },
+      { upsert: true },
+    );
+  }
   if (user.disabledAt) await Session.updateMany({ user: user._id, revokedAt: null }, { revokedAt: new Date() });
   sendSuccess(res, { user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }) });
 }));

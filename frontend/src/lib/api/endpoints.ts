@@ -56,6 +56,23 @@ export const backendUsers = {
   },
 };
 
+export const backendAdminUsers = {
+  create(body: {
+    email: string;
+    name: string;
+    password?: string;
+    role: "student" | "faculty" | "institution_admin" | "scope_admin" | "super_admin";
+    role_variant?: string;
+    institution_id?: string | null;
+    send_invite?: boolean;
+  }) {
+    return api<{ user: ScopeUser; invite_token?: string | null }>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
 type BackendProject = {
   id: string;
   created_by: string;
