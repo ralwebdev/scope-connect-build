@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { Institution, User, Profile, PortfolioLink, Session } from "../models/index.js";
+import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, Session } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -207,6 +207,15 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
   if (existing) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
   const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
   if (req.body.institution_id && !institution) throw notFound("Institution not found");
+  if (req.body.role === "institution_admin") {
+    if (institution.pipelineStage !== "Launch Pending") {
+      throw new AppError(409, "INSTITUTION_NOT_LAUNCH_PENDING", "Institution credentials can only be generated at Launch Pending stage");
+    }
+    const existingInstitutionAdmin = await User.exists({ role: "institution_admin", institution: institution._id });
+    if (existingInstitutionAdmin) {
+      throw new AppError(409, "INITIAL_INSTITUTION_ADMIN_EXISTS", "Initial institutional admin already exists for this institution");
+    }
+  }
   const inviteToken = req.body.send_invite ? crypto.randomUUID() : null;
   const derived = deriveRoleFromEmail(email, req.body.role);
   const user = await User.create({
@@ -231,6 +240,16 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
     await User.deleteOne({ _id: user._id });
     throw error;
   }
+  await AnalyticsEvent.create({
+    user: req.user._id,
+    event: "credential_created",
+    props: {
+      target_user_id: user.id,
+      target_role: user.role,
+      institution_id: institution?.id ?? null,
+      actor_role: req.user.role,
+    },
+  });
   sendSuccess(res, {
     user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }),
     invite_token: inviteToken,

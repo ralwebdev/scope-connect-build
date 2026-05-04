@@ -100,6 +100,7 @@ function InstitutionRouteSwitcher({ institutionId, institutionName }: { institut
         <TabLink to="/institution-admin" label="Hub" active={tab === "hub"} />
         <TabLink to="/institution-admin/members" label="Members" active={tab === "members"} />
         <TabLink to="/institution-admin/analytics" label="Analytics" active={tab === "analytics"} />
+        <TabLink to="/institution/reports" label="Reports" active={false} />
         <TabLink to="/institution-admin/communications" label="Communications" active={tab === "communications"} />
       </nav>
 

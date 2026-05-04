@@ -475,6 +475,7 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
   const [loading, setLoading] = useState(false);
   const [institutionId, setInstitutionId] = useState(firstInstitution?.id ?? "");
   const selected = institutions.find((institution) => institution.id === institutionId) ?? firstInstitution;
+  const eligible = selected?.stage === "Launch Pending";
   const [form, setForm] = useState({
     name: firstInstitution ? `${firstInstitution.name} Admin` : "",
     email: firstInstitution?.email ?? "",
@@ -508,6 +509,10 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
       toast.error("Create an institution first.");
       return;
     }
+    if (!eligible) {
+      toast.error("Credential generation is only available at Launch Pending stage.");
+      return;
+    }
     if (!form.name || !form.email || form.password.length < 8) {
       toast.error("Name, email, and an 8+ character password are required.");
       return;
@@ -538,7 +543,7 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
           <h3 className="text-sm font-bold">Create Institution Login</h3>
           <p className="text-xs text-muted-foreground">Creates an institution_admin user linked to the selected institution.</p>
         </div>
-        {selected && <Badge variant="outline">{selected.name}</Badge>}
+        {selected && <Badge variant={eligible ? "default" : "outline"}>{eligible ? "Launch Pending" : `${selected.stage}: locked`}</Badge>}
       </div>
       <form onSubmit={submit} className="mt-4 grid gap-3 lg:grid-cols-5">
         <div className="lg:col-span-2">
@@ -567,9 +572,10 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
           <Input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1.5" />
         </div>
         <div className="lg:col-span-5">
-          <Button type="submit" disabled={loading || !selected} className="bg-gradient-brand text-brand-foreground">
+          <Button type="submit" disabled={loading || !selected || !eligible} className="bg-gradient-brand text-brand-foreground">
             {loading ? "Creating..." : "Create linked account"}
           </Button>
+          {!eligible && selected && <p className="mt-2 text-xs text-muted-foreground">Institution login unlocks only when the institution reaches Launch Pending.</p>}
         </div>
       </form>
     </Card>
@@ -579,6 +585,7 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
 function InstitutionLoginDialog({ institution }: { institution: Institution }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const eligible = institution.stage === "Launch Pending";
   const [form, setForm] = useState({
     name: `${institution.name} Admin`,
     email: institution.email || "",
@@ -586,6 +593,10 @@ function InstitutionLoginDialog({ institution }: { institution: Institution }) {
   });
 
   const submit = async () => {
+    if (!eligible) {
+      toast.error("Credential generation is only available at Launch Pending stage.");
+      return;
+    }
     if (!form.name || !form.email || form.password.length < 8) {
       toast.error("Name, email, and an 8+ character password are required.");
       return;
@@ -611,7 +622,7 @@ function InstitutionLoginDialog({ institution }: { institution: Institution }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm" variant="outline">Create</Button></DialogTrigger>
+      <DialogTrigger asChild><Button size="sm" variant="outline" disabled={!eligible}>{eligible ? "Create" : "Locked"}</Button></DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Create institution login</DialogTitle></DialogHeader>
         <div className="grid gap-3">
@@ -631,7 +642,8 @@ function InstitutionLoginDialog({ institution }: { institution: Institution }) {
             <Label>Password</Label>
             <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
-          <Button disabled={loading} onClick={submit} className="bg-gradient-brand text-brand-foreground">
+          {!eligible && <p className="text-xs text-muted-foreground">Institution login unlocks only at Launch Pending.</p>}
+          <Button disabled={loading || !eligible} onClick={submit} className="bg-gradient-brand text-brand-foreground">
             {loading ? "Creating..." : "Create login"}
           </Button>
         </div>

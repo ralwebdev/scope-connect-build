@@ -45,6 +45,12 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UHandleRouteImport } from './routes/u.$handle'
 import { Route as ScopeSuperAdminRbacAuditRouteImport } from './routes/scope-super-admin.rbac-audit'
+import { Route as ScopeAdminVisitsRouteImport } from './routes/scope-admin.visits'
+import { Route as ScopeAdminReportsRouteImport } from './routes/scope-admin.reports'
+import { Route as ScopeAdminMouPipelineRouteImport } from './routes/scope-admin.mou-pipeline'
+import { Route as ScopeAdminInstitutionsRouteImport } from './routes/scope-admin.institutions'
+import { Route as ScopeAdminDashboardRouteImport } from './routes/scope-admin.dashboard'
+import { Route as InstitutionReportsRouteImport } from './routes/institution.reports'
 import { Route as InstitutionAdminMembersRouteImport } from './routes/institution-admin.members'
 import { Route as InstitutionAdminCommunicationsRouteImport } from './routes/institution-admin.communications'
 import { Route as InstitutionAdminAnalyticsRouteImport } from './routes/institution-admin.analytics'
@@ -234,6 +240,36 @@ const ScopeSuperAdminRbacAuditRoute =
     path: '/rbac-audit',
     getParentRoute: () => ScopeSuperAdminRoute,
   } as any)
+const ScopeAdminVisitsRoute = ScopeAdminVisitsRouteImport.update({
+  id: '/visits',
+  path: '/visits',
+  getParentRoute: () => ScopeAdminRoute,
+} as any)
+const ScopeAdminReportsRoute = ScopeAdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => ScopeAdminRoute,
+} as any)
+const ScopeAdminMouPipelineRoute = ScopeAdminMouPipelineRouteImport.update({
+  id: '/mou-pipeline',
+  path: '/mou-pipeline',
+  getParentRoute: () => ScopeAdminRoute,
+} as any)
+const ScopeAdminInstitutionsRoute = ScopeAdminInstitutionsRouteImport.update({
+  id: '/institutions',
+  path: '/institutions',
+  getParentRoute: () => ScopeAdminRoute,
+} as any)
+const ScopeAdminDashboardRoute = ScopeAdminDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => ScopeAdminRoute,
+} as any)
+const InstitutionReportsRoute = InstitutionReportsRouteImport.update({
+  id: '/institution/reports',
+  path: '/institution/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstitutionAdminMembersRoute = InstitutionAdminMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -299,7 +335,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRoute
   '/refer': typeof ReferRoute
-  '/scope-admin': typeof ScopeAdminRoute
+  '/scope-admin': typeof ScopeAdminRouteWithChildren
   '/scope-super-admin': typeof ScopeSuperAdminRouteWithChildren
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
@@ -313,6 +349,12 @@ export interface FileRoutesByFullPath {
   '/institution-admin/analytics': typeof InstitutionAdminAnalyticsRoute
   '/institution-admin/communications': typeof InstitutionAdminCommunicationsRoute
   '/institution-admin/members': typeof InstitutionAdminMembersRoute
+  '/institution/reports': typeof InstitutionReportsRoute
+  '/scope-admin/dashboard': typeof ScopeAdminDashboardRoute
+  '/scope-admin/institutions': typeof ScopeAdminInstitutionsRoute
+  '/scope-admin/mou-pipeline': typeof ScopeAdminMouPipelineRoute
+  '/scope-admin/reports': typeof ScopeAdminReportsRoute
+  '/scope-admin/visits': typeof ScopeAdminVisitsRoute
   '/scope-super-admin/rbac-audit': typeof ScopeSuperAdminRbacAuditRoute
   '/u/$handle': typeof UHandleRoute
   '/admin/campuses/new': typeof AdminCampusesNewRoute
@@ -344,7 +386,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRoute
   '/refer': typeof ReferRoute
-  '/scope-admin': typeof ScopeAdminRoute
+  '/scope-admin': typeof ScopeAdminRouteWithChildren
   '/scope-super-admin': typeof ScopeSuperAdminRouteWithChildren
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
@@ -358,6 +400,12 @@ export interface FileRoutesByTo {
   '/institution-admin/analytics': typeof InstitutionAdminAnalyticsRoute
   '/institution-admin/communications': typeof InstitutionAdminCommunicationsRoute
   '/institution-admin/members': typeof InstitutionAdminMembersRoute
+  '/institution/reports': typeof InstitutionReportsRoute
+  '/scope-admin/dashboard': typeof ScopeAdminDashboardRoute
+  '/scope-admin/institutions': typeof ScopeAdminInstitutionsRoute
+  '/scope-admin/mou-pipeline': typeof ScopeAdminMouPipelineRoute
+  '/scope-admin/reports': typeof ScopeAdminReportsRoute
+  '/scope-admin/visits': typeof ScopeAdminVisitsRoute
   '/scope-super-admin/rbac-audit': typeof ScopeSuperAdminRbacAuditRoute
   '/u/$handle': typeof UHandleRoute
   '/admin/campuses/new': typeof AdminCampusesNewRoute
@@ -390,7 +438,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRoute
   '/refer': typeof ReferRoute
-  '/scope-admin': typeof ScopeAdminRoute
+  '/scope-admin': typeof ScopeAdminRouteWithChildren
   '/scope-super-admin': typeof ScopeSuperAdminRouteWithChildren
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
@@ -404,6 +452,12 @@ export interface FileRoutesById {
   '/institution-admin/analytics': typeof InstitutionAdminAnalyticsRoute
   '/institution-admin/communications': typeof InstitutionAdminCommunicationsRoute
   '/institution-admin/members': typeof InstitutionAdminMembersRoute
+  '/institution/reports': typeof InstitutionReportsRoute
+  '/scope-admin/dashboard': typeof ScopeAdminDashboardRoute
+  '/scope-admin/institutions': typeof ScopeAdminInstitutionsRoute
+  '/scope-admin/mou-pipeline': typeof ScopeAdminMouPipelineRoute
+  '/scope-admin/reports': typeof ScopeAdminReportsRoute
+  '/scope-admin/visits': typeof ScopeAdminVisitsRoute
   '/scope-super-admin/rbac-audit': typeof ScopeSuperAdminRbacAuditRoute
   '/u/$handle': typeof UHandleRoute
   '/admin/campuses/new': typeof AdminCampusesNewRoute
@@ -451,6 +505,12 @@ export interface FileRouteTypes {
     | '/institution-admin/analytics'
     | '/institution-admin/communications'
     | '/institution-admin/members'
+    | '/institution/reports'
+    | '/scope-admin/dashboard'
+    | '/scope-admin/institutions'
+    | '/scope-admin/mou-pipeline'
+    | '/scope-admin/reports'
+    | '/scope-admin/visits'
     | '/scope-super-admin/rbac-audit'
     | '/u/$handle'
     | '/admin/campuses/new'
@@ -496,6 +556,12 @@ export interface FileRouteTypes {
     | '/institution-admin/analytics'
     | '/institution-admin/communications'
     | '/institution-admin/members'
+    | '/institution/reports'
+    | '/scope-admin/dashboard'
+    | '/scope-admin/institutions'
+    | '/scope-admin/mou-pipeline'
+    | '/scope-admin/reports'
+    | '/scope-admin/visits'
     | '/scope-super-admin/rbac-audit'
     | '/u/$handle'
     | '/admin/campuses/new'
@@ -541,6 +607,12 @@ export interface FileRouteTypes {
     | '/institution-admin/analytics'
     | '/institution-admin/communications'
     | '/institution-admin/members'
+    | '/institution/reports'
+    | '/scope-admin/dashboard'
+    | '/scope-admin/institutions'
+    | '/scope-admin/mou-pipeline'
+    | '/scope-admin/reports'
+    | '/scope-admin/visits'
     | '/scope-super-admin/rbac-audit'
     | '/u/$handle'
     | '/admin/campuses/new'
@@ -573,7 +645,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRoute
   ReferRoute: typeof ReferRoute
-  ScopeAdminRoute: typeof ScopeAdminRoute
+  ScopeAdminRoute: typeof ScopeAdminRouteWithChildren
   ScopeSuperAdminRoute: typeof ScopeSuperAdminRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
@@ -583,6 +655,7 @@ export interface RootRouteChildren {
   WaitlistRoute: typeof WaitlistRoute
   DevBuildDiagnosticsRoute: typeof DevBuildDiagnosticsRoute
   FormsFormSlugRoute: typeof FormsFormSlugRoute
+  InstitutionReportsRoute: typeof InstitutionReportsRoute
   UHandleRoute: typeof UHandleRoute
 }
 
@@ -840,6 +913,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScopeSuperAdminRbacAuditRouteImport
       parentRoute: typeof ScopeSuperAdminRoute
     }
+    '/scope-admin/visits': {
+      id: '/scope-admin/visits'
+      path: '/visits'
+      fullPath: '/scope-admin/visits'
+      preLoaderRoute: typeof ScopeAdminVisitsRouteImport
+      parentRoute: typeof ScopeAdminRoute
+    }
+    '/scope-admin/reports': {
+      id: '/scope-admin/reports'
+      path: '/reports'
+      fullPath: '/scope-admin/reports'
+      preLoaderRoute: typeof ScopeAdminReportsRouteImport
+      parentRoute: typeof ScopeAdminRoute
+    }
+    '/scope-admin/mou-pipeline': {
+      id: '/scope-admin/mou-pipeline'
+      path: '/mou-pipeline'
+      fullPath: '/scope-admin/mou-pipeline'
+      preLoaderRoute: typeof ScopeAdminMouPipelineRouteImport
+      parentRoute: typeof ScopeAdminRoute
+    }
+    '/scope-admin/institutions': {
+      id: '/scope-admin/institutions'
+      path: '/institutions'
+      fullPath: '/scope-admin/institutions'
+      preLoaderRoute: typeof ScopeAdminInstitutionsRouteImport
+      parentRoute: typeof ScopeAdminRoute
+    }
+    '/scope-admin/dashboard': {
+      id: '/scope-admin/dashboard'
+      path: '/dashboard'
+      fullPath: '/scope-admin/dashboard'
+      preLoaderRoute: typeof ScopeAdminDashboardRouteImport
+      parentRoute: typeof ScopeAdminRoute
+    }
+    '/institution/reports': {
+      id: '/institution/reports'
+      path: '/institution/reports'
+      fullPath: '/institution/reports'
+      preLoaderRoute: typeof InstitutionReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/institution-admin/members': {
       id: '/institution-admin/members'
       path: '/members'
@@ -919,6 +1034,26 @@ const InstitutionAdminRouteChildren: InstitutionAdminRouteChildren = {
 const InstitutionAdminRouteWithChildren =
   InstitutionAdminRoute._addFileChildren(InstitutionAdminRouteChildren)
 
+interface ScopeAdminRouteChildren {
+  ScopeAdminDashboardRoute: typeof ScopeAdminDashboardRoute
+  ScopeAdminInstitutionsRoute: typeof ScopeAdminInstitutionsRoute
+  ScopeAdminMouPipelineRoute: typeof ScopeAdminMouPipelineRoute
+  ScopeAdminReportsRoute: typeof ScopeAdminReportsRoute
+  ScopeAdminVisitsRoute: typeof ScopeAdminVisitsRoute
+}
+
+const ScopeAdminRouteChildren: ScopeAdminRouteChildren = {
+  ScopeAdminDashboardRoute: ScopeAdminDashboardRoute,
+  ScopeAdminInstitutionsRoute: ScopeAdminInstitutionsRoute,
+  ScopeAdminMouPipelineRoute: ScopeAdminMouPipelineRoute,
+  ScopeAdminReportsRoute: ScopeAdminReportsRoute,
+  ScopeAdminVisitsRoute: ScopeAdminVisitsRoute,
+}
+
+const ScopeAdminRouteWithChildren = ScopeAdminRoute._addFileChildren(
+  ScopeAdminRouteChildren,
+)
+
 interface ScopeSuperAdminRouteChildren {
   ScopeSuperAdminRbacAuditRoute: typeof ScopeSuperAdminRbacAuditRoute
 }
@@ -958,7 +1093,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRoute,
   ReferRoute: ReferRoute,
-  ScopeAdminRoute: ScopeAdminRoute,
+  ScopeAdminRoute: ScopeAdminRouteWithChildren,
   ScopeSuperAdminRoute: ScopeSuperAdminRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
@@ -968,6 +1103,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaitlistRoute: WaitlistRoute,
   DevBuildDiagnosticsRoute: DevBuildDiagnosticsRoute,
   FormsFormSlugRoute: FormsFormSlugRoute,
+  InstitutionReportsRoute: InstitutionReportsRoute,
   UHandleRoute: UHandleRoute,
 }
 export const routeTree = rootRouteImport

@@ -50,7 +50,7 @@ const INSTITUTION: RoleNavConfig = {
     HOME("/institution-admin"),
     { key: "students", label: "Students", icon: Users, to: "/institution-admin/members" },
     { key: "projects", label: "Projects", icon: Briefcase, to: "/projects" },
-    { key: "reports", label: "Reports", icon: FileBarChart, to: "/institution-admin/analytics" },
+    { key: "reports", label: "Reports", icon: FileBarChart, to: "/institution/reports" },
     PROFILE,
   ],
   secondary: [SETTINGS, NOTIF, HELP, LOGOUT],
@@ -80,14 +80,14 @@ const CAMPUS_LEADER: RoleNavConfig = {
 
 const SCOPE_ADMIN: RoleNavConfig = {
   primary: [
-    HOME("/scope-admin"),
-    { key: "institutions", label: "Institutions", icon: Building2, to: "/scope-admin" },
-    { key: "mou", label: "MoU Pipeline", icon: Handshake, to: "/scope-admin" },
-    { key: "visits", label: "Visits", icon: MapPin, to: "/scope-admin" },
+    HOME("/scope-admin/dashboard"),
+    { key: "institutions", label: "Institutions", icon: Building2, to: "/scope-admin/institutions" },
+    { key: "mou", label: "MoU Pipeline", icon: Handshake, to: "/scope-admin/mou-pipeline" },
+    { key: "visits", label: "Visits", icon: MapPin, to: "/scope-admin/visits" },
     PROFILE,
   ],
   secondary: [
-    { key: "reports", label: "Reports", icon: FileBarChart, to: "/scope-admin" },
+    { key: "reports", label: "Reports", icon: FileBarChart, to: "/scope-admin/reports" },
     NOTIF, HELP, LOGOUT,
   ],
 };

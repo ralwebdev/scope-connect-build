@@ -221,23 +221,23 @@ function ProfilePage() {
           {role === "scope_admin" && <>
             <TabsContent value="territories" className="mt-6">
               <RoleLinkGrid items={[
-                { title: "Assigned territories", desc: "Cities, regions, institutions", to: "/scope-admin", icon: MapPin },
+                { title: "Assigned territories", desc: "Cities, regions, institutions", to: "/scope-admin/institutions", icon: MapPin },
               ]} accent={roleTheme.glow} />
             </TabsContent>
             <TabsContent value="mou" className="mt-6">
               <RoleLinkGrid items={[
-                { title: "MoU pipeline", desc: "Leads, in-discussion, signed", to: "/scope-admin", icon: Handshake },
+                { title: "MoU pipeline", desc: "Leads, in-discussion, signed", to: "/scope-admin/mou-pipeline", icon: Handshake },
               ]} accent={roleTheme.glow} />
             </TabsContent>
             <TabsContent value="visits" className="mt-6">
               <RoleLinkGrid items={[
-                { title: "Institution visits", desc: "Visit logs & meeting notes", to: "/scope-admin", icon: Calendar },
+                { title: "Institution visits", desc: "Visit logs & meeting notes", to: "/scope-admin/visits", icon: Calendar },
               ]} accent={roleTheme.glow} />
             </TabsContent>
             <TabsContent value="performance" className="mt-6">
               <RoleLinkGrid items={[
-                { title: "Targets & conversions", desc: "Active pipelines", to: "/scope-admin", icon: BarChart3 },
-                { title: "Reports", desc: "Weekly territory performance", to: "/scope-admin", icon: FileBarChart },
+                { title: "Targets & conversions", desc: "Active pipelines", to: "/scope-admin/dashboard", icon: BarChart3 },
+                { title: "Reports", desc: "Weekly territory performance", to: "/scope-admin/reports", icon: FileBarChart },
               ]} accent={roleTheme.glow} />
             </TabsContent>
           </>}

@@ -103,7 +103,7 @@ const CAMPUS_LEADER_BLUEPRINT: SidebarBlueprint = {
       id: "intel",
       label: "Intel",
       items: [
-        { to: "/institution-admin/analytics", label: "Reports", permission: "view_institution_analytics", icon: FileText },
+        { to: "/institution/reports", label: "Reports", permission: "view_institution_analytics", icon: FileText },
         { to: "/leaderboards", label: "Leaderboard", permission: "view_dashboard", icon: Trophy },
       ],
     },
@@ -130,7 +130,7 @@ const FACULTY_BLUEPRINT: SidebarBlueprint = {
       label: "Academics",
       items: [
         { to: "/projects", label: "Projects", permission: "view_projects", icon: FolderKanban },
-        { to: "/institution-admin/analytics", label: "Reports", permission: "view_institution_analytics", icon: FileText },
+        { to: "/institution/reports", label: "Reports", permission: "view_institution_analytics", icon: FileText },
         { to: "/institution-admin/communications", label: "Messages", permission: "manage_content", icon: MessageSquare },
       ],
     },
@@ -159,6 +159,7 @@ const INSTITUTIONAL_ADMIN_BLUEPRINT: SidebarBlueprint = {
       items: [
         { to: "/projects", label: "Projects", permission: "view_projects", icon: FolderKanban },
         { to: "/institution-admin/analytics", label: "Analytics", permission: "view_institution_analytics", icon: BarChart3 },
+        { to: "/institution/reports", label: "Reports", permission: "view_institution_analytics", icon: FileText },
         { to: "/institution-admin", label: "Branding", permission: "edit_brand", icon: Sparkles },
       ],
     },
@@ -183,27 +184,27 @@ const SCOPE_ADMIN_BLUEPRINT: SidebarBlueprint = {
       id: "crm",
       label: "CRM",
       items: [
-        { to: "/scope-admin", label: "CRM Dashboard", permission: "manage_partnerships", icon: LayoutDashboard },
-        { to: "/scope-admin", label: "Leads", permission: "manage_partnerships", icon: Target },
-        { to: "/scope-admin", label: "Institutions", permission: "manage_institution", icon: Building2 },
-        { to: "/scope-admin", label: "Pipeline", permission: "manage_partnerships", icon: TrendingUp },
+        { to: "/scope-admin/dashboard", label: "CRM Dashboard", permission: "manage_partnerships", icon: LayoutDashboard },
+        { to: "/scope-admin/institutions", label: "Leads", permission: "manage_partnerships", icon: Target },
+        { to: "/scope-admin/institutions", label: "Institutions", permission: "manage_institution", icon: Building2 },
+        { to: "/scope-admin/mou-pipeline", label: "Pipeline", permission: "manage_partnerships", icon: TrendingUp },
       ],
     },
     {
       id: "field",
       label: "Field Ops",
       items: [
-        { to: "/scope-admin", label: "Meetings", permission: "manage_partnerships", icon: Calendar },
-        { to: "/scope-admin", label: "MoUs", permission: "manage_partnerships", icon: Handshake },
-        { to: "/scope-admin", label: "Tasks", permission: "manage_partnerships", icon: ClipboardList },
-        { to: "/scope-admin", label: "Documents", permission: "export_data", icon: FileText },
+        { to: "/scope-admin/visits", label: "Meetings", permission: "manage_partnerships", icon: Calendar },
+        { to: "/scope-admin/mou-pipeline", label: "MoUs", permission: "manage_partnerships", icon: Handshake },
+        { to: "/scope-admin/dashboard", label: "Tasks", permission: "manage_partnerships", icon: ClipboardList },
+        { to: "/scope-admin/reports", label: "Documents", permission: "export_data", icon: FileText },
       ],
     },
     {
       id: "intel",
       label: "Intel",
       items: [
-        { to: "/institution-admin/analytics", label: "Analytics", permission: "view_institution_analytics", icon: BarChart3 },
+        { to: "/scope-admin/reports", label: "Analytics", permission: "view_institution_analytics", icon: BarChart3 },
       ],
     },
   ],
