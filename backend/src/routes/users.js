@@ -19,6 +19,7 @@ export const adminUsersRouter = express.Router();
 const url = z.string().url().regex(/^https?:\/\//).nullable().optional();
 
 const patchUserSchema = z.object({
+  email: z.string().email().optional(),
   name: z.string().min(1).max(120).optional(),
   handle: z.string().min(2).max(80).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   headline: z.string().max(180).optional(),
@@ -30,6 +31,10 @@ const patchUserSchema = z.object({
   graduation_year: z.number().int().min(1950).max(2100).optional(),
   primary_domain: z.string().max(80).optional(),
   specialization: z.string().max(120).optional(),
+  skills: z.array(z.string().max(80)).max(30).optional(),
+  interests: z.array(z.string().max(80)).max(30).optional(),
+  availability: z.enum(["Open to collab", "Building solo", "Hiring teammates", "Looking for internship"]).optional(),
+  avatar_color: z.string().max(40).optional(),
   links: z.object({
     website: url,
     github_url: url,
@@ -109,6 +114,11 @@ usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, re
   if (req.user.id !== req.params.id && req.user.role !== "super_admin") throw forbidden();
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
+  if (req.body.email) {
+    const duplicate = await User.findOne({ email: req.body.email.toLowerCase(), _id: { $ne: user._id } });
+    if (duplicate) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
+    user.email = req.body.email;
+  }
   if (req.body.name) user.name = req.body.name;
   await user.save();
 
@@ -118,6 +128,10 @@ usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, re
       ...(req.body.handle !== undefined && { handle: req.body.handle }),
       ...(req.body.headline !== undefined && { headline: req.body.headline }),
       ...(req.body.bio !== undefined && { bio: req.body.bio }),
+      ...(req.body.skills !== undefined && { skills: req.body.skills }),
+      ...(req.body.interests !== undefined && { interests: req.body.interests }),
+      ...(req.body.availability !== undefined && { availability: req.body.availability }),
+      ...(req.body.avatar_color !== undefined && { avatarColor: req.body.avatar_color }),
       ...(req.body.avatar_url !== undefined && { avatarUrl: req.body.avatar_url }),
       ...(req.body.cover_url !== undefined && { coverUrl: req.body.cover_url }),
       ...(req.body.location !== undefined && { location: req.body.location }),

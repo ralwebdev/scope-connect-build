@@ -1,6 +1,9 @@
-// Scope Connect — frontend-only analytics + soft-launch validation engine.
-// Aggregate counters in localStorage. No PII, no remote sends.
+// Scope Connect — analytics + soft-launch validation engine.
+// Aggregates counters in localStorage for instant UI, and mirrors events to
+// the backend when the user is authenticated.
 // Surfaced in /admin and /ops (Soft Launch tab).
+
+import { backendAnalytics } from "./api/endpoints";
 
 export type AnalyticsEvent =
   | "signup_completed"
@@ -159,6 +162,9 @@ export const analytics = {
       s.rageClicks += 1;
     }
     write(s);
+    backendAnalytics.track([{ event, occurred_at: new Date().toISOString(), props: meta ?? {} }]).catch(() => {
+      /* unauthenticated analytics stay local */
+    });
   },
 
   init() {

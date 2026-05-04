@@ -4,8 +4,6 @@ import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { auth, seedInterests } from "@/lib/scope-store";
 import { useIsLoggedIn } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
@@ -44,7 +42,8 @@ function AuthPage() {
   useEffect(() => {
     if (isAuthed) {
       const u = auth.getUser();
-      navigate({ to: landingRouteForRole(roleFromEmail(u?.email)) });
+      const role = (u?.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(u?.email);
+      navigate({ to: landingRouteForRole(role) });
     }
   }, [isAuthed, navigate]);
 
@@ -67,8 +66,8 @@ function AuthPage() {
       toast.error("Please enter a valid email.");
       return;
     }
-    if (password.length < 4) {
-      toast.error("Password should be at least 4 characters.");
+    if (password.length < 8) {
+      toast.error("Password should be at least 8 characters.");
       return;
     }
     setLoading(true);
@@ -78,18 +77,26 @@ function AuthPage() {
     await new Promise((r) => setTimeout(r, 1300));
     clearTimeout(t1); clearTimeout(t2);
 
-    if (mode === "signup") {
-      auth.signup({ name: name || email.split("@")[0], email, campus, interests: selectedInterests });
-      analytics.track("signup_completed");
-      toast.success("Welcome to Scope Connect. You're in.");
-    } else {
-      auth.login(email);
-      analytics.track("login_success");
-      const role = roleFromEmail(email);
-      toast.success(`Welcome back, ${ROLE_LABELS[role]}.`);
+    try {
+      let signedInUser;
+      if (mode === "signup") {
+        signedInUser = await auth.signup({ name: name || email.split("@")[0], email, campus, interests: selectedInterests, password });
+        auth.updateProfile({ campus, interests: selectedInterests });
+        analytics.track("signup_completed");
+        toast.success("Welcome to Scope Connect. You're in.");
+      } else {
+        signedInUser = await auth.login(email, password);
+        analytics.track("login_success");
+        const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
+        toast.success(`Welcome back, ${ROLE_LABELS[role]}.`);
+      }
+      const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
+      navigate({ to: landingRouteForRole(role), replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Authentication failed.");
+    } finally {
+      setLoading(false);
     }
-    const role = roleFromEmail(email);
-    navigate({ to: landingRouteForRole(role), replace: true });
   };
 
   return (
@@ -260,41 +267,6 @@ function AuthPage() {
             </p>
           </form>
 
-          <Card className="mt-6 border-dashed bg-secondary/40 p-4">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-cyan/15 text-cyan-foreground">Demo</Badge>
-              <p className="text-xs text-muted-foreground">One-click login as any role — no password needed.</p>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {([
-                { label: "Super Admin", email: "founder@scope.in" },
-                { label: "Scope Admin", email: "kolkata.scope-admin@scope.in" },
-                { label: "Institution Admin", email: "abc.institution-admin@scope.in" },
-                { label: "Campus Leader", email: "leader@iitb.edu" },
-                { label: "Faculty", email: "faculty@iitb.edu" },
-                { label: "Student", email: "aarav@iitb.edu" },
-              ] as const).map((d) => (
-                <Button
-                  key={d.email}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={() => {
-                    auth.login(d.email);
-                    analytics.track("login_success");
-                    const role = roleFromEmail(d.email);
-                    toast.success(`Signed in as ${ROLE_LABELS[role]}`);
-                    navigate({ to: landingRouteForRole(role), replace: true });
-                  }}
-                  className="justify-start text-xs"
-                >
-                  <Sparkles className="mr-1.5 h-3 w-3 text-brand" />
-                  {d.label}
-                </Button>
-              ))}
-            </div>
-          </Card>
         </div>
       </div>
     </div>
