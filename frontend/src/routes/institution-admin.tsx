@@ -2,7 +2,7 @@
 // Demo mapping: each user email is bound to one institution_id via a localStorage
 // helper. Falls back to a seeded default for demo users.
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState,useEffect } from "react";
 import { Building2, Users, BarChart3, Megaphone, CheckCircle2, XCircle, TrendingUp, Award, Calendar, FolderKanban, Send, ImageIcon, Sparkles, ChevronRight, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -61,10 +61,27 @@ function useMyInstitution() {
   }, [user, data.institutions]);
 }
 
+function useAccessibleInstitutions() {
+  const role = useRole();
+  const data = useStoreValue(() => crm.all());
+  const mapped = useMyInstitution();
+  return useMemo(() => {
+    if (role === "scope_super_admin" || role === "super_admin") return data.institutions;
+    return mapped ? [mapped] : [];
+  }, [role, data.institutions, mapped]);
+}
+
 function InstitutionAdminPortal() {
   const role = useRole();
   const allowed = role === "institutional_admin" || role === "scope_super_admin" || role === "super_admin" || role === "scope_admin";
-  const inst = useMyInstitution();
+  const institutions = useAccessibleInstitutions();
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
+  useEffect(() => {
+    if (!institutions.length) return;
+    if (selectedInstitutionId && institutions.some((i) => i.id === selectedInstitutionId)) return;
+    setSelectedInstitutionId(institutions[0].id);
+  }, [institutions, selectedInstitutionId]);
+  const inst = institutions.find((i) => i.id === selectedInstitutionId) ?? institutions[0] ?? null;
 
   if (!allowed) {
     return (
@@ -94,7 +111,14 @@ function InstitutionAdminPortal() {
   return (
     <AppShell>
       <RbacSidebar title="Institution Hub">
-        <InstitutionRouteSwitcher institutionId={inst.id} institutionName={inst.name} />
+        <InstitutionRouteSwitcher
+          institutionId={inst.id}
+          institutionName={inst.name}
+          institutions={institutions}
+          canSwitchInstitution={role === "scope_super_admin" || role === "super_admin"}
+          selectedInstitutionId={inst.id}
+          onSelectInstitution={setSelectedInstitutionId}
+        />
       </RbacSidebar>
     </AppShell>
   );
@@ -102,7 +126,21 @@ function InstitutionAdminPortal() {
 
 /* The institution-admin layout uses a single component that switches body by
  * pathname so we don't have to maintain a child route tree just for tabs. */
-function InstitutionRouteSwitcher({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
+function InstitutionRouteSwitcher({
+  institutionId,
+  institutionName,
+  institutions,
+  canSwitchInstitution,
+  selectedInstitutionId,
+  onSelectInstitution,
+}: {
+  institutionId: string;
+  institutionName: string;
+  institutions: Institution[];
+  canSwitchInstitution: boolean;
+  selectedInstitutionId: string;
+  onSelectInstitution: (institutionId: string) => void;
+}) {
   const loc = useLocation();
   const tab = loc.pathname.includes("/members") ? "members"
     : loc.pathname.includes("/analytics") ? "analytics"
@@ -114,8 +152,25 @@ function InstitutionRouteSwitcher({ institutionId, institutionName }: { institut
         <div>
           <Badge variant="outline" className="mb-2"><Building2 className="mr-1 h-3 w-3" /> Institutional Admin</Badge>
           <h1 className="text-3xl font-bold tracking-tight">{institutionName}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Mapped scope: this institution only.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {canSwitchInstitution ? "Super admin scope: switch between institutions." : "Mapped scope: this institution only."}
+          </p>
         </div>
+        {canSwitchInstitution && (
+          <div className="w-full sm:w-80">
+            <Label htmlFor="institution-switcher">Institution</Label>
+            <select
+              id="institution-switcher"
+              value={selectedInstitutionId}
+              onChange={(e) => onSelectInstitution(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {institutions.map((institution) => (
+                <option key={institution.id} value={institution.id}>{institution.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </header>
 
       <nav className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3">
