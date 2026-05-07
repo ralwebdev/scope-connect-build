@@ -35,7 +35,15 @@ function serializePost(post, meId) {
 }
 
 feedRouter.get("/", asyncHandler(async (req, res) => {
-  const posts = await FeedPost.find({}).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 100), 200));
+  const filter = {};
+  if (req.query.scope === "campus") {
+    if (req.user.institution) {
+      filter.user = { $in: (await User.find({ institution: req.user.institution }).select("_id")).map((u) => u._id) };
+    } else {
+      filter.user = null;
+    }
+  }
+  const posts = await FeedPost.find(filter).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 100), 200));
   sendSuccess(res, { items: posts.map((post) => serializePost(post, req.user.id)), next_cursor: null, has_more: false });
 }));
 

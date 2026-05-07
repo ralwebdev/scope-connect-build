@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { CrmVisit, Institution, LaunchChecklist, User } from "../models/index.js";
+import { CrmVisit, Institution, LaunchChecklist, Project, User } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -54,6 +54,44 @@ institutionsRouter.get("/public", asyncHandler(async (_req, res) => {
 }));
 
 institutionsRouter.use(authMiddleware);
+
+institutionsRouter.get("/me/campus-summary", asyncHandler(async (req, res) => {
+  if (!req.user.institution) {
+    sendSuccess(res, {
+      campus_name: null,
+      city: null,
+      active_members: 0,
+      leaders: 0,
+      projects_shipped: 0,
+      weekly_growth_pct: 0,
+    });
+    return;
+  }
+
+  const institution = await Institution.findById(req.user.institution);
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+  const fourteenDaysAgo = new Date(now.getTime() - (14 * 24 * 60 * 60 * 1000));
+
+  const [activeMembers, leaders, projectsShipped, newThisWeek, newPrevWeek] = await Promise.all([
+    User.countDocuments({ institution: req.user.institution, studentStatus: "active", disabledAt: null }),
+    User.countDocuments({ institution: req.user.institution, roleVariant: { $in: ["campus_leader", "faculty_coordinator", "institutional_admin"] }, disabledAt: null }),
+    Project.countDocuments({ institution: req.user.institution, status: { $in: ["completed", "in_progress", "in_review"] } }),
+    User.countDocuments({ institution: req.user.institution, createdAt: { $gte: sevenDaysAgo } }),
+    User.countDocuments({ institution: req.user.institution, createdAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo } }),
+  ]);
+
+  const weeklyGrowthPct = newPrevWeek > 0 ? Math.round(((newThisWeek - newPrevWeek) / newPrevWeek) * 100) : (newThisWeek > 0 ? 100 : 0);
+
+  sendSuccess(res, {
+    campus_name: institution?.name || null,
+    city: institution?.city || null,
+    active_members: activeMembers,
+    leaders,
+    projects_shipped: projectsShipped,
+    weekly_growth_pct: weeklyGrowthPct,
+  });
+}));
 
 const visitSchema = z.object({
   institution_id: z.string().min(1),

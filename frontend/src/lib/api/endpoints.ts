@@ -84,6 +84,16 @@ export const backendInstitutions = {
   publicList() {
     return api<{ items: BackendInstitution[]; next_cursor: string | null; has_more: boolean }>("/api/institutions/public");
   },
+  campusSummary() {
+    return api<{
+      campus_name: string | null;
+      city: string | null;
+      active_members: number;
+      leaders: number;
+      projects_shipped: number;
+      weekly_growth_pct: number;
+    }>("/api/institutions/me/campus-summary");
+  },
 };
 
 export const backendAdminUsers = {
@@ -232,6 +242,9 @@ export type BackendFeedPost = {
 export const backendFeed = {
   list(limit = 100) {
     return api<{ items: BackendFeedPost[]; next_cursor: string | null; has_more: boolean }>(`/api/feed?limit=${limit}`);
+  },
+  listCampus(limit = 100) {
+    return api<{ items: BackendFeedPost[]; next_cursor: string | null; has_more: boolean }>(`/api/feed?scope=campus&limit=${limit}`);
   },
   create(content: string, type = "Update") {
     return api<{ post: BackendFeedPost }>("/api/feed", { method: "POST", body: JSON.stringify({ content, type }) });

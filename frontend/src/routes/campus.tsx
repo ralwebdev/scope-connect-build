@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/site/AppShell";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
-import { campusPartners, feedPosts } from "@/lib/mock-data";
+import { campusPartners } from "@/lib/mock-data";
 import { chapter, events } from "@/lib/scope-store";
 import { toast } from "sonner";
-import { backendUsers } from "@/lib/api/endpoints";
+import { backendFeed, backendInstitutions, backendUsers, type BackendFeedPost } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/campus")({
   head: () => ({
@@ -29,6 +29,8 @@ function CampusHub() {
   const myCampus = user?.campus ?? campusPartners[0].name;
   const campusInfo = campusPartners.find((c) => c.name === myCampus) ?? campusPartners[0];
   const [topBuilders, setTopBuilders] = useState<Array<{ name: string; level: string; points: number }>>([]);
+  const [campusFeed, setCampusFeed] = useState<BackendFeedPost[]>([]);
+  const [summary, setSummary] = useState<{ campus_name: string | null; city: string | null; active_members: number; leaders: number; projects_shipped: number; weekly_growth_pct: number } | null>(null);
 
   useEffect(() => {
     if (!user?.institution?.id) return;
@@ -52,6 +54,32 @@ function CampusHub() {
     return () => { cancelled = true; };
   }, [user?.institution?.id]);
 
+  useEffect(() => {
+    if (!user?.institution?.id) return;
+    let cancelled = false;
+    backendInstitutions.campusSummary()
+      .then((data) => {
+        if (!cancelled) setSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(null);
+      });
+    return () => { cancelled = true; };
+  }, [user?.institution?.id]);
+
+  useEffect(() => {
+    if (!user?.institution?.id) return;
+    let cancelled = false;
+    backendFeed.listCampus(20)
+      .then(({ items }) => {
+        if (!cancelled) setCampusFeed(items);
+      })
+      .catch(() => {
+        if (!cancelled) setCampusFeed([]);
+      });
+    return () => { cancelled = true; };
+  }, [user?.institution?.id]);
+
   const join = () => {
     if (!user) { toast.error("Sign in to join your chapter."); return; }
     chapter.join(myCampus);
@@ -65,9 +93,9 @@ function CampusHub() {
           <Badge className="bg-cyan/15 text-cyan hover:bg-cyan/20">Campus Hub</Badge>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{campusInfo.name}</h1>
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{summary?.campus_name || campusInfo.name}</h1>
               <div className="mt-2 flex items-center gap-4 text-sm text-primary-foreground/70">
-                <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {campusInfo.city}</span>
+                <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {summary?.city || campusInfo.city}</span>
                 <span>·</span>
                 <span>Campus Rank #1 in India</span>
               </div>
@@ -79,10 +107,10 @@ function CampusHub() {
 
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
             {[
-              { l: "Active members", v: campusInfo.members.toLocaleString(), i: Users },
-              { l: "Leaders", v: "18", i: Trophy },
-              { l: "Projects shipped", v: "124", i: Rocket },
-              { l: "Weekly growth", v: "+12%", i: TrendingUp },
+              { l: "Active members", v: (summary?.active_members ?? campusInfo.members).toLocaleString(), i: Users },
+              { l: "Leaders", v: String(summary?.leaders ?? 18), i: Trophy },
+              { l: "Projects shipped", v: String(summary?.projects_shipped ?? 124), i: Rocket },
+              { l: "Weekly growth", v: `${(summary?.weekly_growth_pct ?? 12) >= 0 ? "+" : ""}${summary?.weekly_growth_pct ?? 12}%`, i: TrendingUp },
             ].map(({ l, v, i: Icon }) => (
               <Card key={l} className="border-primary-foreground/10 bg-primary-foreground/5 p-5 text-primary-foreground">
                 <div className="flex items-center justify-between">
@@ -162,7 +190,7 @@ function CampusHub() {
         <div className="mt-10">
           <h3 className="text-2xl font-bold tracking-tight text-foreground">Campus feed</h3>
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            {feedPosts.slice(0, 4).map((p) => (
+            {campusFeed.slice(0, 4).map((p) => (
               <Card key={p.id} className="p-5 hover-lift">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-brand-foreground">
@@ -182,9 +210,13 @@ function CampusHub() {
                 </div>
               </Card>
             ))}
+            {campusFeed.length === 0 && (
+              <Card className="p-5 text-sm text-muted-foreground">No campus feed posts yet.</Card>
+            )}
           </div>
         </div>
       </section>
     </AppShell>
   );
 }
+

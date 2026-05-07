@@ -19,6 +19,8 @@ import {
 } from "@/hooks/use-scope";
 import type { RoleId } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/hooks/use-scope";
+import { backendProjects, backendUsers } from "@/lib/api/endpoints";
 
 type Kpi = {
   key: string;
@@ -168,13 +170,46 @@ export function FacultyKpis() {
 }
 
 export function InstitutionKpis() {
+  const user = useUser();
+  const institutionId = user?.institution?.id;
+  const [stats, setStats] = useState({ chapters: 1, users: 0, engagement: 0, projects: 0 });
+
+  useEffect(() => {
+    if (!institutionId) {
+      setStats({ chapters: 1, users: 0, engagement: 0, projects: 0 });
+      return;
+    }
+    let cancelled = false;
+    Promise.all([
+      backendUsers.list({ institutionId }),
+      backendProjects.list(),
+    ])
+      .then(([users, projects]) => {
+        if (cancelled) return;
+        const members = users.items;
+        const activeMembers = members.filter((member) => member.student_status === "active").length;
+        const engagement = members.length > 0 ? Math.round((activeMembers / members.length) * 100) : 0;
+        const institutionProjects = projects.items.filter((project) => project.institution_id === institutionId).length;
+        setStats({
+          chapters: 1,
+          users: members.length,
+          engagement,
+          projects: institutionProjects,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setStats({ chapters: 1, users: 0, engagement: 0, projects: 0 });
+      });
+    return () => { cancelled = true; };
+  }, [institutionId]);
+
   return (
     <MetricsRail
       kpis={[
-        { key: "chapters", icon: MapPin, label: "Chapters", value: "12" },
-        { key: "users", icon: Users, label: "Users", value: "3.4k" },
-        { key: "engagement", icon: Activity, label: "Engagement", value: "62%", progress: 62 },
-        { key: "projects", icon: Building2, label: "Projects", value: "48" },
+        { key: "chapters", icon: MapPin, label: "Chapters", value: String(stats.chapters) },
+        { key: "users", icon: Users, label: "Users", value: stats.users.toLocaleString() },
+        { key: "engagement", icon: Activity, label: "Engagement", value: `${stats.engagement}%`, progress: stats.engagement },
+        { key: "projects", icon: Building2, label: "Projects", value: String(stats.projects) },
       ]}
     />
   );
