@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Users, Trophy, TrendingUp, Rocket, Calendar, MapPin, Check, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/site/AppShell";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
-import { campusPartners, topBuilders, feedPosts } from "@/lib/mock-data";
+import { campusPartners, feedPosts } from "@/lib/mock-data";
 import { chapter, events } from "@/lib/scope-store";
 import { toast } from "sonner";
+import { backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/campus")({
   head: () => ({
@@ -26,6 +28,29 @@ function CampusHub() {
   const rsvps = useStoreValue(() => events.rsvps());
   const myCampus = user?.campus ?? campusPartners[0].name;
   const campusInfo = campusPartners.find((c) => c.name === myCampus) ?? campusPartners[0];
+  const [topBuilders, setTopBuilders] = useState<Array<{ name: string; level: string; points: number }>>([]);
+
+  useEffect(() => {
+    if (!user?.institution?.id) return;
+    let cancelled = false;
+    backendUsers.list({ institutionId: user.institution.id })
+      .then(({ items }) => {
+        if (cancelled) return;
+        const ranked = items
+          .map((member) => ({
+            name: member.name,
+            level: `Level ${member.stats?.level ?? 1}`,
+            points: member.stats?.xp ?? 0,
+          }))
+          .sort((a, b) => b.points - a.points)
+          .slice(0, 10);
+        setTopBuilders(ranked);
+      })
+      .catch(() => {
+        if (!cancelled) setTopBuilders([]);
+      });
+    return () => { cancelled = true; };
+  }, [user?.institution?.id]);
 
   const join = () => {
     if (!user) { toast.error("Sign in to join your chapter."); return; }
@@ -78,6 +103,9 @@ function CampusHub() {
               <h3 className="font-semibold text-foreground">Top builders on campus</h3>
             </div>
             <div className="divide-y divide-border">
+              {topBuilders.length === 0 && (
+                <div className="p-5 text-sm text-muted-foreground">No ranked builders yet for this campus.</div>
+              )}
               {topBuilders.map((b, i) => (
                 <div key={b.name} className="flex items-center gap-4 p-5 transition-colors hover:bg-secondary/40">
                   <div className="w-6 text-sm font-bold text-muted-foreground">#{i + 1}</div>

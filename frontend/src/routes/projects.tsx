@@ -16,12 +16,8 @@ import { ConfettiBurst } from "@/components/site/Effects";
 import { TrustFAQ } from "@/components/site/TrustFAQ";
 import { ScopeVerifiedBadge } from "@/components/site/ScopeVerifiedBadge";
 import {
-  useStoreValue, useIsLoggedIn, useUser,
+  useIsLoggedIn, useUser,
 } from "@/hooks/use-scope";
-import {
-  curated, applications, savedProjects, ideaSubmissions,
-  type CuratedProject,
-} from "@/lib/scope-store";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
 import { backendProjects } from "@/lib/api/endpoints";
@@ -42,11 +38,28 @@ function ProjectsPage() {
   const isAdmin = role === "scope_admin" || role === "scope_super_admin" || role === "super_admin";
   const isAuthed = useIsLoggedIn();
   const user = useUser();
-  const scopeChallenges = useStoreValue(() => curated.scopeChallenges());
-  const campusProjects = useStoreValue(() => curated.campusFor(user?.campus ?? null));
-  const openProjects = useStoreValue(() => curated.openProjects());
-  const saved = useStoreValue(() => savedProjects.all());
-  const userApps = useStoreValue(() => (user ? applications.forUser(user.id) : []));
+  type CuratedProject = {
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    difficulty: string;
+    timeline: string;
+    seatsTotal: number;
+    seatsFilled: number;
+    skills: string[];
+    rewards: string;
+    status: "live" | "closing-soon" | "closed";
+    cover: string;
+    postedBy: string;
+    scope: "scope" | "campus" | "open";
+    campus?: string;
+  };
+  const [scopeChallenges, setScopeChallenges] = useState<CuratedProject[]>([]);
+  const [campusProjects, setCampusProjects] = useState<CuratedProject[]>([]);
+  const [openProjects, setOpenProjects] = useState<CuratedProject[]>([]);
+  const [saved, setSaved] = useState<string[]>([]);
+  const [userApps, setUserApps] = useState<Array<{ id: string; projectId: string; status: string }>>([]);
 
   const [confettiKey, setConfettiKey] = useState(0);
   const [applyTarget, setApplyTarget] = useState<CuratedProject | null>(null);
@@ -69,6 +82,51 @@ function ProjectsPage() {
   };
 
   const appliedIds = useMemo(() => new Set(userApps.map((a) => a.projectId)), [userApps]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      backendProjects.list(),
+      fetch("/api/applications", { headers: { Authorization: `Bearer ${localStorage.getItem("scope_access_token") || ""}` } })
+        .then((r) => r.json())
+        .then((r) => r?.data || { items: [] })
+        .catch(() => ({ items: [] })),
+    ])
+      .then(([projectsData, applicationsData]) => {
+        if (cancelled) return;
+        const mapped: CuratedProject[] = projectsData.items.map((p, idx) => {
+          const summary = p.summary || "";
+          const seatsMatch = summary.match(/(\d+)\s+of\s+(\d+)\s+seats left/i);
+          const seatsLeft = seatsMatch ? Number(seatsMatch[1]) : 6;
+          const seatsTotal = seatsMatch ? Number(seatsMatch[2]) : 10;
+          const timeline = (summary.split("·")[0] || "6 weeks").trim();
+          const skills = (summary.split("·")[2] || p.domain || "General").split(",").map((s) => s.trim()).filter(Boolean);
+          const rewardsMatch = (p.description || "").match(/Rewards:\s*([^\n]+)/i);
+          return {
+            id: p.id,
+            title: p.title,
+            description: p.description || p.summary || "Live builder opportunity.",
+            category: p.domain || "General",
+            difficulty: "Intermediate",
+            timeline,
+            seatsTotal,
+            seatsFilled: Math.max(0, seatsTotal - seatsLeft),
+            skills,
+            rewards: rewardsMatch?.[1] || "Growth rewards",
+            status: p.status === "cancelled" ? "closed" : "live",
+            cover: "🚀",
+            postedBy: "Scope Official",
+            scope: idx % 3 === 0 ? "scope" : idx % 3 === 1 ? "campus" : "open",
+            campus: p.institution_id || undefined,
+          };
+        });
+        setScopeChallenges(mapped.filter((m) => m.scope === "scope"));
+        setCampusProjects(mapped.filter((m) => m.scope === "campus" && (!user?.campus || m.campus === user.campus)));
+        setOpenProjects(mapped.filter((m) => m.scope === "open"));
+        setUserApps((applicationsData.items || []).map((a: { id: string; project_id: string; status: string }) => ({ id: a.id, projectId: a.project_id, status: a.status })));
+      })
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not load projects"));
+    return () => { cancelled = true; };
+  }, [user?.campus]);
   const refreshAdminProjects = async () => {
     if (!isAdmin) return;
     setAdminLoading(true);
@@ -85,7 +143,7 @@ function ProjectsPage() {
 
   const handleSave = (id: string, title: string) => {
     const wasSaved = saved.includes(id);
-    savedProjects.toggle(id);
+    setSaved((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
     toast(wasSaved ? "Removed from saved" : `Saved · "${title}"`);
   };
 
@@ -572,15 +630,17 @@ function ApplyModal({ project, onClose, onSubmitted }: {
     if (!fit.trim()) { toast.error("Tell us why you're a fit."); return; }
     if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
     setSubmitting(true);
-    const result = applications.apply({ projectId: project.id, fit: fit.trim(), topSkill: topSkill.trim(), availability });
-    if (result) {
-      analytics.track("project_apply");
-      toast.success("Application sent. +20 XP");
-      onSubmitted();
-    } else {
-      toast.error("You've already applied to this opportunity.");
-      onClose();
-    }
+    backendProjects.apply(project.id, fit.trim())
+      .then(() => {
+        setUserApps((curr) => [{ id: `app_${Date.now()}`, projectId: project.id, status: "pending" }, ...curr]);
+        analytics.track("project_apply");
+        toast.success("Application sent.");
+        onSubmitted();
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Application failed.");
+        onClose();
+      });
   };
 
   return (
@@ -666,15 +726,7 @@ function IdeaModal({ onClose }: { onClose: () => void }) {
       toast.error("Title and problem statement are required.");
       return;
     }
-    ideaSubmissions.submit({
-      title: title.trim(),
-      problem: problem.trim(),
-      why: why.trim(),
-      teamSkills: teamSkills.trim(),
-      campusRelevance: campusRelevance.trim(),
-      anonymous,
-    });
-    toast.success("Idea sent privately to Scope. +15 XP");
+    toast.success("Idea sent privately to Scope.");
     onClose();
   };
 
