@@ -826,11 +826,15 @@ export const chapter = {
 
 export function profileStrength(u: ScopeUser | null): number {
   if (!u) return 0;
+  const bio = u.bio ?? "";
+  const skills = Array.isArray(u.skills) ? u.skills : [];
+  const interests = Array.isArray(u.interests) ? u.interests : [];
+  const links = u.links ?? {};
   let score = 20; // base for account
-  if (u.bio.length > 20) score += 15;
-  if (u.skills.length >= 3) score += 15;
-  if (u.interests.length >= 3) score += 10;
-  if (u.links.website || u.links.github) score += 10;
+  if (bio.length > 20) score += 15;
+  if (skills.length >= 3) score += 15;
+  if (interests.length >= 3) score += 10;
+  if (links.website || links.github) score += 10;
   if (u.linkedinUrl) score += 5;
   if (u.primaryDomain) score += 5;
   if (u.portfolioLinks && Object.keys(u.portfolioLinks).length > 0) score += 5;

@@ -79,6 +79,12 @@ function DashboardPage() {
   const [recentFeedHydrated, setRecentFeedHydrated] = useState<Array<{ id: string; author: string; campus: string; time: string; type: string; content: string }>>([]);
   const [upcomingHydrated, setUpcomingHydrated] = useState<Array<{ id: string; title: string; date: string; venue: string }>>([]);
 
+  const formatEventDate = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+  };
+
   if (!user) return null;
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +119,12 @@ function DashboardPage() {
             projectsData.value.items
               .filter((p) => Boolean(p.starts_on))
               .slice(0, 3)
-              .map((p) => ({ id: p.id, title: p.title, date: p.starts_on || "", venue: p.institution_id || "Scope Connect" })),
+              .map((p) => ({
+                id: p.id,
+                title: p.title,
+                date: formatEventDate(p.starts_on || ""),
+                venue: user.campus || "Scope Connect",
+              })),
           );
         }
         if (feedData.status === "fulfilled") {
@@ -140,6 +151,23 @@ function DashboardPage() {
   const feedRows = recentFeedHydrated;
   const upcomingRows = upcomingHydrated.length ? upcomingHydrated : upcoming;
   const recommendedRows = recommendedHydrated.length ? recommendedHydrated : recommended;
+
+  useEffect(() => {
+    const segments: Array<"joined_campus" | "complete_profile" | "first_application" | "first_portfolio"> = [];
+    if (user.campus) segments.push("joined_campus");
+    if (strength >= 60) segments.push("complete_profile");
+    if (myApplicationsCount > 0) segments.push("first_application");
+    if (portfolioCount > 0) segments.push("first_portfolio");
+    if (segments.length === 0) return;
+
+    backendUsers.awardDashboardPoints(segments)
+      .then(({ user: refreshedUser }) => {
+        localStorage.setItem("scope_user_profile", JSON.stringify(refreshedUser));
+        localStorage.setItem("scope_points", JSON.stringify(refreshedUser.stats?.xp ?? 0));
+        window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: ["scope_user_profile", "scope_points"] } }));
+      })
+      .catch(() => null);
+  }, [user.campus, strength, myApplicationsCount, portfolioCount]);
 
   return (
     <AppShell>
@@ -258,7 +286,7 @@ function DashboardPage() {
                 {upcomingRows.map((e) => (
                   <li key={e.id} className="flex items-start gap-3">
                     <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-brand text-xs font-bold text-brand-foreground">
-                      {e.date.split(" ")[1] ?? e.date}
+                      {e.date}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-foreground">{e.title}</div>

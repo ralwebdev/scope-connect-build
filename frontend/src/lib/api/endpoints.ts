@@ -70,6 +70,12 @@ export const backendUsers = {
   activity(limit = 20) {
     return api<{ items: Array<{ id: string; kind: string; text: string; created_at: string; meta?: Record<string, unknown> }>; next_cursor: string | null; has_more: boolean }>(`/api/users/me/activity?limit=${limit}`);
   },
+  awardDashboardPoints(segments: Array<"joined_campus" | "complete_profile" | "first_application" | "first_portfolio">) {
+    return api<{ awarded: number; awarded_segments: string[]; user: ScopeUser }>("/api/users/me/dashboard-points", {
+      method: "POST",
+      body: JSON.stringify({ segments }),
+    });
+  },
 };
 
 type BackendInstitution = {

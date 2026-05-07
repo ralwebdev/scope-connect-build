@@ -84,6 +84,10 @@ const memberStatusSchema = z.object({
   student_status: z.enum(["pending_verification", "active", "rejected"]),
 });
 
+const dashboardPointsSchema = z.object({
+  segments: z.array(z.enum(["joined_campus", "complete_profile", "first_application", "first_portfolio"])).max(10),
+});
+
 async function findHydratedUser(id) {
   return User.findById(id).populate({ path: "profile", populate: { path: "institution" } });
 }
@@ -191,6 +195,60 @@ usersRouter.get("/me/activity", asyncHandler(async (req, res) => {
     })),
     next_cursor: null,
     has_more: false,
+  });
+}));
+
+usersRouter.post("/me/dashboard-points", validate(dashboardPointsSchema), asyncHandler(async (req, res) => {
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+
+  const rewards = {
+    joined_campus: 30,
+    complete_profile: 40,
+    first_application: 50,
+    first_portfolio: 30,
+  };
+  const labels = {
+    joined_campus: "Joined your campus",
+    complete_profile: "Completed your profile",
+    first_application: "Applied to first challenge",
+    first_portfolio: "Added first portfolio link",
+  };
+
+  const uniqueSegments = [...new Set(req.body.segments)];
+  let awarded = 0;
+  const awardedSegments = [];
+
+  for (const segment of uniqueSegments) {
+    const alreadyAwarded = await ProfileActivity.exists({
+      user: req.user._id,
+      kind: "dashboard_segment_reward",
+      "meta.segment": segment,
+    });
+    if (alreadyAwarded) continue;
+    const amount = rewards[segment] || 0;
+    if (!amount) continue;
+    profile.xp = (profile.xp || 0) + amount;
+    awarded += amount;
+    awardedSegments.push(segment);
+    await ProfileActivity.create({
+      user: req.user._id,
+      kind: "dashboard_segment_reward",
+      text: `${labels[segment]} · +${amount} XP`,
+      meta: { segment, amount },
+    });
+    await AnalyticsEvent.create({
+      user: req.user._id,
+      event: "dashboard_segment_reward",
+      props: { segment, amount },
+    });
+  }
+
+  if (awarded > 0) await profile.save();
+  sendSuccess(res, {
+    awarded,
+    awarded_segments: awardedSegments,
+    user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }),
   });
 }));
 
