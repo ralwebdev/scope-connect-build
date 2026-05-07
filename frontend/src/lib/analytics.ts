@@ -3,7 +3,6 @@
 // the backend when the user is authenticated.
 // Surfaced in /admin and /ops (Soft Launch tab).
 
-import { backendAnalytics } from "./api/endpoints";
 
 export type AnalyticsEvent =
   | "signup_completed"
@@ -162,9 +161,6 @@ export const analytics = {
       s.rageClicks += 1;
     }
     write(s);
-    backendAnalytics.track([{ event, occurred_at: new Date().toISOString(), props: meta ?? {} }]).catch(() => {
-      /* unauthenticated analytics stay local */
-    });
   },
 
   init() {

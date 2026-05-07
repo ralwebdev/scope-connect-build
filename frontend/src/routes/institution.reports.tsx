@@ -5,20 +5,15 @@ import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useStoreValue } from "@/hooks/use-scope";
-import { crm } from "@/lib/crm-store";
+import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@/hooks/use-scope";
+import { backendAnalytics, backendProjects, backendUsers } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/institution/reports")({
   head: () => ({ meta: [{ title: "Institution Reports · Scope Connect" }, { name: "robots", content: "noindex" }] }),
   component: InstitutionReportsPage,
 });
-
-const topPerformers = [
-  { name: "Alice Sharma", department: "CSE", score: 94, projects: 8 },
-  { name: "Dev Patel", department: "ECE", score: 88, projects: 6 },
-  { name: "Meera Iyer", department: "Design", score: 83, projects: 5 },
-];
 
 function downloadFile(name: string, type: string, content: string) {
   const blob = new Blob([content], { type });
@@ -43,18 +38,72 @@ function Stat({ label, value, icon: Icon }: { label: string; value: string | num
 }
 
 function InstitutionReportsPage() {
-  const data = useStoreValue(() => crm.all());
-  const institution = data.institutions[0];
-  const csv = ["name,department,score,projects", ...topPerformers.map((p) => `${p.name},${p.department},${p.score},${p.projects}`)].join("\n");
+  const user = useUser();
+  const institution = user?.institution ?? null;
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState({
+    totalStudents: 0,
+    activeStudents: 0,
+    verifiedStudents: 0,
+    projectsParticipated: 0,
+    completionRate: 0,
+    avgActivityScore: 0,
+  });
+  const [topPerformers, setTopPerformers] = useState<Array<{ name: string; department: string; score: number; projects: number }>>([]);
+
+  useEffect(() => {
+    if (!institution?.id) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      backendUsers.list({ institutionId: institution.id }),
+      backendProjects.list(),
+      backendAnalytics.engagement().catch(() => ({ dau_wau_ratio: 0, avg_sessions_per_user: 0, median_session_minutes: 0, top_events: [] })),
+    ])
+      .then(([usersData, projectsData, engagement]) => {
+        if (cancelled) return;
+        const users = usersData.items;
+        const totalStudents = users.length;
+        const activeStudents = users.filter((u) => u.student_status === "active").length;
+        const verifiedStudents = activeStudents;
+        const projectsParticipated = projectsData.items.filter((p) => p.institution_id === institution.id).length;
+        const completionRate = totalStudents > 0 ? Math.round((verifiedStudents / totalStudents) * 100) : 0;
+        const avgActivityScore = Math.round((engagement.avg_sessions_per_user || 0) * 10);
+        const top = users
+          .map((u) => ({
+            name: u.name,
+            department: u.primaryDomain || u.primary_domain || "General",
+            score: Math.min(100, Math.max(0, Math.round((u.stats?.xp ?? 0) / 20))),
+            projects: projectsData.items.filter((p) => p.created_by === u.id).length,
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+        setMetrics({ totalStudents, activeStudents, verifiedStudents, projectsParticipated, completionRate, avgActivityScore });
+        setTopPerformers(top);
+      })
+      .catch((error) => {
+        console.warn("Institution reports hydration failed", error);
+        toast.error(error instanceof Error ? error.message : "Could not hydrate reports data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [institution?.id]);
+
+  const csv = useMemo(() => ["name,department,score,projects", ...topPerformers.map((p) => `${p.name},${p.department},${p.score},${p.projects}`)].join("\n"), [topPerformers]);
   const report = [
     "Institution Reports",
     `Institution: ${institution?.name ?? "Demo Institution"}`,
     `Generated: ${new Date().toLocaleString()}`,
     "",
     "Student Overview",
-    "Total students: 284",
-    "Active students: 196",
-    "Verified students: 151",
+    `Total students: ${metrics.totalStudents}`,
+    `Active students: ${metrics.activeStudents}`,
+    `Verified students: ${metrics.verifiedStudents}`,
     "",
     "Top Performers",
     ...topPerformers.map((p) => `${p.name} - ${p.score}`),
@@ -75,17 +124,18 @@ function InstitutionReportsPage() {
               <Button variant="outline" onClick={() => { downloadFile(`scope_report_${new Date().toISOString().slice(0, 10)}.csv`, "text/csv", csv); toast.success("CSV exported"); }}>Export CSV</Button>
             </div>
           </header>
+          {loading && <p className="mt-4 text-sm text-muted-foreground">Hydrating reports...</p>}
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <Stat label="Total students" value="284" icon={Users} />
-            <Stat label="Active students" value="196" icon={TrendingUp} />
-            <Stat label="Verified students" value="151" icon={Award} />
+            <Stat label="Total students" value={metrics.totalStudents} icon={Users} />
+            <Stat label="Active students" value={metrics.activeStudents} icon={TrendingUp} />
+            <Stat label="Verified students" value={metrics.verifiedStudents} icon={Award} />
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <Stat label="Projects participated" value="73" icon={FolderKanban} />
-            <Stat label="Completion rate" value="68%" icon={TrendingUp} />
-            <Stat label="Avg activity score" value="82" icon={Award} />
+            <Stat label="Projects participated" value={metrics.projectsParticipated} icon={FolderKanban} />
+            <Stat label="Completion rate" value={`${metrics.completionRate}%`} icon={TrendingUp} />
+            <Stat label="Avg activity score" value={metrics.avgActivityScore} icon={Award} />
           </div>
 
           <Card className="mt-4 overflow-x-auto p-5">

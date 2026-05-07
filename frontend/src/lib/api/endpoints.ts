@@ -128,6 +128,11 @@ type BackendNotification = {
   read: boolean;
   created_at: string;
 };
+type InstitutionCommunicationPayload = {
+  channel: "broadcast" | "email" | "notice";
+  title: string;
+  body: string;
+};
 
 export const backendProjects = {
   list() {
@@ -169,14 +174,31 @@ export const backendNotifications = {
   markAllRead() {
     return api<{ updated: number }>("/api/notifications/read-all", { method: "POST" });
   },
+  listInstitution(limit = 50) {
+    return api<{ items: BackendNotification[]; next_cursor: string | null; has_more: boolean }>(`/api/notifications/institution?limit=${limit}`);
+  },
+  sendInstitution(body: InstitutionCommunicationPayload) {
+    return api<{ created: number }>("/api/notifications/institution", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 export const backendAnalytics = {
-  track(events: Array<{ event: string; occurred_at?: string; props?: Record<string, unknown> }>) {
-    return api<{ accepted: number }>("/api/analytics/track", {
-      method: "POST",
-      body: JSON.stringify({ events }),
-    });
+  dau() {
+    return api<{ series: Array<{ date: string; value: number }>; total_unique: number }>("/api/analytics/dau");
+  },
+  wau() {
+    return api<{ series: Array<{ date: string; value: number }>; total_unique: number }>("/api/analytics/wau");
+  },
+  engagement() {
+    return api<{
+      dau_wau_ratio: number;
+      avg_sessions_per_user: number;
+      median_session_minutes: number;
+      top_events: Array<{ event: string; count: number }>;
+    }>("/api/analytics/engagement");
   },
 };
 

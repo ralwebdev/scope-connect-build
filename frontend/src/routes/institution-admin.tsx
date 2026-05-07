@@ -18,7 +18,7 @@ import { useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { useStoreValue } from "@/hooks/use-scope";
 import { crm, type Institution } from "@/lib/crm-store";
-import { backendUsers } from "@/lib/api/endpoints";
+import { backendAnalytics, backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
 import type { ScopeUser } from "@/lib/scope-store";
 import { rbac, type PermissionKey } from "@/lib/rbac";
 import { toast } from "sonner";
@@ -199,32 +199,64 @@ function TabLink({ to, label, active }: { to: string; label: string; active: boo
   );
 }
 
-const KPI_KEY = "sc_inst_kpi_seed";
-function seedKpis(id: string) {
-  // deterministic-ish KPIs per institution for demo
-  const n = id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-  return {
-    total: 80 + (n % 220),
-    active: 40 + (n % 140),
-    profile: 55 + (n % 35),
-    projects: 12 + (n % 18),
-    rank: (n % 12) + 1,
-    events: 3 + (n % 6),
-  };
-}
-
 function HubView({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
-  const k = seedKpis(institutionId);
+  const [k, setK] = useState({
+    total: 0,
+    active: 0,
+    profile: 0,
+    projects: 0,
+    rank: "-",
+    events: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      backendUsers.list({ institutionId }),
+      backendProjects.list(),
+      backendAnalytics.dau().catch(() => ({ series: [], total_unique: 0 })),
+    ])
+      .then(([users, projects, dau]) => {
+        if (cancelled) return;
+        const members = users.items;
+        const total = members.length;
+        const active = members.filter((m) => m.student_status === "active").length;
+        const withProfile = members.filter((m) => Boolean(m.bio) || (m.skills?.length ?? 0) > 0 || (m.portfolio_links?.length ?? 0) > 0).length;
+        const profile = total > 0 ? Math.round((withProfile / total) * 100) : 0;
+        const institutionProjects = projects.items.filter((p) => p.institution_id === institutionId).length;
+        const rank = total > 0 ? `#${Math.max(1, 50 - Math.floor(active / 5))}` : "-";
+        setK({
+          total,
+          active,
+          profile,
+          projects: institutionProjects,
+          rank,
+          events: dau.series.length,
+        });
+      })
+      .catch((error) => {
+        console.warn("Institution hub hydration failed", error);
+        toast.error(error instanceof Error ? error.message : "Could not hydrate institution data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [institutionId]);
+
   const items = [
     { label: "Total members", v: k.total, icon: Users },
     { label: "Active students", v: k.active, icon: TrendingUp, accent: true },
     { label: "Profile completion", v: `${k.profile}%`, icon: Award },
     { label: "Projects participation", v: k.projects, icon: FolderKanban },
-    { label: "Campus rank", v: `#${k.rank}`, icon: Award, accent: true },
+    { label: "Campus rank", v: k.rank, icon: Award, accent: true },
     { label: "Events conducted", v: k.events, icon: Calendar },
   ];
   return (
     <div className="space-y-6">
+      {loading && <p className="text-sm text-muted-foreground">Hydrating institution data...</p>}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {items.map((it) => (
           <Card key={it.label} className={`p-4 ${it.accent ? "border-brand/30 bg-gradient-to-br from-brand/5 to-transparent" : ""}`}>
@@ -502,33 +534,76 @@ function memberFromUser(user: ScopeUser): Member {
 }
 
 function AnalyticsView({ institutionId }: { institutionId: string }) {
-  const members = useStoreValue(() => readMembers(institutionId));
-  const dau = Math.max(8, Math.round(members.filter(m => m.status === "active").length * 0.3));
-  const wau = Math.max(20, Math.round(members.filter(m => m.status === "active").length * 0.7));
-  const submitted = 42;
-  const movement = 3;
-  const top = members.filter(m => m.status === "active").slice(0, 5);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ dau: 0, wau: 0, submitted: 0, movement: 0, topEventsCount: 0 });
+  const [top, setTop] = useState<Array<{ id: string; name: string; role: string; xp: number }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      backendAnalytics.dau(),
+      backendAnalytics.wau(),
+      backendAnalytics.engagement(),
+      backendUsers.list({ institutionId }),
+      backendProjects.list(),
+    ])
+      .then(([dauData, wauData, engagementData, usersData, projectsData]) => {
+        if (cancelled) return;
+        const members = usersData.items;
+        const institutionProjects = projectsData.items.filter((project) => project.institution_id === institutionId);
+        const topPerformers = members
+          .map((member) => ({
+            id: member.id,
+            name: member.name,
+            role: member.role_variant || member.role || "student",
+            xp: member.stats?.xp ?? 0,
+          }))
+          .sort((a, b) => b.xp - a.xp)
+          .slice(0, 5);
+        setStats({
+          dau: dauData.series.at(-1)?.value ?? 0,
+          wau: wauData.series.at(-1)?.value ?? 0,
+          submitted: institutionProjects.length,
+          movement: Math.max(0, Math.round((engagementData.dau_wau_ratio || 0) * 100)),
+          topEventsCount: engagementData.top_events.length,
+        });
+        setTop(topPerformers);
+      })
+      .catch((error) => {
+        console.warn("Analytics hydration failed", error);
+        toast.error(error instanceof Error ? error.message : "Could not hydrate analytics data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [institutionId]);
+
   return (
     <div className="space-y-4">
+      {loading && <p className="text-sm text-muted-foreground">Hydrating analytics...</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="DAU" value={dau} />
-        <Stat label="WAU" value={wau} />
-        <Stat label="Applications submitted" value={submitted} />
-        <Stat label="Leaderboard movement" value={`▲ ${movement}`} accent />
+        <Stat label="DAU" value={stats.dau} />
+        <Stat label="WAU" value={stats.wau} />
+        <Stat label="Applications submitted" value={stats.submitted} />
+        <Stat label="Leaderboard movement" value={`+${stats.movement}%`} accent />
       </div>
       <Card className="p-5">
-        <h3 className="text-sm font-bold">Top performers</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold">Top performers</h3>
+          <Badge variant="outline" className="text-[10px]">{stats.topEventsCount} tracked events</Badge>
+        </div>
         <div className="mt-3 divide-y divide-border">
-          {top.map((m, i) => (
-            <div key={m.id} className="flex items-center justify-between py-2.5">
+          {top.map((member, i) => (
+            <div key={member.id} className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-3">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-bold">{i+1}</div>
                 <div>
-                  <div className="text-sm font-semibold">{m.name}</div>
-                  <div className="text-xs text-muted-foreground">{m.role.replace("_"," ")}</div>
+                  <div className="text-sm font-semibold">{member.name}</div>
+                  <div className="text-xs text-muted-foreground">{member.role.replaceAll("_"," ")}</div>
                 </div>
               </div>
-              <Badge variant="outline">{1200 - i * 140} XP</Badge>
+              <Badge variant="outline">{member.xp} XP</Badge>
             </div>
           ))}
           {top.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No active members yet.</p>}
@@ -537,7 +612,6 @@ function AnalyticsView({ institutionId }: { institutionId: string }) {
     </div>
   );
 }
-
 function Stat({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <Card className={`p-4 ${accent ? "border-brand/30" : ""}`}>
@@ -547,24 +621,48 @@ function Stat({ label, value, accent = false }: { label: string; value: string |
   );
 }
 
-const COMM_KEY = "sc_inst_comms";
 type Announcement = { id: string; title: string; body: string; channel: "broadcast" | "email" | "notice"; at: number };
-function readComms(): Announcement[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(COMM_KEY) ?? "[]"); } catch { return []; }
-}
-function writeComms(a: Announcement[]) { if (typeof window !== "undefined") { localStorage.setItem(COMM_KEY, JSON.stringify(a)); window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: [COMM_KEY] } })); } }
 
 function CommunicationsView({ institutionName }: { institutionName: string }) {
-  const list = useStoreValue(readComms);
+  const [list, setList] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [channel, setChannel] = useState<Announcement["channel"]>("broadcast");
-  const send = () => {
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    backendNotifications.listInstitution()
+      .then(({ items }) => {
+        if (cancelled) return;
+        setList(items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          body: item.body || "",
+          channel: item.title.toLowerCase().includes("[email]") ? "email" : item.title.toLowerCase().includes("[notice]") ? "notice" : "broadcast",
+          at: item.created_at ? new Date(item.created_at).getTime() : Date.now(),
+        })));
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Could not load communications.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+  const send = async () => {
     if (!title || !body) { toast.error("Title and body required"); return; }
-    writeComms([{ id: `c${Date.now()}`, title, body, channel, at: Date.now() }, ...list]);
+    try {
+      const taggedTitle = `[${channel.toUpperCase()}] ${title}`;
+      const { created } = await backendNotifications.sendInstitution({ channel, title: taggedTitle, body });
+      setList((current) => [{ id: `temp-${Date.now()}`, title: taggedTitle, body, channel, at: Date.now() }, ...current]);
+      toast.success(`Sent via ${channel} to ${created} members`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not send communication.");
+      return;
+    }
     setTitle(""); setBody("");
-    toast.success(`Sent via ${channel}`);
   };
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -588,6 +686,7 @@ function CommunicationsView({ institutionName }: { institutionName: string }) {
       <Card className="p-5">
         <h3 className="text-sm font-bold">Recent ({list.length})</h3>
         <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
+          {loading && <p className="py-4 text-center text-sm text-muted-foreground">Loading communications...</p>}
           {list.map(a => (
             <div key={a.id} className="rounded-lg border border-border p-3">
               <div className="flex items-center justify-between">
@@ -604,3 +703,4 @@ function CommunicationsView({ institutionName }: { institutionName: string }) {
     </div>
   );
 }
+

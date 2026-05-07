@@ -4,7 +4,8 @@ import { User, Notification } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { notFound } from "../utils/errors.js";
+import { forbidden, notFound } from "../utils/errors.js";
+import { hasPermission } from "../utils/roles.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { serializeNotification } from "../utils/serializers.js";
@@ -20,6 +21,11 @@ const createSchema = z.object({
   body: z.string().max(4000).optional(),
   link: z.string().max(400).optional(),
   dedupe_key: z.string().max(200).optional(),
+});
+const institutionCreateSchema = z.object({
+  channel: z.enum(["broadcast", "email", "notice"]).default("broadcast"),
+  title: z.string().min(1).max(200),
+  body: z.string().max(4000),
 });
 
 notificationsRouter.use(authMiddleware);
@@ -60,5 +66,37 @@ notificationsRouter.post("/", requirePermission("manage_moderation"), validate(c
     dedupeKey: req.body.dedupe_key,
   })), { ordered: false }).catch((error) => error.insertedDocs || []);
   sendSuccess(res, { created: docs.length }, "Notifications sent", 201);
+}));
+
+notificationsRouter.get("/institution", asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "manage_institution") && !hasPermission(req.user, "manage_members")) throw forbidden();
+  const institutionId = req.user.institution?.toString();
+  if (!institutionId) throw forbidden("No institution scope");
+  const limit = Math.min(Number(req.query.limit || 50), 100);
+  const users = await User.find({ institution: institutionId }).select("_id");
+  const userIds = users.map((user) => user._id);
+  if (!userIds.length) {
+    sendSuccess(res, { items: [], next_cursor: null, has_more: false });
+    return;
+  }
+  const notifications = await Notification.find({ user: { $in: userIds }, kind: "admin_action" }).sort({ createdAt: -1 }).limit(limit);
+  sendSuccess(res, { items: notifications.map(serializeNotification), next_cursor: null, has_more: false });
+}));
+
+notificationsRouter.post("/institution", validate(institutionCreateSchema), asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "manage_institution") && !hasPermission(req.user, "manage_members")) throw forbidden();
+  const institutionId = req.user.institution?.toString();
+  if (!institutionId) throw forbidden("No institution scope");
+  const users = await User.find({ institution: institutionId }).select("_id");
+  const userIds = users.map((user) => user._id);
+  const docs = await Notification.insertMany(userIds.map((userId) => ({
+    user: userId,
+    kind: "admin_action",
+    title: req.body.title,
+    body: req.body.body,
+    link: "/notifications",
+    dedupeKey: `inst:${institutionId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}:${req.body.channel}`,
+  })), { ordered: false }).catch((error) => error.insertedDocs || []);
+  sendSuccess(res, { created: docs.length }, "Institution communication sent", 201);
 }));
 
