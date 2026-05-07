@@ -162,6 +162,15 @@ export const backendProjects = {
       body: JSON.stringify({ message }),
     });
   },
+  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string }>) {
+    return api<{ project: BackendProject }>(`/api/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<null>(`/api/projects/${id}`, { method: "DELETE" });
+  },
 };
 
 export const backendNotifications = {

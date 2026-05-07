@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Rocket, Sparkles, ShieldCheck, MapPin, Globe2, Briefcase, Clock, Users,
   Bookmark, BookmarkCheck, Share2, Lightbulb, Check, X, Lock, ArrowRight, Flame, Coins,
@@ -24,6 +24,8 @@ import {
 } from "@/lib/scope-store";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
+import { backendProjects } from "@/lib/api/endpoints";
+import { useRole } from "@/hooks/use-rbac";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({
@@ -36,6 +38,8 @@ export const Route = createFileRoute("/projects")({
 });
 
 function ProjectsPage() {
+  const role = useRole();
+  const isAdmin = role === "scope_admin" || role === "scope_super_admin" || role === "super_admin";
   const isAuthed = useIsLoggedIn();
   const user = useUser();
   const scopeChallenges = useStoreValue(() => curated.scopeChallenges());
@@ -47,6 +51,17 @@ function ProjectsPage() {
   const [confettiKey, setConfettiKey] = useState(0);
   const [applyTarget, setApplyTarget] = useState<CuratedProject | null>(null);
   const [ideaOpen, setIdeaOpen] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminProjects, setAdminProjects] = useState<Array<{ id: string; title: string; status: string }>>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newTimeline, setNewTimeline] = useState("6 weeks");
+  const [newSeatsTotal, setNewSeatsTotal] = useState("8");
+  const [newSeatsFilled, setNewSeatsFilled] = useState("0");
+  const [newSkills, setNewSkills] = useState("React, LLM APIs, Product Design");
+  const [newRewards, setNewRewards] = useState("Brand lab credit · 300 XP · Mentor access");
+  const [newCategory, setNewCategory] = useState("Engineering");
+  const [newDifficulty, setNewDifficulty] = useState("Intermediate");
   const [detailTarget, _setDetailTarget] = useState<CuratedProject | null>(null);
   const setDetailTarget = (p: CuratedProject | null) => {
     if (p) analytics.track("project_view");
@@ -54,6 +69,19 @@ function ProjectsPage() {
   };
 
   const appliedIds = useMemo(() => new Set(userApps.map((a) => a.projectId)), [userApps]);
+  const refreshAdminProjects = async () => {
+    if (!isAdmin) return;
+    setAdminLoading(true);
+    try {
+      const { items } = await backendProjects.list();
+      setAdminProjects(items.map((item) => ({ id: item.id, title: item.title, status: item.status })));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load project list.");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+  useEffect(() => { void refreshAdminProjects(); }, [isAdmin]);
 
   const handleSave = (id: string, title: string) => {
     const wasSaved = saved.includes(id);
@@ -131,6 +159,98 @@ function ProjectsPage() {
             </Button>
           </div>
         </section>
+      )}
+
+      {isAdmin && (
+        <Section
+          eyebrow="Admin Controls"
+          title="Manage Project Lists"
+          subtitle="Create, update, and retire projects and opportunities."
+          accentBadge={{ label: "Super Admin Tasks", className: "bg-foreground text-background" }}
+        >
+          <Card className="p-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Project title" />
+              <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category (e.g. Engineering)" />
+              <Input value={newDifficulty} onChange={(e) => setNewDifficulty(e.target.value)} placeholder="Difficulty (e.g. Intermediate)" />
+              <Input value={newTimeline} onChange={(e) => setNewTimeline(e.target.value)} placeholder="Timeline (e.g. 6 weeks)" />
+              <Input value={newSeatsTotal} onChange={(e) => setNewSeatsTotal(e.target.value)} placeholder="Seats total (e.g. 8)" />
+              <Input value={newSeatsFilled} onChange={(e) => setNewSeatsFilled(e.target.value)} placeholder="Seats filled (e.g. 3)" />
+              <Input value={newSkills} onChange={(e) => setNewSkills(e.target.value)} placeholder="Skills (comma-separated)" />
+              <Input value={newRewards} onChange={(e) => setNewRewards(e.target.value)} placeholder="Rewards text" className="sm:col-span-2 lg:col-span-3" />
+              <Textarea value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Full description" className="sm:col-span-2 lg:col-span-3 min-h-[90px]" />
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button
+                onClick={async () => {
+                  if (!newTitle.trim()) return toast.error("Title required.");
+                  try {
+                    const seatsTotal = Math.max(1, Number.parseInt(newSeatsTotal, 10) || 1);
+                    const seatsFilled = Math.max(0, Number.parseInt(newSeatsFilled, 10) || 0);
+                    const summary = `${newTimeline} · ${Math.max(0, seatsTotal - seatsFilled)} of ${seatsTotal} seats left · ${newSkills}`;
+                    await backendProjects.create({
+                      id: `tmp-${Date.now()}`,
+                      authorId: "",
+                      author: "",
+                      campus: "",
+                      title: newTitle.trim(),
+                      description: `${newDescription.trim()}\n\nRewards: ${newRewards.trim()}\nCategory: ${newCategory.trim()} · ${newDifficulty.trim()}`,
+                      problem: summary,
+                      team: "",
+                      category: newCategory.trim() || "Software",
+                      votes: 0,
+                      cover: "🚀",
+                      createdAt: Date.now(),
+                    });
+                    setNewTitle(""); setNewDescription("");
+                    toast.success("Project created.");
+                    await refreshAdminProjects();
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Create failed.");
+                  }
+                }}
+                className="bg-gradient-brand text-brand-foreground"
+              >
+                Create Project
+              </Button>
+              <Button variant="outline" onClick={() => void refreshAdminProjects()}>Refresh</Button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {adminLoading && <p className="text-sm text-muted-foreground">Loading project list...</p>}
+              {!adminLoading && adminProjects.map((project) => (
+                <div key={project.id} className="flex items-center gap-2 rounded-lg border border-border p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{project.title}</div>
+                    <div className="text-xs text-muted-foreground">Status: {project.status}</div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    const next = project.status === "open" ? "cancelled" : "open";
+                    try {
+                      await backendProjects.update(project.id, { status: next });
+                      toast.success(`Set to ${next}`);
+                      await refreshAdminProjects();
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Update failed.");
+                    }
+                  }}>
+                    {project.status === "open" ? "Close" : "Open"}
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={async () => {
+                    try {
+                      await backendProjects.remove(project.id);
+                      toast.success("Project removed.");
+                      await refreshAdminProjects();
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Delete failed.");
+                    }
+                  }}>
+                    Delete
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Section>
       )}
 
       {/* SECTION 1: SCOPE CHALLENGES */}
