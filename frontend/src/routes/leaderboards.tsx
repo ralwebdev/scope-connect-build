@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trophy, TrendingUp, Crown, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/components/site/AppShell";
-import { useStoreValue } from "@/hooks/use-scope";
-import { memberLeaderboard, chapterLeaderboard, campusLeaderboard } from "@/lib/scope-store";
+import { useStoreValue, useUser } from "@/hooks/use-scope";
+import { chapterLeaderboard, campusLeaderboard } from "@/lib/scope-store";
 import { topChapters } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/leaderboards")({
   head: () => ({
@@ -24,10 +25,32 @@ type Tab = (typeof tabs)[number];
 
 function LeaderboardsPage() {
   const [tab, setTab] = useState<Tab>("Members");
-  const members = useStoreValue(() => memberLeaderboard());
+  const user = useUser();
+  const [members, setMembers] = useState<Array<{ id: string; name: string; sub: string; value: number; isMe?: boolean }>>([]);
   const chapters = useStoreValue(() => chapterLeaderboard());
   const campuses = useStoreValue(() => campusLeaderboard());
   const myRank = members.findIndex((r) => r.isMe) + 1;
+
+  useEffect(() => {
+    let cancelled = false;
+    backendUsers.listStudentsByXp()
+      .then(({ items }) => {
+        if (cancelled) return;
+        const rows = items
+          .map((member) => ({
+            id: member.id,
+            name: member.name,
+            sub: `${member.campus || "Scope Connect"} · Level ${member.stats?.level ?? 1}`,
+            value: member.stats?.xp ?? 0,
+            isMe: user ? member.id === user.id : false,
+          }));
+        setMembers(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setMembers([]);
+      });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   return (
     <AppShell>
@@ -64,7 +87,11 @@ function LeaderboardsPage() {
         </div>
 
         <div className="mt-8">
-          {tab === "Members" && <Board rows={members} unit="pts" />}
+          {tab === "Members" && (
+            members.length > 0
+              ? <Board rows={members} unit="pts" />
+              : <Card className="p-6 text-sm text-muted-foreground">No member leaderboard data yet.</Card>
+          )}
           {tab === "Chapters" && <Board rows={chapters} unit="members" growths={topChapters.map((c) => c.growth)} />}
           {tab === "Campuses" && <Board rows={campuses} unit="members" />}
         </div>

@@ -123,6 +123,20 @@ async function logProfileActivity(userId, kind, text, meta = {}) {
 
 usersRouter.use(authMiddleware);
 
+usersRouter.get("/leaderboard/students", asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
+  const filter = { role: "student", disabledAt: null };
+  if (req.query.institution_id) filter.institution = req.query.institution_id;
+  const users = await User.find(filter).sort({ createdAt: -1 }).limit(1000);
+  const hydrated = await Promise.all(users.map((user) => findHydratedUser(user._id)));
+  const items = (await Promise.all(
+    hydrated
+      .filter(Boolean)
+      .map((user) => serializeUser(user, { includePrivate: false })),
+  )).sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
+  sendSuccess(res, { items, next_cursor: null, has_more: false });
+}));
+
 usersRouter.get("/", asyncHandler(async (req, res) => {
   const institutionId = req.query.institution_id;
   if (!hasPermission(req.user, "manage_users")) {

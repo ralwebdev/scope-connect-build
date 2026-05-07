@@ -70,6 +70,16 @@ export const backendUsers = {
   activity(limit = 20) {
     return api<{ items: Array<{ id: string; kind: string; text: string; created_at: string; meta?: Record<string, unknown> }>; next_cursor: string | null; has_more: boolean }>(`/api/users/me/activity?limit=${limit}`);
   },
+  async listStudentsByXp(params: { institutionId?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.institutionId) qs.set("institution_id", params.institutionId);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    const response = await api<{ items: ScopeUser[]; next_cursor: string | null; has_more: boolean }>(`/api/users/leaderboard/students${suffix}`);
+    return {
+      ...response,
+      items: [...response.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0)),
+    };
+  },
   awardDashboardPoints(segments: Array<"joined_campus" | "complete_profile" | "first_application" | "first_portfolio">) {
     return api<{ awarded: number; awarded_segments: string[]; user: ScopeUser }>("/api/users/me/dashboard-points", {
       method: "POST",
