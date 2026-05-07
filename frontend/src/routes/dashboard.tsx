@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Trophy, Flame, TrendingUp, Calendar, Users, Sparkles, ArrowRight, Target, Zap, Rocket, Briefcase, Lightbulb, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { CredibilityPanel } from "@/components/site/CredibilityPanel";
 import { DropoffNudge } from "@/components/site/DropoffNudge";
 import { useRole } from "@/hooks/use-rbac";
 import { landingRouteForRole } from "@/lib/rbac";
+import { backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -72,10 +73,65 @@ function DashboardPage() {
   const recommended = useStoreValue(() => curated.scopeChallenges().slice(0, 3));
   const portfolioStrength = useStoreValue(() => (user ? portfolio.strength(user.id) : 0));
   const portfolioCount = useStoreValue(() => (user ? portfolio.forUser(user.id).length : 0));
+  const [loadingHydration, setLoadingHydration] = useState(false);
+  const [myRankHydrated, setMyRankHydrated] = useState<number | null>(null);
+  const [myApplicationsHydrated, setMyApplicationsHydrated] = useState<number | null>(null);
+  const [recommendedHydrated, setRecommendedHydrated] = useState<Array<{ id: string; title: string; description: string; cover: string }>>([]);
+  const [recentFeedHydrated, setRecentFeedHydrated] = useState<Array<{ id: string; author: string; campus: string; time: string; type: string; content: string }>>([]);
+  const [upcomingHydrated, setUpcomingHydrated] = useState<Array<{ id: string; title: string; date: string; venue: string }>>([]);
 
   if (!user) return null;
-  const myRank = board.findIndex((r) => r.isMe) + 1;
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingHydration(true);
+    Promise.all([
+      backendUsers.list(),
+      backendProjects.list(),
+      backendNotifications.list(),
+    ])
+      .then(([usersData, projectsData, notificationsData]) => {
+        if (cancelled) return;
+        const sortedUsers = [...usersData.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
+        const rank = sortedUsers.findIndex((u) => u.id === user.id) + 1;
+        setMyRankHydrated(rank > 0 ? rank : null);
+        const myApps = notificationsData.items.filter((n) => n.kind === "application_status_changed" || n.kind === "application_received");
+        setMyApplicationsHydrated(myApps.length);
+        setRecommendedHydrated(
+          projectsData.items.slice(0, 3).map((p) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description || p.summary || "Live builder opportunity.",
+            cover: "🚀",
+          })),
+        );
+        setRecentFeedHydrated(
+          notificationsData.items.slice(0, 4).map((n, i) => ({
+            id: n.id,
+            author: "Scope Connect",
+            campus: user.campus || "Your Campus",
+            time: new Date(n.created_at).toLocaleDateString(),
+            type: n.kind.replaceAll("_", " "),
+            content: n.body || n.title,
+          })),
+        );
+        setUpcomingHydrated(
+          projectsData.items
+            .filter((p) => Boolean(p.starts_on))
+            .slice(0, 3)
+            .map((p) => ({ id: p.id, title: p.title, date: p.starts_on || "", venue: p.institution_id || "Scope Connect" })),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHydration(false);
+      });
+    return () => { cancelled = true; };
+  }, [user.id, user.campus]);
+  const myRank = myRankHydrated ?? (board.findIndex((r) => r.isMe) + 1);
   const xpToNext = level.max - xp;
+  const myApplicationsCount = myApplicationsHydrated ?? myApplications.length;
+  const feedRows = recentFeedHydrated.length ? recentFeedHydrated : recentFeed;
+  const upcomingRows = upcomingHydrated.length ? upcomingHydrated : upcoming;
+  const recommendedRows = recommendedHydrated.length ? recommendedHydrated : recommended;
 
   return (
     <AppShell>
@@ -119,6 +175,7 @@ function DashboardPage() {
       />
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {loadingHydration && <p className="mb-4 text-sm text-muted-foreground">Hydrating dashboard from backend...</p>}
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="p-6 hover-lift">
             <div className="flex items-center justify-between">
@@ -164,7 +221,7 @@ function DashboardPage() {
               </Button>
             </div>
             <div className="divide-y divide-border">
-              {recentFeed.map((p) => (
+              {feedRows.map((p) => (
                 <div key={p.id} className="p-5 transition-colors hover:bg-secondary/40">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-brand-foreground">
@@ -190,7 +247,7 @@ function DashboardPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </div>
               <ul className="mt-4 space-y-3">
-                {upcoming.map((e) => (
+                {upcomingRows.map((e) => (
                   <li key={e.id} className="flex items-start gap-3">
                     <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-brand text-xs font-bold text-brand-foreground">
                       {e.date.split(" ")[1] ?? e.date}
@@ -212,7 +269,7 @@ function DashboardPage() {
                 <h3 className="font-semibold text-foreground">My Applications</h3>
                 <Briefcase className="h-4 w-4 text-muted-foreground" />
               </div>
-              {myApplications.length === 0 ? (
+              {myApplicationsCount === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">No applications yet. Your next move starts here.</p>
               ) : (
                 <ul className="mt-4 space-y-3">
@@ -261,7 +318,7 @@ function DashboardPage() {
             </Button>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            {recommended.map((p) => (
+            {recommendedRows.map((p) => (
               <Card key={p.id} className="flex flex-col p-5 hover-lift">
                 <div className="flex items-center justify-between">
                   <Badge className="bg-brand text-brand-foreground"><ShieldCheck className="mr-1 h-3 w-3" /> Scope Verified</Badge>
