@@ -1,22 +1,12 @@
 import express from "express";
-import { z } from "zod";
 import { AnalyticsEvent } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { forbidden } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
-import { validate } from "../utils/validate.js";
 import { hasPermission } from "../utils/roles.js";
 
 export const analyticsRouter = express.Router();
-
-const trackSchema = z.object({
-  events: z.array(z.object({
-    event: z.string().min(1).max(120),
-    occurred_at: z.string().datetime().optional(),
-    props: z.record(z.unknown()).optional().default({}),
-  })).min(1).max(50),
-});
 
 function requireAnalytics(req) {
   if (!hasPermission(req.user, "view_national_analytics") && !hasPermission(req.user, "view_institution_analytics")) {
@@ -25,16 +15,6 @@ function requireAnalytics(req) {
 }
 
 analyticsRouter.use(authMiddleware);
-
-analyticsRouter.post("/track", validate(trackSchema), asyncHandler(async (req, res) => {
-  await AnalyticsEvent.insertMany(req.body.events.map((event) => ({
-    user: req.user._id,
-    event: event.event,
-    props: event.props,
-    occurredAt: event.occurred_at ? new Date(event.occurred_at) : new Date(),
-  })));
-  sendSuccess(res, { accepted: req.body.events.length });
-}));
 
 analyticsRouter.get("/dau", asyncHandler(async (req, res) => {
   requireAnalytics(req);

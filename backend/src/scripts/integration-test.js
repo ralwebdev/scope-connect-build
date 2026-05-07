@@ -40,15 +40,6 @@ async function main() {
   const notifications = await request("/api/notifications?limit=10", { headers: authHeaders });
   if (!Array.isArray(notifications.items)) throw new Error("/notifications did not return a paginated item list");
 
-  const analytics = await request("/api/analytics/track", {
-    method: "POST",
-    headers: authHeaders,
-    body: JSON.stringify({
-      events: [{ event: "integration_test", occurred_at: new Date().toISOString(), props: { source: "backend-script" } }],
-    }),
-  });
-  if (analytics.accepted !== 1) throw new Error("/analytics/track did not accept the test event");
-
   console.log("Integration test passed");
   console.log(`API: ${BASE_URL}`);
   console.log(`User: ${me.user.email}`);
