@@ -26,6 +26,7 @@ import {
 import { themeForRole } from "@/lib/role-theme";
 import { ROLE_LABELS, type RoleId } from "@/lib/rbac";
 import { toast } from "sonner";
+import { backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -108,7 +109,6 @@ function ProfilePage() {
                 <TabsTrigger value="platform">Platform</TabsTrigger>
                 <TabsTrigger value="system">System</TabsTrigger>
                 <TabsTrigger value="moderation">Moderation</TabsTrigger>
-                <TabsTrigger value="analytics">Analytics</TabsTrigger>
               </>}
             </TabsList>
           </div>
@@ -261,12 +261,6 @@ function ProfilePage() {
                 { title: "Flagged users", desc: "Reports & actions taken", to: "/scope-super-admin", icon: Activity },
               ]} accent={roleTheme.glow} />
             </TabsContent>
-            <TabsContent value="analytics" className="mt-6">
-              <RoleLinkGrid items={[
-                { title: "DAU / WAU", desc: "Funnel metrics & retention", to: "/scope-super-admin", icon: BarChart3 },
-                { title: "Admin logs", desc: "Action history & changes", to: "/scope-super-admin/rbac-audit", icon: FileBarChart },
-              ]} accent={roleTheme.glow} />
-            </TabsContent>
           </>}
         </Tabs>
       </section>
@@ -374,20 +368,33 @@ function OverviewTab(props: {
 }
 
 function ActivityTab({ role }: { role: RoleId }) {
-  const items = role === "scope_admin"
-    ? ["Logged 2 institutional visits this week", "1 MoU moved to Signed", "3 follow-ups scheduled"]
-    : role === "institutional_admin"
-    ? ["48 students onboarded this month", "Engagement +12% WoW", "5 broadcasts sent"]
-    : role === "faculty_coordinator"
-    ? ["12 student verifications approved", "3 projects under supervision updated"]
-    : (role === "scope_super_admin" || role === "super_admin")
-    ? ["3 feature flags toggled", "RBAC audit reviewed", "2 alerts cleared"]
-    : ["Joined 2 projects", "Logged a 3-day streak", "Updated portfolio links"];
+  const [items, setItems] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    backendUsers.activity(30)
+      .then(({ items: activityItems }) => {
+        if (cancelled) return;
+        setItems(activityItems.map((item) => item.text));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [role]);
   return (
     <Card className="p-6">
       <h3 className="font-semibold text-foreground">Recent activity</h3>
+      {loading && <p className="mt-3 text-sm text-muted-foreground">Loading activity...</p>}
       <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-        {items.map((t) => <li key={t} className="flex items-start gap-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />{t}</li>)}
+        {!loading && items.map((t) => <li key={t} className="flex items-start gap-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />{t}</li>)}
+        {!loading && items.length === 0 && <li className="text-muted-foreground">No backend activity yet.</li>}
       </ul>
     </Card>
   );

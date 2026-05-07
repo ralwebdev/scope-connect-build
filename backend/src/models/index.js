@@ -12,3 +12,4 @@ export { Notification } from "./Notification.js";
 export { Session } from "./Session.js";
 export { AnalyticsEvent } from "./AnalyticsEvent.js";
 export { FileAsset } from "./FileAsset.js";
+export { ProfileActivity } from "./ProfileActivity.js";

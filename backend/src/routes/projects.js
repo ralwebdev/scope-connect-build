@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { Project, Application, Notification } from "../models/index.js";
+import { Project, Application, Notification, ProfileActivity } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -13,6 +13,9 @@ import { serializeProject, serializeApplication } from "../utils/serializers.js"
 
 export const projectsRouter = express.Router();
 export const applicationsRouter = express.Router();
+async function logProfileActivity(userId, kind, text, meta = {}) {
+  await ProfileActivity.create({ user: userId, kind, text, meta }).catch(() => null);
+}
 
 const projectSchema = z.object({
   title: z.string().min(1).max(200),
@@ -81,6 +84,7 @@ projectsRouter.post("/", requirePermission("create_project"), validate(projectSc
     visibility: req.body.visibility,
     status: req.body.status,
   });
+  await logProfileActivity(req.user._id, "project_created", `Created project: ${project.title}`, { project_id: project.id });
   sendSuccess(res, { project: serializeProject(project) }, "Project created", 201);
 }));
 
@@ -122,6 +126,7 @@ projectsRouter.post("/:id/apply", requirePermission("apply_to_project"), validat
   const existing = await Application.findOne({ project: project._id, user: req.user._id, status: { $ne: "withdrawn" } });
   if (existing) throw new AppError(409, "ALREADY_APPLIED", "You have already applied");
   const application = await Application.create({ project: project._id, user: req.user._id, message: req.body.message });
+  await logProfileActivity(req.user._id, "project_applied", `Applied to project: ${project.title}`, { project_id: project.id, application_id: application.id });
   await Notification.create({
     user: project.createdBy,
     kind: "application_received",
@@ -158,6 +163,9 @@ applicationsRouter.patch("/:id", validate(applicationPatchSchema), asyncHandler(
   application.reviewedBy = isReviewer ? req.user._id : application.reviewedBy;
   application.reviewedAt = isReviewer ? new Date() : application.reviewedAt;
   await application.save();
+  if (isApplicant || req.user._id.toString() === application.user.toString()) {
+    await logProfileActivity(application.user, "application_status", `Application status changed to ${application.status}`, { application_id: application.id });
+  }
   await Notification.create({
     user: application.user,
     kind: "application_status_changed",

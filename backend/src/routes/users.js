@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, Session } from "../models/index.js";
+import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, ProfileActivity, Session } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -113,6 +113,9 @@ function canCreateAdminUser(req) {
   if (req.user.role === "super_admin") return true;
   return req.user.role === "scope_admin" && req.body.role === "institution_admin" && Boolean(req.body.institution_id);
 }
+async function logProfileActivity(userId, kind, text, meta = {}) {
+  await ProfileActivity.create({ user: userId, kind, text, meta }).catch(() => null);
+}
 
 usersRouter.use(authMiddleware);
 
@@ -175,6 +178,22 @@ usersRouter.get("/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, { user: await serializeUser(user, { includePrivate }) });
 }));
 
+usersRouter.get("/me/activity", asyncHandler(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit || 20), 100);
+  const items = await ProfileActivity.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(limit);
+  sendSuccess(res, {
+    items: items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      text: item.text,
+      created_at: item.createdAt,
+      meta: item.meta || {},
+    })),
+    next_cursor: null,
+    has_more: false,
+  });
+}));
+
 usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, res) => {
   if (req.user.id !== req.params.id && req.user.role !== "super_admin") throw forbidden();
   const user = await User.findById(req.params.id);
@@ -217,6 +236,7 @@ usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, re
     { new: true, upsert: true },
   );
   await profile.save();
+  await logProfileActivity(user._id, "profile_updated", "Updated profile details");
   sendSuccess(res, { user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }) });
 }));
 
@@ -230,6 +250,7 @@ usersRouter.post("/profile", validate(portfolioSchema), asyncHandler(async (req,
     category: link.category,
     position: index,
   })));
+  await logProfileActivity(req.user._id, "portfolio_updated", "Updated portfolio links");
   sendSuccess(res, { user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
 }));
 

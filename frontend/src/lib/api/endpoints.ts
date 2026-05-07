@@ -67,6 +67,9 @@ export const backendUsers = {
       body: JSON.stringify({ portfolio_links: links }),
     });
   },
+  activity(limit = 20) {
+    return api<{ items: Array<{ id: string; kind: string; text: string; created_at: string; meta?: Record<string, unknown> }>; next_cursor: string | null; has_more: boolean }>(`/api/users/me/activity?limit=${limit}`);
+  },
 };
 
 type BackendInstitution = {
