@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart, MessageCircle, Share2, PartyPopper, Image as ImageIcon, Send, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AppShell } from "@/components/site/AppShell";
 import { AdSlot } from "@/components/site/AdSlot";
-import { useStoreValue, useUser, useIsLoggedIn } from "@/hooks/use-scope";
-import { feed } from "@/lib/scope-store";
+import { useUser, useIsLoggedIn } from "@/hooks/use-scope";
 import { FeatureGate } from "@/components/site/FeatureGate";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
+import { backendFeed, type BackendFeedPost } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/feed")({
   head: () => ({
@@ -26,15 +26,28 @@ export const Route = createFileRoute("/feed")({
 function FeedPage() {
   const user = useUser();
   const isAuthed = useIsLoggedIn();
-  const posts = useStoreValue(() => feed.all());
+  const [posts, setPosts] = useState<BackendFeedPost[]>([]);
+  const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    backendFeed.list()
+      .then(({ items }) => { if (!cancelled) setPosts(items); })
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not load feed"))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const submit = () => {
     if (!draft.trim()) return;
     if (!isAuthed) { toast.error("Sign in to post."); return; }
-    feed.create(draft.trim());
+    backendFeed.create(draft.trim())
+      .then(({ post }) => setPosts((current) => [post, ...current]))
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not publish post"));
     analytics.track("feed_post_created");
     setDraft("");
     toast.success("Posted. Your chapter noticed this.");
@@ -42,12 +55,16 @@ function FeedPage() {
 
   const onLike = (id: string) => {
     if (!isAuthed) { toast.error("Sign in to react."); return; }
-    feed.toggleLike(id);
+    backendFeed.react(id, "like")
+      .then(({ post }) => setPosts((current) => current.map((p) => (p.id === id ? post : p))))
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not update reaction"));
   };
 
   const onCelebrate = (id: string) => {
     if (!isAuthed) { toast.error("Sign in to react."); return; }
-    feed.toggleCelebrate(id);
+    backendFeed.react(id, "celebrate")
+      .then(({ post }) => setPosts((current) => current.map((p) => (p.id === id ? post : p))))
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not update reaction"));
     toast("🎉 Celebrate sent");
   };
 
@@ -55,8 +72,12 @@ function FeedPage() {
     const text = commentDraft[id]?.trim();
     if (!text) return;
     if (!isAuthed) { toast.error("Sign in to comment."); return; }
-    feed.comment(id, text);
-    setCommentDraft((m) => ({ ...m, [id]: "" }));
+    backendFeed.comment(id, text)
+      .then(({ post }) => {
+        setPosts((current) => current.map((p) => (p.id === id ? post : p)));
+        setCommentDraft((m) => ({ ...m, [id]: "" }));
+      })
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not add comment"));
   };
 
   const onShare = (id: string) => {
@@ -116,6 +137,7 @@ function FeedPage() {
         )}
 
         <div className="mt-6 space-y-4">
+          {loading && <Card className="p-5 text-sm text-muted-foreground">Loading feed...</Card>}
           {posts.map((p) => (
             <Card key={p.id} className="p-5 hover-lift animate-fade-in">
               <div className="flex items-center gap-3">

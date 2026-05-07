@@ -13,3 +13,4 @@ export { Session } from "./Session.js";
 export { AnalyticsEvent } from "./AnalyticsEvent.js";
 export { FileAsset } from "./FileAsset.js";
 export { ProfileActivity } from "./ProfileActivity.js";
+export { FeedPost } from "./FeedPost.js";

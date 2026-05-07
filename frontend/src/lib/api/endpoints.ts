@@ -205,6 +205,36 @@ export const backendAnalytics = {
   },
 };
 
+export type BackendFeedPost = {
+  id: string;
+  author: string;
+  campus: string;
+  time: string;
+  type: string;
+  content: string;
+  likes: number;
+  celebrates: number;
+  comments: number;
+  userLiked: boolean;
+  userCelebrated: boolean;
+  commentList: Array<{ id: string; author: string; text: string; at: number }>;
+};
+
+export const backendFeed = {
+  list(limit = 100) {
+    return api<{ items: BackendFeedPost[]; next_cursor: string | null; has_more: boolean }>(`/api/feed?limit=${limit}`);
+  },
+  create(content: string, type = "Update") {
+    return api<{ post: BackendFeedPost }>("/api/feed", { method: "POST", body: JSON.stringify({ content, type }) });
+  },
+  react(id: string, reaction: "like" | "celebrate") {
+    return api<{ post: BackendFeedPost }>(`/api/feed/${id}/react`, { method: "POST", body: JSON.stringify({ reaction }) });
+  },
+  comment(id: string, text: string) {
+    return api<{ post: BackendFeedPost }>(`/api/feed/${id}/comment`, { method: "POST", body: JSON.stringify({ text }) });
+  },
+};
+
 export function mapBackendProject(project: BackendProject): Project {
   return {
     id: project.id,

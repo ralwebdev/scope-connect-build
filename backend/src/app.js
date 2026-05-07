@@ -13,6 +13,7 @@ import { institutionsRouter } from "./routes/institutions.js";
 import { projectsRouter, applicationsRouter } from "./routes/projects.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { analyticsRouter } from "./routes/analytics.js";
+import { feedRouter } from "./routes/feed.js";
 import { uploadRouter, filesRouter } from "./routes/upload.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -51,6 +52,7 @@ export function createApp() {
   app.use("/api/institutions", institutionsRouter);
   app.use("/api/projects", projectsRouter);
   app.use("/api/applications", applicationsRouter);
+  app.use("/api/feed", feedRouter);
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/analytics", analyticsRouter);
   app.use("/api/upload", uploadRouter);
