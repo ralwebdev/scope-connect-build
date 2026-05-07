@@ -285,6 +285,39 @@ export const backendFeed = {
   },
 };
 
+export type BackendPortfolioItem = {
+  id: string;
+  user_id: string;
+  type: "Project" | "Design" | "Research" | "Startup Idea" | "Campaign" | "Certificate";
+  title: string;
+  description: string;
+  skills: string[];
+  link: string;
+  cover: string;
+  created_at: string;
+};
+
+export const backendPortfolio = {
+  listMe() {
+    return api<{ items: BackendPortfolioItem[]; next_cursor: string | null; has_more: boolean }>("/api/portfolio-items/me");
+  },
+  create(body: Omit<BackendPortfolioItem, "id" | "user_id" | "created_at">) {
+    return api<{ item: BackendPortfolioItem }>("/api/portfolio-items", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  update(id: string, body: Partial<Omit<BackendPortfolioItem, "id" | "user_id" | "created_at">>) {
+    return api<{ item: BackendPortfolioItem }>(`/api/portfolio-items/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<null>(`/api/portfolio-items/${id}`, { method: "DELETE" });
+  },
+};
+
 export function mapBackendProject(project: BackendProject): Project {
   return {
     id: project.id,

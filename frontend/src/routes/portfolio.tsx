@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, X, Pencil, Trash2, ExternalLink, Trophy, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,11 @@ import { Progress } from "@/components/ui/progress";
 import { AppShell } from "@/components/site/AppShell";
 import { AuthGate } from "@/components/site/AuthGate";
 import { FeatureGate } from "@/components/site/FeatureGate";
-import { useStoreValue, useUser } from "@/hooks/use-scope";
-import { portfolio, type PortfolioItem } from "@/lib/scope-store";
+import { useUser } from "@/hooks/use-scope";
+import { type PortfolioItem } from "@/lib/scope-store";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
+import { backendPortfolio } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
@@ -35,11 +36,17 @@ const COVERS = ["🚀", "🎨", "🧠", "💡", "📣", "🏅", "🛠️", "📊
 
 function PortfolioPage() {
   const user = useUser();
-  const items = useStoreValue(() => (user ? portfolio.forUser(user.id) : []));
-  const strength = useStoreValue(() => (user ? portfolio.strength(user.id) : 0));
+  const [items, setItems] = useState<PortfolioItem[]>([]);
+  const strength = useMemo(() => {
+    const count = items.length;
+    if (count === 0) return 0;
+    if (count >= 6) return 100;
+    return Math.min(100, 25 + count * 15);
+  }, [items]);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PortfolioItem | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const grouped = useMemo(() => {
     const map: Record<string, PortfolioItem[]> = {};
@@ -51,6 +58,28 @@ function PortfolioPage() {
   }, [items]);
 
   if (!user) return null;
+
+  useEffect(() => {
+    let cancelled = false;
+    backendPortfolio.listMe()
+      .then(({ items: backendItems }) => {
+        if (cancelled) return;
+        setItems(backendItems.map((item) => ({
+          id: item.id,
+          userId: item.user_id,
+          type: item.type,
+          title: item.title,
+          description: item.description,
+          skills: item.skills || [],
+          link: item.link || undefined,
+          cover: item.cover,
+          createdAt: item.created_at ? new Date(item.created_at).getTime() : Date.now(),
+        })));
+      })
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not load portfolio."))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <AppShell>
@@ -85,6 +114,7 @@ function PortfolioPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {loading && <p className="mb-4 text-sm text-muted-foreground">Hydrating portfolio from backend...</p>}
         {items.length === 0 ? (
           <Card className="p-12 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-3xl">🧩</div>
@@ -102,8 +132,12 @@ function PortfolioPage() {
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {grouped[type].map((item) => (
                     <PortfolioCard key={item.id} item={item} onEdit={() => { setEditing(item); setOpen(true); }} onDelete={() => {
-                      portfolio.remove(item.id);
-                      toast("Item removed");
+                      backendPortfolio.remove(item.id)
+                        .then(() => {
+                          setItems((current) => current.filter((entry) => entry.id !== item.id));
+                          toast("Item removed");
+                        })
+                        .catch((error) => toast.error(error instanceof Error ? error.message : "Could not remove item."));
                     }} />
                   ))}
                 </div>
@@ -115,6 +149,10 @@ function PortfolioPage() {
 
       {open && (
         <ItemModal
+          onSaved={(item, mode) => {
+            if (mode === "create") setItems((current) => [item, ...current]);
+            else setItems((current) => current.map((entry) => entry.id === item.id ? item : entry));
+          }}
           existing={editing}
           onClose={() => { setOpen(false); setEditing(null); }}
         />
@@ -154,7 +192,7 @@ function PortfolioCard({ item, onEdit, onDelete }: { item: PortfolioItem; onEdit
   );
 }
 
-function ItemModal({ existing, onClose }: { existing: PortfolioItem | null; onClose: () => void }) {
+function ItemModal({ existing, onClose, onSaved }: { existing: PortfolioItem | null; onClose: () => void; onSaved: (item: PortfolioItem, mode: "create" | "update") => void }) {
   const [type, setType] = useState<PortfolioItem["type"]>(existing?.type ?? "Project");
   const [title, setTitle] = useState(existing?.title ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
@@ -168,15 +206,45 @@ function ItemModal({ existing, onClose }: { existing: PortfolioItem | null; onCl
       return;
     }
     const skills = skillsText.split(",").map((s) => s.trim()).filter(Boolean);
+    const payload = { type, title: title.trim(), description: description.trim(), skills, link: link.trim(), cover };
     if (existing) {
-      portfolio.update(existing.id, { type, title: title.trim(), description: description.trim(), skills, link: link.trim() || undefined, cover });
-      toast.success("Portfolio updated.");
+      backendPortfolio.update(existing.id, payload)
+        .then(({ item }) => {
+          onSaved({
+            id: item.id,
+            userId: item.user_id,
+            type: item.type,
+            title: item.title,
+            description: item.description,
+            skills: item.skills || [],
+            link: item.link || undefined,
+            cover: item.cover,
+            createdAt: item.created_at ? new Date(item.created_at).getTime() : Date.now(),
+          }, "update");
+          toast.success("Portfolio updated.");
+          onClose();
+        })
+        .catch((error) => toast.error(error instanceof Error ? error.message : "Could not update portfolio."));
     } else {
-      portfolio.create({ type, title: title.trim(), description: description.trim(), skills, link: link.trim() || undefined, cover });
-      analytics.track("portfolio_item_added");
-      toast.success("Portfolio upgraded. +30 XP");
+      backendPortfolio.create(payload)
+        .then(({ item }) => {
+          onSaved({
+            id: item.id,
+            userId: item.user_id,
+            type: item.type,
+            title: item.title,
+            description: item.description,
+            skills: item.skills || [],
+            link: item.link || undefined,
+            cover: item.cover,
+            createdAt: item.created_at ? new Date(item.created_at).getTime() : Date.now(),
+          }, "create");
+          analytics.track("portfolio_item_added");
+          toast.success("Portfolio upgraded. +30 XP");
+          onClose();
+        })
+        .catch((error) => toast.error(error instanceof Error ? error.message : "Could not create portfolio item."));
     }
-    onClose();
   };
 
   return (

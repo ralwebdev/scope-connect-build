@@ -17,7 +17,7 @@ import { CredibilityPanel } from "@/components/site/CredibilityPanel";
 import { DropoffNudge } from "@/components/site/DropoffNudge";
 import { useRole } from "@/hooks/use-rbac";
 import { landingRouteForRole } from "@/lib/rbac";
-import { backendFeed, backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
+import { backendEvents, backendFeed, backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -92,10 +92,11 @@ function DashboardPage() {
     Promise.allSettled([
       backendUsers.list(),
       backendProjects.list(),
+      backendEvents.list(),
       backendNotifications.list(),
       backendFeed.list(4),
     ])
-      .then(([usersData, projectsData, notificationsData, feedData]) => {
+      .then(([usersData, projectsData, eventsData, notificationsData, feedData]) => {
         if (cancelled) return;
         if (usersData.status === "fulfilled") {
           const sortedUsers = [...usersData.value.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
@@ -115,16 +116,15 @@ function DashboardPage() {
               cover: "🚀",
             })),
           );
+        }
+        if (eventsData.status === "fulfilled") {
           setUpcomingHydrated(
-            projectsData.value.items
-              .filter((p) => Boolean(p.starts_on))
-              .slice(0, 3)
-              .map((p) => ({
-                id: p.id,
-                title: p.title,
-                date: formatEventDate(p.starts_on || ""),
-                venue: user.campus || "Scope Connect",
-              })),
+            eventsData.value.items.slice(0, 3).map((eventItem) => ({
+              id: eventItem.id,
+              title: eventItem.title,
+              date: formatEventDate(eventItem.date),
+              venue: eventItem.venue,
+            })),
           );
         }
         if (feedData.status === "fulfilled") {
