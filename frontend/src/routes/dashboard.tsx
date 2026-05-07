@@ -10,14 +10,14 @@ import { AdSlot } from "@/components/site/AdSlot";
 import { AuthGate } from "@/components/site/AuthGate";
 import { CountUp } from "@/components/site/Effects";
 import { useUser, useXP, useLevel, useLevelProgress, useStreak, useProfileStrength, useStoreValue } from "@/hooks/use-scope";
-import { feed, events, memberLeaderboard, applications, curated, portfolio } from "@/lib/scope-store";
+import { events, memberLeaderboard, applications, curated, portfolio } from "@/lib/scope-store";
 import { RetentionLayer } from "@/components/site/RetentionLayer";
 import { PortfolioSpotlight } from "@/components/site/PortfolioSpotlight";
 import { CredibilityPanel } from "@/components/site/CredibilityPanel";
 import { DropoffNudge } from "@/components/site/DropoffNudge";
 import { useRole } from "@/hooks/use-rbac";
 import { landingRouteForRole } from "@/lib/rbac";
-import { backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
+import { backendFeed, backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -66,7 +66,6 @@ function DashboardPage() {
   const levelProgress = useLevelProgress();
   const streak = useStreak();
   const strength = useProfileStrength();
-  const recentFeed = useStoreValue(() => feed.all().slice(0, 4));
   const upcoming = useStoreValue(() => events.all().slice(0, 3));
   const board = useStoreValue(() => memberLeaderboard());
   const myApplications = useStoreValue(() => (user ? applications.forUser(user.id) : []));
@@ -84,42 +83,51 @@ function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
     setLoadingHydration(true);
-    Promise.all([
+    Promise.allSettled([
       backendUsers.list(),
       backendProjects.list(),
       backendNotifications.list(),
+      backendFeed.list(4),
     ])
-      .then(([usersData, projectsData, notificationsData]) => {
+      .then(([usersData, projectsData, notificationsData, feedData]) => {
         if (cancelled) return;
-        const sortedUsers = [...usersData.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
-        const rank = sortedUsers.findIndex((u) => u.id === user.id) + 1;
-        setMyRankHydrated(rank > 0 ? rank : null);
-        const myApps = notificationsData.items.filter((n) => n.kind === "application_status_changed" || n.kind === "application_received");
-        setMyApplicationsHydrated(myApps.length);
-        setRecommendedHydrated(
-          projectsData.items.slice(0, 3).map((p) => ({
-            id: p.id,
-            title: p.title,
-            description: p.description || p.summary || "Live builder opportunity.",
-            cover: "🚀",
-          })),
-        );
-        setRecentFeedHydrated(
-          notificationsData.items.slice(0, 4).map((n, i) => ({
-            id: n.id,
-            author: "Scope Connect",
-            campus: user.campus || "Your Campus",
-            time: new Date(n.created_at).toLocaleDateString(),
-            type: n.kind.replaceAll("_", " "),
-            content: n.body || n.title,
-          })),
-        );
-        setUpcomingHydrated(
-          projectsData.items
-            .filter((p) => Boolean(p.starts_on))
-            .slice(0, 3)
-            .map((p) => ({ id: p.id, title: p.title, date: p.starts_on || "", venue: p.institution_id || "Scope Connect" })),
-        );
+        if (usersData.status === "fulfilled") {
+          const sortedUsers = [...usersData.value.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
+          const rank = sortedUsers.findIndex((u) => u.id === user.id) + 1;
+          setMyRankHydrated(rank > 0 ? rank : null);
+        }
+        if (notificationsData.status === "fulfilled") {
+          const myApps = notificationsData.value.items.filter((n) => n.kind === "application_status_changed" || n.kind === "application_received");
+          setMyApplicationsHydrated(myApps.length);
+        }
+        if (projectsData.status === "fulfilled") {
+          setRecommendedHydrated(
+            projectsData.value.items.slice(0, 3).map((p) => ({
+              id: p.id,
+              title: p.title,
+              description: p.description || p.summary || "Live builder opportunity.",
+              cover: "🚀",
+            })),
+          );
+          setUpcomingHydrated(
+            projectsData.value.items
+              .filter((p) => Boolean(p.starts_on))
+              .slice(0, 3)
+              .map((p) => ({ id: p.id, title: p.title, date: p.starts_on || "", venue: p.institution_id || "Scope Connect" })),
+          );
+        }
+        if (feedData.status === "fulfilled") {
+          setRecentFeedHydrated(
+            feedData.value.items.map((item) => ({
+              id: item.id,
+              author: item.author,
+              campus: item.campus,
+              time: item.time,
+              type: item.type,
+              content: item.content,
+            })),
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingHydration(false);
@@ -129,7 +137,7 @@ function DashboardPage() {
   const myRank = myRankHydrated ?? (board.findIndex((r) => r.isMe) + 1);
   const xpToNext = level.max - xp;
   const myApplicationsCount = myApplicationsHydrated ?? myApplications.length;
-  const feedRows = recentFeedHydrated.length ? recentFeedHydrated : recentFeed;
+  const feedRows = recentFeedHydrated;
   const upcomingRows = upcomingHydrated.length ? upcomingHydrated : upcoming;
   const recommendedRows = recommendedHydrated.length ? recommendedHydrated : recommended;
 
@@ -433,3 +441,4 @@ function ActivationChecklist({
     </section>
   );
 }
+
