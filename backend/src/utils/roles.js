@@ -71,6 +71,7 @@ export const permissionsByRole = {
     "manage_institution",
     "manage_partnerships",
     "manage_campuses",
+    "manage_events",
     "view_national_analytics",
   ],
   super_admin: ["*"],

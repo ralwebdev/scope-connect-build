@@ -16,6 +16,7 @@ import { analyticsRouter } from "./routes/analytics.js";
 import { feedRouter } from "./routes/feed.js";
 import { uploadRouter, filesRouter } from "./routes/upload.js";
 import { healthRouter } from "./routes/health.js";
+import { eventsRouter } from "./routes/events.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -57,6 +58,7 @@ export function createApp() {
   app.use("/api/analytics", analyticsRouter);
   app.use("/api/upload", uploadRouter);
   app.use("/api/files", filesRouter);
+  app.use("/api/events", eventsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

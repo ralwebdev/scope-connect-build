@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Calendar, MapPin, Users, Check, Share2, CalendarPlus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { events } from "@/lib/scope-store";
 import { FeatureGate } from "@/components/site/FeatureGate";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
+import { backendEvents, type BackendEvent } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/events")({
   head: () => ({
@@ -31,8 +33,37 @@ function fmtCountdown(ms: number) {
 
 function EventsPage() {
   const isAuthed = useIsLoggedIn();
-  const all = useStoreValue(() => events.all());
   const rsvps = useStoreValue(() => events.rsvps());
+  const [all, setAll] = useState<Array<{ id: string; title: string; type: string; date: string; venue: string; seats: number; color: "brand" | "cyan" | "primary"; startsAt: number }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const startsAtFromDate = (value: string) => {
+      const parsed = Date.parse(value);
+      if (!Number.isNaN(parsed)) return parsed;
+      return Date.now() + 7 * 86400000;
+    };
+
+    backendEvents.list()
+      .then(({ items }) => {
+        if (cancelled) return;
+        setAll(items.map((item: BackendEvent) => ({
+          id: item.id,
+          title: item.title,
+          type: item.type,
+          date: item.date,
+          venue: item.venue,
+          seats: item.seats,
+          color: item.color,
+          startsAt: startsAtFromDate(item.date),
+        })));
+      })
+      .catch(() => {
+        if (!cancelled) setAll([]);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   const onRsvp = (id: string) => {
     if (!isAuthed) { toast.error("Sign in to RSVP."); return; }
@@ -100,6 +131,9 @@ function EventsPage() {
               </Card>
             );
           })}
+          {all.length === 0 && (
+            <Card className="p-6 text-sm text-muted-foreground">No upcoming events yet.</Card>
+          )}
         </div>
       </section>
     </AppShell>

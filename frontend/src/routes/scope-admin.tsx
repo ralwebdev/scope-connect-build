@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { crm, PIPELINE_STAGES, type Institution, type PipelineStage } from "@/lib/crm-store";
-import { backendAdminUsers } from "@/lib/api/endpoints";
+import { backendAdminUsers, backendEvents, type BackendEvent } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/scope-admin")({
@@ -116,6 +116,7 @@ function ScopeAdminPortal() {
             <TabsTrigger value="proposals">Proposals & MoU</TabsTrigger>
             <TabsTrigger value="launch">Launch Tracker</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="events">Scope Events</TabsTrigger>
           </TabsList>
 
           <TabsContent value="crm" className="mt-6">
@@ -128,10 +129,94 @@ function ScopeAdminPortal() {
           <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
           <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} /></TabsContent>
+          <TabsContent value="events" className="mt-6"><ScopeEventsManager /></TabsContent>
         </Tabs>
       </section>
       </RbacSidebar>
     </AppShell>
+  );
+}
+
+function ScopeEventsManager() {
+  const [events, setEvents] = useState<BackendEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<Omit<BackendEvent, "id">>({
+    title: "",
+    type: "",
+    date: "",
+    venue: "",
+    seats: 100,
+    color: "brand",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    backendEvents.list()
+      .then(({ items }) => { if (!cancelled) setEvents(items); })
+      .catch((error) => { toast.error(error instanceof Error ? error.message : "Could not load events."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!form.title || !form.type || !form.date || !form.venue || form.seats < 1) {
+      toast.error("Fill all fields with valid values.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { event: created } = await backendEvents.create(form);
+      setEvents((current) => [created, ...current]);
+      setForm({ title: "", type: "", date: "", venue: "", seats: 100, color: "brand" });
+      toast.success("Upcoming event added.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create event.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card className="p-5">
+        <h3 className="text-sm font-bold">Add Upcoming Event</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Schema: title, type, date, venue, seats, color.</p>
+        <form onSubmit={submit} className="mt-4 grid gap-3">
+          <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+          <div><Label>Type</Label><Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} /></div>
+          <div><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+          <div><Label>Venue</Label><Input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></div>
+          <div><Label>Seats</Label><Input type="number" min={1} value={form.seats} onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 1 })} /></div>
+          <div>
+            <Label>Color</Label>
+            <select value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value as "brand" | "cyan" | "primary" })} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option value="brand">brand</option>
+              <option value="cyan">cyan</option>
+              <option value="primary">primary</option>
+            </select>
+          </div>
+          <Button type="submit" disabled={saving} className="bg-gradient-brand text-brand-foreground">{saving ? "Saving..." : "Add event"}</Button>
+        </form>
+      </Card>
+      <Card className="p-5">
+        <h3 className="text-sm font-bold">Upcoming Events ({events.length})</h3>
+        <div className="mt-3 space-y-2">
+          {loading && <p className="text-sm text-muted-foreground">Loading events...</p>}
+          {!loading && events.map((item) => (
+            <div key={item.id} className="rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold">{item.title}</div>
+                <Badge variant="outline">{item.color}</Badge>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">{item.type} · {item.date}</div>
+              <div className="text-xs text-muted-foreground">{item.venue} · {item.seats} seats</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 

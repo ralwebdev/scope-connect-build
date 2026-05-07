@@ -230,6 +230,28 @@ export const backendAnalytics = {
   },
 };
 
+export type BackendEvent = {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  venue: string;
+  seats: number;
+  color: "brand" | "cyan" | "primary";
+};
+
+export const backendEvents = {
+  list() {
+    return api<{ items: BackendEvent[]; next_cursor: string | null; has_more: boolean }>("/api/events");
+  },
+  create(body: Omit<BackendEvent, "id">) {
+    return api<{ event: BackendEvent }>("/api/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
 export type BackendFeedPost = {
   id: string;
   author: string;
