@@ -17,7 +17,7 @@ import { CredibilityPanel } from "@/components/site/CredibilityPanel";
 import { DropoffNudge } from "@/components/site/DropoffNudge";
 import { useRole } from "@/hooks/use-rbac";
 import { landingRouteForRole } from "@/lib/rbac";
-import { backendEvents, backendFeed, backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
+import { backendApplications, backendEvents, backendFeed, backendNotifications, backendPortfolio, backendProjects, backendUsers } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -78,6 +78,8 @@ function DashboardPage() {
   const [recommendedHydrated, setRecommendedHydrated] = useState<Array<{ id: string; title: string; description: string; cover: string }>>([]);
   const [recentFeedHydrated, setRecentFeedHydrated] = useState<Array<{ id: string; author: string; campus: string; time: string; type: string; content: string }>>([]);
   const [upcomingHydrated, setUpcomingHydrated] = useState<Array<{ id: string; title: string; date: string; venue: string }>>([]);
+  const [portfolioStatsHydrated, setPortfolioStatsHydrated] = useState<{ count: number; strength: number } | null>(null);
+  const [myApplicationsListHydrated, setMyApplicationsListHydrated] = useState<Array<{ id: string; projectId: string; status: string; topSkill: string }>>([]);
 
   const formatEventDate = (value: string) => {
     const d = new Date(value);
@@ -95,8 +97,10 @@ function DashboardPage() {
       backendEvents.list(),
       backendNotifications.list(),
       backendFeed.list(4),
+      backendPortfolio.listMe(),
+      backendApplications.list(),
     ])
-      .then(([usersData, projectsData, eventsData, notificationsData, feedData]) => {
+      .then(([usersData, projectsData, eventsData, notificationsData, feedData, portfolioData, applicationsData]) => {
         if (cancelled) return;
         if (usersData.status === "fulfilled") {
           const sortedUsers = [...usersData.value.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
@@ -139,6 +143,22 @@ function DashboardPage() {
             })),
           );
         }
+        if (portfolioData.status === "fulfilled") {
+          const items = portfolioData.value.items;
+          const count = items.length;
+          const strengthValue = count === 0 ? 0 : count >= 6 ? 100 : Math.min(100, 25 + count * 15);
+          setPortfolioStatsHydrated({ count, strength: strengthValue });
+        }
+        if (applicationsData.status === "fulfilled") {
+          setMyApplicationsListHydrated(
+            applicationsData.value.items.slice(0, 3).map((a) => ({
+              id: a.id,
+              projectId: a.project_id,
+              status: a.status.charAt(0).toUpperCase() + a.status.slice(1).replace("_", " "),
+              topSkill: "Backend Synced",
+            })),
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingHydration(false);
@@ -148,6 +168,9 @@ function DashboardPage() {
   const myRank = myRankHydrated ?? (board.findIndex((r) => r.isMe) + 1);
   const xpToNext = level.max - xp;
   const myApplicationsCount = myApplicationsHydrated ?? myApplications.length;
+  const myApplicationsList = myApplicationsListHydrated.length ? myApplicationsListHydrated : myApplications.slice(0, 3).map(a => ({ id: a.id, projectId: a.projectId, status: a.status, topSkill: a.topSkill }));
+  const currentPortfolioCount = portfolioStatsHydrated?.count ?? portfolioCount;
+  const currentPortfolioStrength = portfolioStatsHydrated?.strength ?? portfolioStrength;
   const feedRows = recentFeedHydrated;
   const upcomingRows = upcomingHydrated.length ? upcomingHydrated : upcoming;
   const recommendedRows = recommendedHydrated.length ? recommendedHydrated : recommended;
@@ -205,9 +228,9 @@ function DashboardPage() {
 
       <ActivationChecklist
         hasProfile={strength >= 60}
-        hasApplied={myApplications.length > 0}
+        hasApplied={myApplicationsCount > 0}
         hasJoinedCampus={!!user.campus}
-        hasPortfolio={portfolioCount > 0}
+        hasPortfolio={currentPortfolioCount > 0}
       />
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -309,7 +332,7 @@ function DashboardPage() {
                 <p className="mt-3 text-sm text-muted-foreground">No applications yet. Your next move starts here.</p>
               ) : (
                 <ul className="mt-4 space-y-3">
-                  {myApplications.slice(0, 3).map((a) => {
+                  {myApplicationsList.map((a) => {
                     const project = curated.byId(a.projectId);
                     return (
                       <li key={a.id} className="rounded-lg border border-border p-3">
@@ -376,8 +399,8 @@ function DashboardPage() {
           <Card className="p-6 hover-lift">
             <Briefcase className="h-5 w-5 text-brand" />
             <h3 className="mt-3 font-semibold text-foreground">Portfolio strength</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{portfolioCount} item{portfolioCount === 1 ? "" : "s"} · {portfolioStrength}% complete</p>
-            <Progress value={portfolioStrength} className="mt-3" />
+            <p className="mt-1 text-sm text-muted-foreground">{currentPortfolioCount} item{currentPortfolioCount === 1 ? "" : "s"} · {currentPortfolioStrength}% complete</p>
+            <Progress value={currentPortfolioStrength} className="mt-3" />
             <Button asChild size="sm" className="mt-4 bg-gradient-brand text-brand-foreground"><Link to="/portfolio">Open Portfolio</Link></Button>
           </Card>
           <Card className="p-6 hover-lift">
@@ -469,4 +492,3 @@ function ActivationChecklist({
     </section>
   );
 }
-

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Save, Globe, Github, Twitter, Linkedin, FileText, Instagram, Plus, X, Sparkles,
-  Trophy, Users, Building2, BarChart3, Handshake, MapPin, Shield, Activity,
+  Trophy, Users, Building2, BarChart3, Handshake, MapPin, Shield, Activity, Trash2, ExternalLink,
   ClipboardCheck, Briefcase, FileBarChart, Megaphone, ArrowRight, Calendar,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import {
 import { themeForRole } from "@/lib/role-theme";
 import { ROLE_LABELS, type RoleId } from "@/lib/rbac";
 import { toast } from "sonner";
-import { backendUsers } from "@/lib/api/endpoints";
+import { backendAuth, backendPortfolio, backendUsers, type BackendPortfolioItem } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -43,6 +43,24 @@ const SUGGESTED_SKILLS = ["React", "TypeScript", "Tailwind", "Python", "ML", "Fi
 
 /** Roles that see student-style growth (XP, level, streak, portfolio editor). */
 const STUDENT_LIKE: RoleId[] = ["student", "viewer"];
+type BackendOverview = {
+  bio: string;
+  skills: string[];
+  interests: string[];
+  primaryDomain: string;
+  specialization: string;
+  links: {
+    website: string;
+    github: string;
+    twitter: string;
+    linkedin: string;
+    instagram: string;
+    portfolioWebsite: string;
+    resume: string;
+    portfolioPdf: string;
+  };
+  portfolioLinks: Record<string, string>;
+};
 
 function ProfilePage() {
   const user = useUser();
@@ -50,11 +68,60 @@ function ProfilePage() {
   const role = session.role;
   const isStudentLike = STUDENT_LIKE.includes(role);
   const roleTheme = themeForRole(role);
+  const [overviewFromBackend, setOverviewFromBackend] = useState<BackendOverview | null>(null);
+  const [overviewPortfolioItems, setOverviewPortfolioItems] = useState<BackendPortfolioItem[]>([]);
+  const [overviewPortfolioItemsLoading, setOverviewPortfolioItemsLoading] = useState(true);
 
   const strength = useProfileStrength();
   const xp = useXP();
   const level = useLevel();
   const streak = useStreak();
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setOverviewPortfolioItemsLoading(true);
+    Promise.allSettled([backendAuth.me(), backendPortfolio.listMe()])
+      .then(([profileResult, portfolioItemsResult]) => {
+        if (cancelled) return;
+        if (profileResult.status === "fulfilled") {
+          const backendUser = profileResult.value.user;
+          const links = backendUser.links ?? {};
+          const portfolioLinksFromArray = Object.fromEntries(
+            (backendUser.portfolio_links ?? []).map((link) => [link.key, link.url]),
+          );
+          setOverviewFromBackend({
+            bio: backendUser.bio ?? "",
+            skills: Array.isArray(backendUser.skills) ? backendUser.skills : [],
+            interests: Array.isArray(backendUser.interests) ? backendUser.interests : [],
+            primaryDomain: (backendUser.primaryDomain ?? backendUser.primary_domain ?? "") as string,
+            specialization: backendUser.specialization ?? "",
+            links: {
+              website: links.website ?? "",
+              github: links.github ?? links.github_url ?? "",
+              twitter: links.twitter ?? links.twitter_url ?? "",
+              linkedin: links.linkedin_url ?? backendUser.linkedinUrl ?? "",
+              instagram: links.instagram_url ?? backendUser.instagramUrl ?? "",
+              portfolioWebsite: links.portfolio_website ?? backendUser.portfolioWebsite ?? "",
+              resume: links.resume_url ?? backendUser.resumeUrl ?? "",
+              portfolioPdf: links.portfolio_pdf_url ?? backendUser.portfolioPdfUrl ?? "",
+            },
+            portfolioLinks: backendUser.portfolioLinks ?? portfolioLinksFromArray,
+          });
+        } else {
+          setOverviewFromBackend(null);
+        }
+        if (portfolioItemsResult.status === "fulfilled") {
+          setOverviewPortfolioItems(portfolioItemsResult.value.items);
+        } else {
+          setOverviewPortfolioItems([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOverviewPortfolioItemsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   if (!user) return null;
 
@@ -116,7 +183,10 @@ function ProfilePage() {
           {/* ---------- Common tabs ---------- */}
           <TabsContent value="overview" className="mt-6">
             <OverviewTab user={user} role={role} isStudentLike={isStudentLike}
-              strength={strength} xp={xp} level={level.name} streak={streak} />
+              strength={strength} xp={xp} level={level.name} streak={streak}
+              backendOverview={overviewFromBackend}
+              portfolioItems={overviewPortfolioItems}
+              portfolioItemsLoading={overviewPortfolioItemsLoading} />
           </TabsContent>
 
           <TabsContent value="activity" className="mt-6">
@@ -308,31 +378,157 @@ function ProfileHero(props: {
 function OverviewTab(props: {
   user: ScopeUser; role: RoleId; isStudentLike: boolean;
   strength: number; xp: number; level: string; streak: number;
+  backendOverview?: BackendOverview | null;
+  portfolioItems: BackendPortfolioItem[];
+  portfolioItemsLoading: boolean;
 }) {
-  const { user, role, isStudentLike, strength, xp, level, streak } = props;
+  const { user, role, isStudentLike, strength, xp, level, streak, backendOverview, portfolioItems, portfolioItemsLoading } = props;
+  const bio = backendOverview?.bio ?? user.bio;
+  const skills = backendOverview?.skills ?? user.skills;
+  const interests = backendOverview?.interests ?? user.interests;
+  const primaryDomain = backendOverview?.primaryDomain ?? user.primaryDomain ?? "";
+  const specialization = backendOverview?.specialization ?? user.specialization ?? "";
+
+  const normalizedLinks = backendOverview?.links ?? {
+    website: user.links.website ?? "",
+    github: user.links.github ?? "",
+    twitter: user.links.twitter ?? "",
+    linkedin: user.linkedinUrl ?? "",
+    instagram: user.instagramUrl ?? "",
+    portfolioWebsite: user.portfolioWebsite ?? "",
+    resume: user.resumeUrl ?? "",
+    portfolioPdf: user.portfolioPdfUrl ?? "",
+  };
+
+  const normalizeHref = (raw: string, key: string) => {
+    const value = raw.trim();
+    if (!value) return "";
+    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    if (key === "github" && value.startsWith("@")) return `https://github.com/${value.slice(1)}`;
+    if (key === "twitter" && value.startsWith("@")) return `https://x.com/${value.slice(1)}`;
+    if (value.includes(".")) return `https://${value}`;
+    return "";
+  };
+
+  const typedLinks = [
+    { key: "website", label: "Website", value: normalizedLinks.website },
+    { key: "github", label: "GitHub", value: normalizedLinks.github },
+    { key: "twitter", label: "Twitter", value: normalizedLinks.twitter },
+    { key: "linkedin", label: "LinkedIn", value: normalizedLinks.linkedin },
+    { key: "instagram", label: "Instagram", value: normalizedLinks.instagram },
+    { key: "portfolioWebsite", label: "Portfolio Website", value: normalizedLinks.portfolioWebsite },
+    { key: "resume", label: "Resume URL", value: normalizedLinks.resume },
+    { key: "portfolioPdf", label: "Portfolio PDF", value: normalizedLinks.portfolioPdf },
+  ]
+    .map((item) => ({ ...item, href: normalizeHref(item.value, item.key) }))
+    .filter((item) => item.href);
+
+  const portfolioLinks = backendOverview?.portfolioLinks ?? user.portfolioLinks ?? {};
+  const dynamicLinks = Object.entries(portfolioLinks)
+    .filter(([, value]) => value?.trim())
+    .map(([key, value]) => ({ key, label: humanize(key), value: value.trim(), href: normalizeHref(value, key) }))
+    .filter((item) => item.href);
+
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <Card className="p-6 lg:col-span-2">
         <h3 className="text-lg font-semibold text-foreground">About</h3>
         <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-          {user.bio || "No bio yet. Add a short intro from the Portfolio tab."}
+          {bio || "No bio yet. Add a short intro from the Portfolio tab."}
         </p>
-        {user.skills.length > 0 && (
+        {skills.length > 0 && (
           <div className="mt-4">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">Skills</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {user.skills.map((s) => <Badge key={s} variant="secondary">{s}</Badge>)}
+              {skills.map((s) => <Badge key={s} variant="secondary">{s}</Badge>)}
             </div>
           </div>
         )}
-        {user.interests.length > 0 && (
+        {interests.length > 0 && (
           <div className="mt-4">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">Interests</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {user.interests.map((s) => <Badge key={s} variant="outline">{s}</Badge>)}
+              {interests.map((s) => <Badge key={s} variant="outline">{s}</Badge>)}
             </div>
           </div>
         )}
+
+        <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-brand" />
+            <h4 className="text-sm font-semibold text-foreground">Portfolio details</h4>
+          </div>
+
+          {(primaryDomain || specialization) && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {primaryDomain && <Badge variant="secondary">{humanize(primaryDomain)}</Badge>}
+              {specialization && <Badge variant="outline">{humanize(specialization)}</Badge>}
+            </div>
+          )}
+
+          {(typedLinks.length > 0 || dynamicLinks.length > 0) ? (
+            <div className="mt-4 space-y-3">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Links</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {typedLinks.map((link) => (
+                  <a
+                    key={`typed-${link.key}`}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground hover:border-brand/40"
+                  >
+                    <span className="truncate">{link.label}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  </a>
+                ))}
+                {dynamicLinks.map((link) => (
+                  <a
+                    key={`dynamic-${link.key}`}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground hover:border-brand/40"
+                  >
+                    <span className="truncate">{link.label}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">No portfolio links added yet.</p>
+          )}
+
+          <div className="mt-4 space-y-2">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Portfolio items</Label>
+            {portfolioItemsLoading && <p className="text-xs text-muted-foreground">Loading portfolio items...</p>}
+            {!portfolioItemsLoading && portfolioItems.length === 0 && (
+              <p className="text-xs text-muted-foreground">No portfolio items yet.</p>
+            )}
+            {portfolioItems.map((item) => (
+              <div key={item.id} className="rounded-md border border-border bg-background p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-foreground">{item.cover} {item.title}</div>
+                    <div className="text-xs text-muted-foreground">{item.type}</div>
+                  </div>
+                  {item.link && (
+                    <a href={item.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+                      View <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{item.description}</p>
+                {item.skills.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {item.skills.map((skill) => <Badge key={`${item.id}-${skill}`} variant="secondary" className="text-[10px]">{skill}</Badge>)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </Card>
       <div className="space-y-6">
         {isStudentLike ? (
@@ -508,6 +704,14 @@ function StudentPortfolioEditor({ user }: { user: ScopeUser }) {
   const [portfolioLinks, setPortfolioLinks] = useState<Record<string, string>>(user.portfolioLinks ?? {});
   const [customKey, setCustomKey] = useState("");
   const [customUrl, setCustomUrl] = useState("");
+  const [portfolioItems, setPortfolioItems] = useState<BackendPortfolioItem[]>([]);
+  const [portfolioItemsLoading, setPortfolioItemsLoading] = useState(true);
+  const [newItemType, setNewItemType] = useState<BackendPortfolioItem["type"]>("Project");
+  const [newItemTitle, setNewItemTitle] = useState("");
+  const [newItemDescription, setNewItemDescription] = useState("");
+  const [newItemSkills, setNewItemSkills] = useState("");
+  const [newItemLink, setNewItemLink] = useState("");
+  const [newItemCover, setNewItemCover] = useState("🚀");
 
   useEffect(() => {
     setBio(user.bio); setSkills(user.skills); setInterests(user.interests); setCampus(user.campus);
@@ -520,6 +724,22 @@ function StudentPortfolioEditor({ user }: { user: ScopeUser }) {
     setSpecialization(user.specialization ?? "");
     setPortfolioLinks(user.portfolioLinks ?? {});
   }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPortfolioItemsLoading(true);
+    backendPortfolio.listMe()
+      .then(({ items }) => {
+        if (!cancelled) setPortfolioItems(items);
+      })
+      .catch(() => {
+        if (!cancelled) setPortfolioItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPortfolioItemsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [user.id]);
 
   const domainFields = useMemo(() => (primaryDomain ? DOMAIN_PORTFOLIO_FIELDS[primaryDomain] : []), [primaryDomain]);
   const specializations = useMemo(() => (primaryDomain ? SPECIALIZATIONS[primaryDomain] : []), [primaryDomain]);
@@ -549,6 +769,42 @@ function StudentPortfolioEditor({ user }: { user: ScopeUser }) {
     if (portfolioLinks[k]) return toast.error("That label already exists");
     setPortfolioLinks({ ...portfolioLinks, [k]: v });
     setCustomKey(""); setCustomUrl("");
+  };
+
+  const addPortfolioItem = async () => {
+    if (!newItemTitle.trim() || !newItemDescription.trim()) {
+      toast.error("Portfolio item title and description are required.");
+      return;
+    }
+    const skills = newItemSkills.split(",").map((skill) => skill.trim()).filter(Boolean);
+    try {
+      const { item } = await backendPortfolio.create({
+        type: newItemType,
+        title: newItemTitle.trim(),
+        description: newItemDescription.trim(),
+        skills,
+        link: newItemLink.trim(),
+        cover: newItemCover,
+      });
+      setPortfolioItems((current) => [item, ...current]);
+      setNewItemTitle("");
+      setNewItemDescription("");
+      setNewItemSkills("");
+      setNewItemLink("");
+      toast.success("Portfolio item added.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add portfolio item.");
+    }
+  };
+
+  const removePortfolioItem = async (id: string) => {
+    try {
+      await backendPortfolio.remove(id);
+      setPortfolioItems((current) => current.filter((item) => item.id !== id));
+      toast.success("Portfolio item removed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remove portfolio item.");
+    }
   };
 
   const save = () => {
@@ -717,6 +973,69 @@ function StudentPortfolioEditor({ user }: { user: ScopeUser }) {
               <Input value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} placeholder="https://" className="flex-1" />
               <Button type="button" variant="outline" onClick={addCustomLink}><Plus className="mr-1 h-4 w-4" /> Add</Button>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-brand" />
+            <h4 className="text-sm font-semibold text-foreground">Portfolio Items</h4>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Hydrated from backend. Add work items directly from this tab.</p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Type</Label>
+              <select value={newItemType} onChange={(e) => setNewItemType(e.target.value as BackendPortfolioItem["type"])} className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                {["Project", "Design", "Research", "Startup Idea", "Campaign", "Certificate"].map((type) => <option key={type}>{type}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Cover Emoji</Label>
+              <Input value={newItemCover} onChange={(e) => setNewItemCover(e.target.value)} className="mt-1.5" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Title</Label>
+              <Input value={newItemTitle} onChange={(e) => setNewItemTitle(e.target.value)} className="mt-1.5" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Description</Label>
+              <Textarea rows={3} value={newItemDescription} onChange={(e) => setNewItemDescription(e.target.value)} className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Skills (comma-separated)</Label>
+              <Input value={newItemSkills} onChange={(e) => setNewItemSkills(e.target.value)} placeholder="React, Figma" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Link (optional)</Label>
+              <Input value={newItemLink} onChange={(e) => setNewItemLink(e.target.value)} placeholder="https://" className="mt-1.5" />
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <Button type="button" onClick={addPortfolioItem} variant="outline"><Plus className="mr-1 h-4 w-4" /> Add portfolio item</Button>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {portfolioItemsLoading && <p className="text-sm text-muted-foreground">Loading portfolio items...</p>}
+            {!portfolioItemsLoading && portfolioItems.length === 0 && <p className="text-sm text-muted-foreground">No portfolio items yet.</p>}
+            {portfolioItems.map((item) => (
+              <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background p-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-foreground">{item.cover} {item.title}</div>
+                  <div className="text-xs text-muted-foreground">{item.type}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{item.description}</div>
+                  {item.link && (
+                    <a className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline" href={item.link} target="_blank" rel="noreferrer">
+                      View <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                <Button type="button" size="sm" variant="ghost" onClick={() => removePortfolioItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
         </div>
 

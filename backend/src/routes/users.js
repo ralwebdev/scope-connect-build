@@ -137,6 +137,30 @@ usersRouter.get("/leaderboard/students", asyncHandler(async (req, res) => {
   sendSuccess(res, { items, next_cursor: null, has_more: false });
 }));
 
+usersRouter.get("/leaderboard/campuses", asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
+  const rows = await User.aggregate([
+    { $match: { role: "student", disabledAt: null, institution: { $ne: null } } },
+    { $group: { _id: "$institution", members: { $sum: 1 } } },
+    { $lookup: { from: "institutions", localField: "_id", foreignField: "_id", as: "institution" } },
+    { $unwind: "$institution" },
+    { $project: { _id: 0, id: { $toString: "$institution._id" }, name: "$institution.name", city: "$institution.city", value: "$members" } },
+    { $sort: { value: -1, name: 1 } },
+    { $limit: 200 },
+  ]);
+
+  sendSuccess(res, {
+    items: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      sub: row.city || "",
+      value: row.value || 0,
+    })),
+    next_cursor: null,
+    has_more: false,
+  });
+}));
+
 usersRouter.get("/", asyncHandler(async (req, res) => {
   const institutionId = req.query.institution_id;
   if (!hasPermission(req.user, "manage_users")) {

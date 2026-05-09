@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/components/site/AppShell";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
-import { chapterLeaderboard, campusLeaderboard } from "@/lib/scope-store";
+import { chapterLeaderboard } from "@/lib/scope-store";
 import { topChapters } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { backendUsers } from "@/lib/api/endpoints";
@@ -27,8 +27,8 @@ function LeaderboardsPage() {
   const [tab, setTab] = useState<Tab>("Members");
   const user = useUser();
   const [members, setMembers] = useState<Array<{ id: string; name: string; sub: string; value: number; isMe?: boolean }>>([]);
+  const [campuses, setCampuses] = useState<Array<{ id: string; name: string; sub: string; value: number }>>([]);
   const chapters = useStoreValue(() => chapterLeaderboard());
-  const campuses = useStoreValue(() => campusLeaderboard());
   const myRank = members.findIndex((r) => r.isMe) + 1;
 
   useEffect(() => {
@@ -48,6 +48,13 @@ function LeaderboardsPage() {
       })
       .catch(() => {
         if (!cancelled) setMembers([]);
+      });
+    backendUsers.listCampusesByMembers()
+      .then(({ items }) => {
+        if (!cancelled) setCampuses(items);
+      })
+      .catch(() => {
+        if (!cancelled) setCampuses([]);
       });
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -93,7 +100,11 @@ function LeaderboardsPage() {
               : <Card className="p-6 text-sm text-muted-foreground">No member leaderboard data yet.</Card>
           )}
           {tab === "Chapters" && <Board rows={chapters} unit="members" growths={topChapters.map((c) => c.growth)} />}
-          {tab === "Campuses" && <Board rows={campuses} unit="members" />}
+          {tab === "Campuses" && (
+            campuses.length > 0
+              ? <Board rows={campuses} unit="members" />
+              : <Card className="p-6 text-sm text-muted-foreground">No campus leaderboard data yet.</Card>
+          )}
         </div>
       </section>
     </AppShell>

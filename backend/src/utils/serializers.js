@@ -108,6 +108,21 @@ export function serializeApplication(application) {
   };
 }
 
+export function serializePortfolioItem(item, userId) {
+  return {
+    id: idOf(item._id),
+    user_id: userId || idOf(item.user?._id || item.user),
+    type: item.type,
+    title: item.title,
+    description: item.description,
+    skills: item.skills || [],
+    link: item.link || "",
+    cover: item.cover,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt,
+  };
+}
+
 export function serializeNotification(notification) {
   return {
     id: idOf(notification._id),

@@ -290,6 +290,7 @@ function profilePatchForApi(patch: Partial<ScopeUser>) {
   return {
     ...(patch.email !== undefined && { email: patch.email }),
     ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.campus !== undefined && { campus: patch.campus }),
     ...(patch.bio !== undefined && { bio: patch.bio }),
     ...(patch.skills !== undefined && { skills: patch.skills }),
     ...(patch.interests !== undefined && { interests: patch.interests }),

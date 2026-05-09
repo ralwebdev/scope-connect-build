@@ -80,6 +80,9 @@ export const backendUsers = {
       items: [...response.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0)),
     };
   },
+  listCampusesByMembers() {
+    return api<{ items: Array<{ id: string; name: string; sub: string; value: number }>; next_cursor: string | null; has_more: boolean }>("/api/users/leaderboard/campuses");
+  },
   awardDashboardPoints(segments: Array<"joined_campus" | "complete_profile" | "first_application" | "first_portfolio">) {
     return api<{ awarded: number; awarded_segments: string[]; user: ScopeUser }>("/api/users/me/dashboard-points", {
       method: "POST",
@@ -129,7 +132,7 @@ export const backendAdminUsers = {
   },
 };
 
-type BackendProject = {
+export type BackendProject = {
   id: string;
   created_by: string;
   institution_id?: string | null;
@@ -148,7 +151,7 @@ type BackendProject = {
   updated_at?: string;
 };
 
-type BackendNotification = {
+export type BackendNotification = {
   id: string;
   kind: string;
   title: string;
@@ -220,6 +223,25 @@ export const backendNotifications = {
       method: "POST",
       body: JSON.stringify(body),
     });
+  },
+};
+
+export type BackendApplication = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  message?: string;
+  status: "pending" | "shortlisted" | "accepted" | "rejected" | "withdrawn";
+  created_at: string;
+};
+
+export const backendApplications = {
+  list(params: { projectId?: string; status?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.projectId) qs.set("project_id", params.projectId);
+    if (params.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ items: BackendApplication[]; next_cursor: string | null; has_more: boolean }>(`/api/applications${suffix}`);
   },
 };
 
