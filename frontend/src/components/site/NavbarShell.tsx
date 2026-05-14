@@ -1,0 +1,361 @@
+// 🧊 NavbarShell — the reusable floating glass capsule.
+//
+// All 6 role-specific Navbars (StudentNavbar, CampusNavbar, FacultyNavbar,
+// InstitutionNavbar, ScopeAdminNavbar, SuperAdminNavbar) render through this
+// shell. The shell owns the visual chrome, scroll behavior, theme glow,
+// auth/notif/profile popovers, and SSR-safe gating. Per-role variation is
+// limited to the **center brain (KPI rail)** which is injected as a slot.
+//
+// This guarantees role leakage is structurally impossible — admin roles
+// CANNOT render student gamification because the slot is replaced wholesale.
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Bell, LogOut, Settings as SettingsIcon, Sparkles, User as UserIcon, Menu,
+  Sun, Moon, Monitor,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useImageSrc } from "@/hooks/use-image-src";
+import { useUserSession } from "@/hooks/use-session";
+import { useUnreadNotifications } from "@/hooks/use-scope";
+import { auth, meta } from "@/lib/scope-store";
+import { useBrand } from "@/hooks/use-platform";
+import { useTheme } from "@/hooks/use-theme";
+import { landingRouteForRole } from "@/lib/rbac";
+import { themeForRole } from "@/lib/role-theme";
+import { navConfigForRole } from "@/lib/role-nav";
+import { RoleNotificationCenter } from "@/components/site/RoleNotificationCenter";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+export type NavbarShellProps = {
+  /** Center brain — role-specific KPI rail. Hidden on collapse. */
+  centerSlot?: ReactNode;
+  /** Override role badge label (defaults to themeForRole label). */
+  roleLabel?: string;
+};
+
+export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
+  const navigate = useNavigate();
+  const session = useUserSession();
+  const brand = useBrand();
+  const unread = useUnreadNotifications();
+  const navAvatar = useImageSrc(session.user?.avatarUrl);
+
+  const [bellOpen, setBellOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [shimmer, setShimmer] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+  const userRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!session.ready) return;
+    setShimmer(true);
+    const t = setTimeout(() => setShimmer(false), 1600);
+    return () => clearTimeout(t);
+  }, [session.ready]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let raf = 0;
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const y = window.scrollY;
+        const goingDown = y > lastY;
+        lastY = y;
+        if (y < 8) setCollapsed(false);
+        else if (goingDown && y > 32) setCollapsed(true);
+        else if (!goingDown && y < 24) setCollapsed(false);
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+      if (userRef.current && !userRef.current.contains(e.target as Node)) setUserOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleLogout = () => {
+    auth.logout();
+    toast.success("Signed out (secure reset). See you soon, Builder.");
+    navigate({ to: "/auth", replace: true });
+  };
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    if (!session.ready || !session.isAuthenticated) return;
+    const target = landingRouteForRole(session.role);
+    if (target !== "/") {
+      e.preventDefault();
+      navigate({ to: target });
+    }
+  };
+
+  const showAuthedUI = session.ready && session.isAuthenticated && !!session.user;
+  const roleTheme = themeForRole(session.role);
+  const badgeLabel = roleLabel ?? roleTheme.label;
+  const glowVar = { ["--nav-glow" as const]: roleTheme.glow } as React.CSSProperties;
+
+  return (
+    <>
+      <div aria-hidden className="hidden h-20 w-full md:block" />
+
+      <header
+        className={cn(
+          "fixed left-0 right-0 z-[100] flex justify-center px-4 transition-all duration-500 ease-in-out transform-gpu will-change-transform",
+          collapsed ? "top-3" : "top-6"
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto w-full transition-all duration-500 ease-in-out transform-gpu",
+            collapsed ? "max-w-2xl" : "max-w-6xl"
+          )}
+        >
+          <div
+            style={glowVar}
+            className={cn(
+              "relative flex items-center justify-between rounded-full border border-white/20 bg-white/70 backdrop-blur-2xl transition-all duration-500 ease-in-out dark:border-border/40 dark:bg-background/60",
+              collapsed ? "px-3 py-1.5 shadow-lg" : "px-4 py-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)]",
+              shimmer && "nav-shimmer",
+            )}
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-full opacity-60"
+              style={{
+                boxShadow: `0 0 28px -6px color-mix(in oklab, ${roleTheme.glow} 35%, transparent), inset 0 0 0 1px color-mix(in oklab, ${roleTheme.glow} 20%, transparent)`,
+              }}
+            />
+
+            {/* LEFT GROUP — Identity + KPIs + Nav */}
+            <div className="flex items-center gap-2">
+              {/* Identity */}
+              <div className="flex items-center gap-1.5">
+                {showAuthedUI && (
+                  <button
+                    aria-label="Open navigation"
+                    onClick={() => {
+                      const el = document.querySelector("aside");
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/40 transition-colors hover:bg-secondary lg:hidden"
+                  >
+                    <Menu className="h-4 w-4" />
+                  </button>
+                )}
+                <Link
+                  to="/"
+                  onClick={handleLogoClick}
+                  className="flex items-center gap-2 rounded-full py-0.5 transition-transform hover:scale-[1.01]"
+                >
+                  <span
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-brand shadow-sm"
+                    style={{ boxShadow: `0 0 10px -2px ${roleTheme.glow}33` }}
+                  >
+                    <Sparkles className="h-4 w-4 text-brand-foreground" />
+                  </span>
+                  <div
+                    className={cn(
+                      "overflow-hidden transition-all duration-500 ease-in-out",
+                      collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
+                    )}
+                  >
+                    <span className="whitespace-nowrap px-1 text-[15px] font-extrabold tracking-tight">
+                      <span className="text-[#1a1a1a] dark:text-white">{brand.shortName}</span>
+                      <span className="text-brand">{brand.accentName}</span>
+                    </span>
+                  </div>
+                </Link>
+              </div>
+
+              {/* KPI Rail - Increased max-w to prevent cropping */}
+              <div
+                className={cn(
+                  "overflow-hidden transition-all duration-500 ease-in-out",
+                  collapsed || !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[600px] opacity-100"
+                )}
+              >
+                <div className="mx-0 flex items-center justify-center px-1">
+                  {centerSlot}
+                </div>
+              </div>
+
+              {/* Primary Nav - Stable Transition */}
+              <div
+                className={cn(
+                  "overflow-hidden transition-all duration-500 ease-in-out",
+                  collapsed || !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[400px] opacity-100"
+                )}
+              >
+                <nav className="hidden items-center gap-0.5 px-1 xl:flex" aria-label="Primary">
+                  {navConfigForRole(session.role).primary.slice(0, 6).map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.key}
+                        to={item.to}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/50 transition-all hover:bg-secondary/60 hover:text-foreground hover:scale-110"
+                        activeProps={{ className: "bg-secondary/60 text-foreground scale-110" }}
+                        activeOptions={{ exact: false }}
+                        title={item.label}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* Role Badge - Blue Theme Integration */}
+              <div
+                className={cn(
+                  "overflow-hidden transition-all duration-500 ease-in-out",
+                  collapsed || !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[250px] opacity-100"
+                )}
+              >
+                <div className="px-1">
+                  <span
+                    className="flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/60 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.05em] transition-all hover:border-blue-300/60 dark:border-blue-900/30 dark:bg-blue-950/40"
+                    style={{
+                      color: "#2563eb", // Deep blue
+                      boxShadow: "0 2px 10px -4px rgba(37, 99, 235, 0.15)",
+                    }}
+                    title={`Signed in as ${badgeLabel}`}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-[#3b82f6] shadow-[0_0_8px_#3b82f6] animate-pulse" />
+                    <span className="whitespace-nowrap opacity-80">{badgeLabel}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1" />
+
+            {/* RIGHT GROUP — actions */}
+            <div className="relative flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
+                <ThemeQuickToggle />
+
+                {showAuthedUI ? (
+                  <>
+                    <div ref={bellRef} className="relative">
+                      <button
+                        onClick={() => setBellOpen((v) => !v)}
+                        className="relative flex h-8 w-8 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-secondary"
+                        aria-label="Notifications"
+                      >
+                        <Bell className="h-4 w-4" />
+                        {unread > 0 && (
+                          <span
+                            className="absolute right-0.5 top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] font-bold text-white"
+                          >
+                            {unread}
+                          </span>
+                        )}
+                      </button>
+                      {bellOpen && (
+                        <div className="absolute right-0 top-10 origin-top-right animate-scale-in">
+                          <RoleNotificationCenter
+                            role={session.role}
+                            variant="compact"
+                            onItemClick={() => setBellOpen(false)}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div ref={userRef} className="relative">
+                      <button
+                        onClick={() => setUserOpen((v) => !v)}
+                        key={session.user!.avatarUrl || "nav-avatar"}
+                        className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-brand-foreground transition-transform hover:scale-105 shadow-sm"
+                        style={{
+                          background: navAvatar.hasImage ? "transparent" : session.user!.avatarColor,
+                          border: "1.5px solid white",
+                        }}
+                        aria-label="Profile menu"
+                      >
+                        {navAvatar.hasImage ? (
+                          <img 
+                            src={navAvatar.src} 
+                            alt="" 
+                            className="h-full w-full object-cover" 
+                            onError={navAvatar.onError}
+                          />
+                        ) : (
+                          session.user!.name.charAt(0).toUpperCase()
+                        )}
+                      </button>
+                      {userOpen && (
+                        <div className="absolute right-0 top-10 w-64 origin-top-right overflow-hidden rounded-xl border border-border bg-popover shadow-elegant animate-scale-in">
+                          <div className="border-b border-border px-4 py-3">
+                            <div className="text-sm font-semibold text-foreground">{session.user!.name}</div>
+                            <div className="text-xs text-muted-foreground">{session.user!.email}</div>
+                          </div>
+                          <div className="py-1">
+                            <Link to="/profile" onClick={() => setUserOpen(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
+                              <UserIcon className="h-4 w-4" /> Profile
+                            </Link>
+                            <Link to="/settings" onClick={() => setUserOpen(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
+                              <SettingsIcon className="h-4 w-4" /> Settings
+                            </Link>
+                          </div>
+                          <div className="border-t border-border py-1">
+                            <button onClick={handleLogout} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
+                              <LogOut className="h-4 w-4" /> Sign out (secure reset)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Button asChild variant="ghost" size="sm" className="h-8 rounded-full px-3 text-xs">
+                      <Link to="/auth">Log in</Link>
+                    </Button>
+                    <Button asChild size="sm" className="h-8 rounded-full bg-gradient-brand px-3 text-xs text-brand-foreground shadow-brand hover:opacity-95">
+                      <Link to="/auth">Join Scope</Link>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+    </>
+  );
+}
+
+function ThemeQuickToggle() {
+  const { mode, setTheme } = useTheme();
+  const next = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
+  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+  return (
+    <button
+      type="button"
+      aria-label={`Theme: ${mode}. Click to switch to ${next}.`}
+      onClick={() => setTheme(next)}
+      className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/40 transition-colors hover:bg-secondary"
+      title={`Theme: ${mode}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+if (typeof window !== "undefined") meta.bumpVisit();

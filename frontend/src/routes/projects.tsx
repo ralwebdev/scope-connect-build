@@ -1,0 +1,1068 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Rocket, Sparkles, ShieldCheck, MapPin, Globe2, Briefcase, Clock, Users,
+  Bookmark, BookmarkCheck, Share2, Lightbulb, Check, X, Lock, ArrowRight, Flame, Coins, Trophy
+} from "lucide-react";
+import { ChallengeCountdown } from "@/components/site/ChallengeCountdown";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { AppShell } from "@/components/site/AppShell";
+import { ConfettiBurst } from "@/components/site/Effects";
+import { TrustFAQ } from "@/components/site/TrustFAQ";
+import { ScopeVerifiedBadge } from "@/components/site/ScopeVerifiedBadge";
+import { PublishedStrip } from "@/components/governance/PublishedStrip";
+import {
+  useIsLoggedIn, useUser,
+} from "@/hooks/use-scope";
+import { analytics } from "@/lib/analytics";
+import { toast } from "sonner";
+import { backendProjects, backendApplications, backendReports, backendUpload, type BackendApplication } from "@/lib/api/endpoints";
+import { xp } from "@/lib/scope-store";
+import { useRole } from "@/hooks/use-rbac";
+
+export const Route = createFileRoute("/projects")({
+  head: () => ({
+    meta: [
+      { title: "Projects & Opportunities — Scope Connect" },
+      { name: "description", content: "Curated live challenges, campus opportunities and open builds — launched by Scope." },
+    ],
+  }),
+  component: ProjectsPage,
+});
+
+type CuratedProject = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  timeline: string;
+  seatsTotal: number;
+  seatsFilled: number;
+  skills: string[];
+  rewards: string;
+  status: "live" | "closing-soon" | "closed";
+  cover: string;
+  postedBy: string;
+  scope: "scope" | "campus" | "open";
+  campus?: string;
+  endsAt?: number;
+};
+
+type ProjectApplication = {
+  id: string;
+  projectId: string;
+  status: BackendApplication["status"];
+  submissionReviewStatus: BackendApplication["submission_review_status"];
+  submission?: BackendApplication["submission"] | null;
+};
+
+function resolveSubmissionDeadline(project: CuratedProject): number | null {
+  if (project.endsAt) return project.endsAt;
+  const weeksMatch = project.timeline.match(/(\d+)\s*week/i);
+  if (!weeksMatch) return null;
+  const weeks = Number(weeksMatch[1]);
+  if (!Number.isFinite(weeks) || weeks <= 0) return null;
+  return Date.now() + weeks * 7 * 24 * 60 * 60 * 1000;
+}
+
+function ProjectsPage() {
+  const role = useRole();
+  const isAdmin = (role as string) === "scope_admin" || (role as string) === "scope_super_admin" || (role as string) === "super_admin" || role === "faculty_coordinator" || role === "institutional_admin";
+  const isAuthed = useIsLoggedIn();
+  const user = useUser();
+  const [scopeChallenges, setScopeChallenges] = useState<CuratedProject[]>([]);
+  const [campusProjects, setCampusProjects] = useState<CuratedProject[]>([]);
+  const [openProjects, setOpenProjects] = useState<CuratedProject[]>([]);
+  const [saved, setSaved] = useState<string[]>([]);
+  const [userApps, setUserApps] = useState<ProjectApplication[]>([]);
+
+  const [confettiKey, setConfettiKey] = useState(0);
+  const [applyTarget, setApplyTarget] = useState<CuratedProject | null>(null);
+  const [submissionTarget, setSubmissionTarget] = useState<CuratedProject | null>(null);
+  const [ideaOpen, setIdeaOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [detailTarget, _setDetailTarget] = useState<CuratedProject | null>(null);
+  const setDetailTarget = (p: CuratedProject | null) => {
+    if (p) analytics.track("project_view");
+    _setDetailTarget(p);
+  };
+
+  const appliedIds = useMemo(() => new Set(userApps.map((a) => a.projectId)), [userApps]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      backendProjects.list(),
+      backendApplications.listMe().catch(() => ({ items: [] })),
+    ])
+      .then(async ([projectsData, applicationsData]) => {
+        if (cancelled) return;
+        const mapped: CuratedProject[] = (projectsData.items || []).map((p: any) => {
+          const summary = p.summary || p.description || "";
+          const seatsMatch = summary.match(/(\d+)\s*of\s*(\d+)\s*seats\s*left/i);
+          const seatsLeft = seatsMatch ? Number(seatsMatch[1]) : 6;
+          const seatsTotal = seatsMatch ? Number(seatsMatch[2]) : 10;
+          const timeline = (summary.split("·")[0] || "6 weeks").trim();
+          const skills = (summary.split("·")[2] || p.domain || "General").split(",").map((s: string) => s.trim()).filter(Boolean);
+          const rewardsMatch = (p.description || "").match(/Rewards:\s*([^\n]+)/i);
+          
+          const projectInstitutionId = p.institution_id || p.institution;
+          const isCampusProject = !!projectInstitutionId;
+          
+          return {
+            id: p.id,
+            title: p.title,
+            description: p.description || p.summary || "Live builder opportunity.",
+            category: p.domain || "General",
+            difficulty: "Intermediate",
+            timeline,
+            seatsTotal,
+            seatsFilled: Math.max(0, seatsTotal - seatsLeft),
+            skills,
+            rewards: rewardsMatch?.[1] || "Growth rewards",
+            status: p.status === "cancelled" ? "closed" : "live",
+            cover: p.cover_url || (isCampusProject ? "🏫" : "🚀"),
+            postedBy: p.created_by?.name || "Scope Team",
+            scope: isCampusProject ? "campus" : "scope",
+            campus: projectInstitutionId ? String(projectInstitutionId) : undefined,
+            endsAt: p.ends_on ? new Date(p.ends_on).getTime() : undefined,
+          };
+
+
+        });
+
+        const myInstitutionId = user?.institution?.id;
+        
+        // Institutional Projects (Live from DB)
+        const campusMapped = mapped.filter((m) => m.scope === "campus" && m.campus === myInstitutionId);
+        setCampusProjects(campusMapped);
+
+        // Global Challenges (Backend + Seed Fallback)
+        const backendScope = mapped.filter((m) => m.scope === "scope");
+        
+        // If backend has no global projects, use the premium seed projects to keep the section alive
+        if (backendScope.length === 0) {
+          const { featuredProjects } = await import("@/lib/mock-data");
+          const seeds: CuratedProject[] = featuredProjects.map((p, idx) => ({
+            id: `seed_scope_${idx}`,
+            title: p.title,
+            description: p.description,
+            category: p.category,
+            difficulty: "Intermediate",
+            timeline: "6 weeks",
+            seatsTotal: 10,
+            seatsFilled: 4,
+            skills: p.category === "Design" ? ["UI/UX", "Figma"] : ["React", "System Design"],
+            rewards: "Growth rewards · Scope Verified",
+            status: "live",
+            cover: p.cover || "🚀",
+            postedBy: "Scope Official",
+            scope: "scope"
+          }));
+          setScopeChallenges(seeds);
+        } else {
+          setScopeChallenges(backendScope);
+        }
+
+        // Open Projects (Other Campuses)
+        setOpenProjects(mapped.filter((m) => m.scope === "campus" && m.campus !== myInstitutionId));
+        setUserApps((applicationsData.items || []).map((a: BackendApplication) => ({
+          id: a.id,
+          projectId: a.project_id,
+          status: a.status,
+          submissionReviewStatus: a.submission_review_status,
+          submission: a.submission,
+        })));
+      })
+      .catch((error) => {
+        console.error("Projects Load Error:", error);
+        toast.error("Could not load projects list.");
+      });
+    return () => { cancelled = true; };
+  }, [user?.institution?.id, isAuthed]);
+
+  const handleSave = (id: string, title: string) => {
+    const wasSaved = saved.includes(id);
+    setSaved((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    toast(wasSaved ? "Removed from saved" : `Saved · "${title}"`);
+  };
+
+  const handleShare = (p: CuratedProject) => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/projects#${p.id}`;
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => toast.success("Link copied to clipboard"));
+    } else {
+      toast(url);
+    }
+  };
+
+  const handleApplyClick = (p: CuratedProject) => {
+    if (!isAuthed) {
+      toast.error("Sign in to apply.");
+      return;
+    }
+    if (appliedIds.has(p.id)) {
+      setSubmissionTarget(p);
+      return;
+    }
+    setApplyTarget(p);
+  };
+
+  const appByProjectId = useMemo(
+    () => new Map(userApps.map((app) => [app.projectId, app])),
+    [userApps],
+  );
+
+  return (
+    <AppShell>
+      {/* HERO */}
+      <section className="relative overflow-hidden border-b border-border/40 bg-gradient-hero py-12 text-primary-foreground">
+        <ConfettiBurst trigger={confettiKey} />
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Badge className="bg-cyan/15 text-cyan hover:bg-cyan/20">
+            <ShieldCheck className="mr-1 h-3 w-3" /> Curated by Scope
+          </Badge>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Projects & Opportunities</h1>
+              <p className="mt-2 text-primary-foreground/70">
+                Every opportunity here is launched directly by Scope. Most rewards are growth-based — recognition, mentor access, workshop invites and priority for future opportunities. A rare few include a stipend or honorarium.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setIdeaOpen(true)} size="lg" variant="outline" className="border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground hover:bg-primary-foreground/10">
+                <Lightbulb className="mr-2 h-4 w-4" /> Suggest an Idea
+              </Button>
+              {isAdmin ? (
+                <Button onClick={() => setShowAddModal(true)} size="lg" className="bg-gradient-brand text-brand-foreground shadow-brand hover:opacity-95">
+                  <Sparkles className="mr-2 h-4 w-4" /> Add Project
+                </Button>
+              ) : (
+                <Button asChild size="lg" className="bg-gradient-brand text-brand-foreground shadow-brand hover:opacity-95">
+                  <Link to="/portfolio"><Rocket className="mr-2 h-4 w-4" /> Launch Portfolio</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Trust bar */}
+          <div className="mt-8 grid gap-3 sm:grid-cols-4">
+            <TrustChip icon={<ShieldCheck className="h-4 w-4" />} label="Verified by Scope" />
+            <TrustChip icon={<Flame className="h-4 w-4" />} label="Live opportunities" />
+            <TrustChip icon={<Users className="h-4 w-4" />} label="Real teams · real outcomes" />
+            <TrustChip icon={<Lock className="h-4 w-4" />} label="No public spam posts" />
+          </div>
+        </div>
+      </section>
+
+      <CampusLeaderboard />
+
+      <PublishedStrip entity="opportunity" title="Campus exclusive" />
+
+      {/* APPLIED STRIP */}
+      {userApps.length > 0 && (
+        <section className="border-b border-border/40 bg-secondary/30">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+            <div className="text-sm">
+              <span className="font-semibold text-foreground">{userApps.length} active application{userApps.length === 1 ? "" : "s"}</span>
+              <span className="ml-2 text-muted-foreground">— track status from your dashboard</span>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/dashboard">View My Applications <ArrowRight className="ml-1 h-3 w-3" /></Link>
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {/* SECTION 1: SCOPE CHALLENGES */}
+      <Section
+        eyebrow="🚀 Live Scope Challenges"
+        title="Premium challenges launched by Scope"
+        subtitle="Hand-picked, high-impact projects with growth rewards — recognition, mentor access, and priority for future opportunities. A rare few include an honorarium."
+        accentBadge={{ label: "High Priority", className: "bg-brand text-brand-foreground" }}
+      >
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {scopeChallenges.map((p) => (
+            <ProjectCard
+              key={p.id} project={p}
+              application={appByProjectId.get(p.id)}
+              saved={saved.includes(p.id)}
+              canParticipate={!isAdmin}
+              onApply={() => handleApplyClick(p)}
+              onSave={() => handleSave(p.id, p.title)}
+              onShare={() => handleShare(p)}
+              onView={() => setDetailTarget(p)}
+              tone="scope"
+            />
+          ))}
+        </div>
+      </Section>
+
+      {/* SECTION 2: CAMPUS PROJECTS */}
+      <Section
+        eyebrow="🏫 Campus Projects"
+        title={user?.campus ? `Exclusive for ${user.campus}` : "Campus exclusive opportunities"}
+        subtitle="Only visible to builders from your institution. Limited seats. Chapter-priority access."
+      >
+        {campusProjects.length === 0 ? (
+          <EmptyState
+            title="No campus projects yet for your chapter"
+            body={isAdmin 
+              ? "As an administrator, you can launch the first exclusive opportunity for your students right now." 
+              : "Scope is preparing exclusive opportunities for your campus. Check back soon."
+            }
+            cta={isAdmin 
+              ? { label: "Launch First Project", onClick: () => {
+                // Scroll to admin section or open modal
+                const adminSection = document.getElementById('admin-project-controls');
+                if (adminSection) adminSection.scrollIntoView({ behavior: 'smooth' });
+                else toast.info("Use the Admin Controls at the top to add a project.");
+              }}
+              : { label: "Open Campus Hub", to: "/campus" }
+            }
+          />
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {campusProjects.map((p) => (
+              <ProjectCard
+                key={p.id} project={p}
+                application={appByProjectId.get(p.id)}
+                saved={saved.includes(p.id)}
+                canParticipate={!isAdmin}
+                onApply={() => handleApplyClick(p)}
+                onSave={() => handleSave(p.id, p.title)}
+                onShare={() => handleShare(p)}
+                onView={() => setDetailTarget(p)}
+                tone="campus"
+              />
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* SECTION 3: OPEN PROJECTS */}
+      <Section
+        eyebrow="🌍 Open Projects"
+        title="Open to every verified builder"
+        subtitle="Apply from any campus. Open access opportunities curated by Scope."
+      >
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {openProjects.map((p) => (
+              <ProjectCard
+                key={p.id} project={p}
+                application={appByProjectId.get(p.id)}
+                saved={saved.includes(p.id)}
+                canParticipate={!isAdmin}
+                onApply={() => handleApplyClick(p)}
+                onSave={() => handleSave(p.id, p.title)}
+                onShare={() => handleShare(p)}
+              onView={() => setDetailTarget(p)}
+              tone="open"
+            />
+          ))}
+        </div>
+      </Section>
+
+      {/* SECTION 4: PORTFOLIO PROMO */}
+      <Section
+        eyebrow="🧠 Your Portfolio"
+        title="Showcase proof of work"
+        subtitle="Every accepted project, design, research piece or campaign — collected in one place."
+      >
+        <Card className="flex flex-col items-start gap-4 p-6 hover-lift sm:flex-row sm:items-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-brand text-2xl text-brand-foreground shadow-brand">
+            🧩
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-foreground">Build a portfolio that opens doors</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add work items, link demos, tag skills. A strong portfolio raises your match score on every Scope challenge.
+            </p>
+          </div>
+          <Button asChild size="lg" className="bg-gradient-brand text-brand-foreground">
+            <Link to="/portfolio">Open My Portfolio <ArrowRight className="ml-2 h-4 w-4" /></Link>
+          </Button>
+        </Card>
+      </Section>
+
+      <TrustFAQ
+        heading="Trust questions, answered."
+        subheading="Curation, moderation, data, rewards, participation rules — all in one place."
+      />
+
+      {/* APPLY MODAL */}
+      {applyTarget && (
+        <ApplyModal
+          project={applyTarget}
+          onClose={() => setApplyTarget(null)}
+          onApplied={(app) => setUserApps((curr) => [app, ...curr])}
+          onSubmitted={() => {
+            setApplyTarget(null);
+            setConfettiKey(Date.now());
+          }}
+        />
+      )}
+
+      {submissionTarget && (
+        <SubmissionModal
+          project={submissionTarget}
+          application={appByProjectId.get(submissionTarget.id)!}
+          onClose={() => setSubmissionTarget(null)}
+          onSubmitted={(application) => {
+            setUserApps((current) => current.map((app) => (app.id === application.id ? application : app)));
+            setSubmissionTarget(null);
+            toast.success("Submission sent for Scope review.");
+          }}
+        />
+      )}
+
+      {/* ADMIN ADD MODAL */}
+      {showAddModal && (
+        <AdminAddProjectModal 
+          onClose={() => setShowAddModal(false)} 
+          onSuccess={() => {
+            setShowAddModal(false);
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* DETAILS MODAL */}
+      {detailTarget && (
+        <DetailModal
+          project={detailTarget}
+          application={appByProjectId.get(detailTarget.id)}
+          onApply={() => { const p = detailTarget; setDetailTarget(null); handleApplyClick(p); }}
+          onClose={() => setDetailTarget(null)}
+          canParticipate={!isAdmin}
+        />
+      )}
+
+      {/* IDEA SUBMISSION MODAL */}
+      {ideaOpen && <IdeaModal onClose={() => setIdeaOpen(false)} />}
+    </AppShell>
+  );
+}
+
+function CampusLeaderboard() {
+  const [data, setData] = useState<{ id: string; name: string; xp: number; logo: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    backendReports.globalLeaderboard().then((res) => {
+      setData(res.items);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading || data.length === 0) return null;
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="rounded-3xl bg-gradient-hero p-8 text-primary-foreground shadow-brand relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12">
+          <Trophy className="h-32 w-32" />
+        </div>
+        <div className="relative flex flex-wrap items-center justify-between gap-10">
+          <div className="max-w-xl">
+            <Badge className="bg-brand text-brand-foreground"><Trophy className="mr-1 h-3 w-3" /> Chapter War</Badge>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">Top Contributing Campuses</h2>
+            <p className="mt-2 text-primary-foreground/70">
+              The more you build, the higher your campus climbs. These institutions are currently dominating the Scope ecosystem. Build to lead.
+            </p>
+          </div>
+          <div className="flex-1 min-w-[320px]">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {data.slice(0, 4).map((inst, idx) => (
+                 <div key={inst.id} className="group flex items-center gap-4 rounded-2xl bg-primary-foreground/5 p-4 ring-1 ring-primary-foreground/10 transition-all hover:bg-primary-foreground/10 hover:scale-[1.02]">
+                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/20 text-xl font-bold text-brand shadow-sm">
+                     {idx + 1}
+                   </div>
+                   <div className="min-w-0 flex-1">
+                     <div className="truncate font-semibold group-hover:text-cyan transition-colors">{inst.name}</div>
+                     <div className="text-xs text-primary-foreground/60">{inst.xp.toLocaleString()} XP</div>
+                   </div>
+                   <span className="text-2xl transition-transform group-hover:scale-125 duration-300">{inst.logo}</span>
+                 </div>
+               ))}
+             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------- subcomponents ----------------- */
+
+function TrustChip({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-primary-foreground/10 bg-primary-foreground/5 px-3 py-2 text-xs font-medium text-primary-foreground/90">
+      <span className="text-cyan">{icon}</span> {label}
+    </div>
+  );
+}
+
+function Section({
+  eyebrow, title, subtitle, accentBadge, children,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  accentBadge?: { label: string; className: string };
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{eyebrow}</div>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{subtitle}</p>
+        </div>
+        {accentBadge && <Badge className={accentBadge.className}>{accentBadge.label}</Badge>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+
+function ProjectCard({
+  project, application, saved, onApply, onSave, onShare, onView, tone, canParticipate = true,
+}: {
+  project: CuratedProject;
+  application?: ProjectApplication;
+  saved: boolean;
+  onApply: () => void;
+  onSave: () => void;
+  onShare: () => void;
+  onView: () => void;
+  tone: "scope" | "campus" | "open";
+  canParticipate?: boolean;
+}) {
+  const applied = Boolean(application);
+  const seatsLeft = project.seatsTotal - project.seatsFilled;
+  const seatsFull = seatsLeft <= 0;
+  const closed = project.status === "closed";
+  const submissionDeadline = resolveSubmissionDeadline(project);
+  const submissionLabel = application?.submissionReviewStatus === "passed"
+    ? "Passed"
+    : application?.submissionReviewStatus === "submitted"
+      ? "Submitted"
+      : application?.submissionReviewStatus === "needs_changes"
+        ? "Needs changes"
+        : "Awaiting submission";
+
+  const toneBadge = {
+    scope: { label: "Scope Verified", className: "bg-brand text-brand-foreground" },
+    campus: { label: "Your Campus", className: "bg-cyan/20 text-cyan-foreground border border-cyan/30" },
+    open: { label: "Open Access", className: "bg-secondary text-foreground" },
+  }[tone];
+
+  const statusBadge =
+    closed ? { label: "Closed", className: "bg-muted text-muted-foreground" } :
+    project.status === "closing-soon" ? { label: "Closing soon", className: "bg-orange-500/15 text-orange-600 dark:text-orange-400" } :
+    { label: "Live Now", className: "bg-success/15 text-success" };
+
+  // Detect rare honorarium/stipend rewards (1–2% of projects). Only these
+  // surface a cash badge — every other card stays growth-first.
+  const isHonorarium = /₹|stipend|honorarium/i.test(project.rewards);
+
+  return (
+    <Card className="group flex flex-col overflow-hidden hover-lift animate-fade-in">
+      <div className="relative flex h-32 items-center justify-center bg-gradient-hero text-5xl">
+        <span className="transition-transform group-hover:scale-110">{project.cover}</span>
+        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+          {tone === "scope" ? (
+            <ScopeVerifiedBadge size="sm" />
+          ) : (
+            <Badge className={toneBadge.className}>
+              {tone === "campus" && <MapPin className="mr-1 h-3 w-3" />}
+              {tone === "open" && <Globe2 className="mr-1 h-3 w-3" />}
+              {toneBadge.label}
+            </Badge>
+          )}
+          {isHonorarium && (
+            <Badge className="bg-amber-500/90 text-white text-[10px]">
+              <Coins className="mr-1 h-3 w-3" /> Honorarium Opportunity
+            </Badge>
+          )}
+        </div>
+        <div className="absolute right-3 top-3">
+          <ChallengeCountdown endsAt={submissionDeadline ?? undefined} />
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-xs">{project.category}</Badge>
+          <Badge variant="outline" className="text-xs">{project.difficulty}</Badge>
+        </div>
+
+        <h3 className="mt-3 text-lg font-semibold leading-snug text-foreground">{project.title}</h3>
+        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{project.description}</p>
+
+        <div className="mt-4 grid gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5" /> {project.timeline}</div>
+          <div className="flex items-center gap-2">
+            <Users className="h-3.5 w-3.5" />
+            <span>
+              {seatsFull ? "Seats full · waitlist open" : `${seatsLeft} of ${project.seatsTotal} seats left`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2"><Briefcase className="h-3.5 w-3.5" /> {project.skills.slice(0, 3).join(" · ")}</div>
+        </div>
+
+        <div className="mt-4 rounded-lg bg-secondary/50 p-3 text-xs text-foreground/90">
+          <span className="font-semibold">Rewards:</span> {project.rewards}
+        </div>
+
+        {applied && (
+          <div className="mt-3 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-foreground">Project Submission</span>
+              <Badge variant="outline" className="capitalize">{submissionLabel}</Badge>
+            </div>
+            <div className="mt-1 text-muted-foreground">
+              {submissionDeadline
+                ? `Submission deadline: ${new Date(submissionDeadline).toLocaleDateString()}`
+                : "Submit your work when the project is ready for review."}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center gap-2">
+          <Button
+            onClick={onApply}
+            disabled={closed || (!applied && !canParticipate)}
+            size="sm"
+            className={`flex-1 ${applied ? "bg-success text-primary-foreground hover:bg-success/90" : "bg-gradient-brand text-brand-foreground"}`}
+          >
+            {!canParticipate && !applied ? "Restricted" :
+             applied ? (<><Check className="mr-1.5 h-4 w-4" /> Submit Work</>) :
+             closed ? "Closed" :
+             seatsFull ? "Join Waitlist" : "Apply Now"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={onSave} aria-label="Save">
+            {saved ? <BookmarkCheck className="h-4 w-4 text-brand" /> : <Bookmark className="h-4 w-4" />}
+          </Button>
+          <Button size="sm" variant="outline" onClick={onShare} aria-label="Share">
+            <Share2 className="h-4 w-4" />
+          </Button>
+        </div>
+        <button onClick={onView} className="mt-3 self-start text-xs font-semibold text-brand hover:underline">
+          View details →
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/* ----------------- modals ----------------- */
+
+function ModalShell({ children, onClose, title, subtitle }: {
+  children: React.ReactNode; onClose: () => void; title: string; subtitle?: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <Card className="w-full max-w-lg p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-foreground">{title}</h3>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+        </div>
+        {children}
+      </Card>
+    </div>
+  );
+}
+
+function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
+  project: CuratedProject; onClose: () => void; onSubmitted: () => void;
+  onApplied: (app: ProjectApplication) => void;
+}) {
+  const [fit, setFit] = useState("");
+  const [topSkill, setTopSkill] = useState(project.skills[0] ?? "");
+  const [availability, setAvailability] = useState("10 hrs/week");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = () => {
+    if (submitting) return;
+    if (!fit.trim()) { toast.error("Tell us why you're a fit."); return; }
+    if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
+    setSubmitting(true);
+    backendProjects.apply(project.id, fit.trim())
+      .then(({ application }) => {
+        xp.add(100, "Project applied");
+        onApplied({
+          id: application.id,
+          projectId: application.project_id,
+          status: application.status,
+          submissionReviewStatus: application.submission_review_status,
+          submission: application.submission,
+        });
+        analytics.track("project_apply");
+        toast.success("Application sent.");
+        onSubmitted();
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Application failed.");
+        onClose();
+      });
+  };
+
+  return (
+    <ModalShell onClose={onClose} title={`Apply: ${project.title}`} subtitle="A short pitch goes a long way.">
+      <div className="mt-4 space-y-3">
+        <div>
+          <Label htmlFor="fit">Why are you a fit?</Label>
+          <Textarea id="fit" value={fit} onChange={(e) => setFit(e.target.value)} placeholder="Briefly: experience, motivation, what you'll ship..." className="mt-1.5" rows={4} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="skill">Top skill</Label>
+            <Input id="skill" value={topSkill} onChange={(e) => setTopSkill(e.target.value)} placeholder="React, Figma..." className="mt-1.5" />
+          </div>
+          <div>
+            <Label htmlFor="avail">Weekly availability</Label>
+            <select id="avail" value={availability} onChange={(e) => setAvailability(e.target.value)} className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option>5 hrs/week</option>
+              <option>10 hrs/week</option>
+              <option>20 hrs/week</option>
+              <option>Full-time sprint</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+        <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground">
+          {submitting ? "Sending…" : "Send Application (+20 XP)"}
+        </Button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function DetailModal({ project, application, onApply, onClose, canParticipate = true }: {
+  project: CuratedProject; application?: ProjectApplication; onApply: () => void; onClose: () => void; canParticipate?: boolean;
+}) {
+  const applied = Boolean(application);
+  const seatsLeft = project.seatsTotal - project.seatsFilled;
+  const submissionDeadline = resolveSubmissionDeadline(project);
+  return (
+    <ModalShell onClose={onClose} title={project.title} subtitle={`Posted by ${project.postedBy}`}>
+      <div className="mt-4 space-y-4 text-sm">
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">{project.category}</Badge>
+          <Badge variant="outline">{project.difficulty}</Badge>
+          <Badge variant="outline">{project.timeline}</Badge>
+        </div>
+        <p className="text-foreground/90">{project.description}</p>
+        <div className="rounded-lg bg-secondary/50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Skills</div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {project.skills.map((s) => <Badge key={s} variant="secondary">{s}</Badge>)}
+          </div>
+        </div>
+        <div className="rounded-lg bg-secondary/50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rewards</div>
+          <p className="mt-1 text-foreground/90">{project.rewards}</p>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {seatsLeft > 0 ? `${seatsLeft} of ${project.seatsTotal} seats remaining` : "Seats filled — joining the waitlist"}
+        </div>
+        {applied && (
+          <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
+            <div className="font-semibold text-foreground">Submission window</div>
+            <div className="mt-1 text-muted-foreground">
+              {submissionDeadline
+                ? `Submit by ${new Date(submissionDeadline).toLocaleString()}.`
+                : "You can submit screenshot, live URL, and GitHub link here for Scope review."}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Close</Button>
+        <Button 
+          onClick={onApply} 
+          disabled={!applied && !canParticipate}
+          className="bg-gradient-brand text-brand-foreground"
+        >
+          {applied ? "Open Submission" : canParticipate ? "Apply Now" : "Restricted for Admins"}
+        </Button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function SubmissionModal({ project, application, onClose, onSubmitted }: {
+  project: CuratedProject;
+  application: ProjectApplication;
+  onClose: () => void;
+  onSubmitted: (application: ProjectApplication) => void;
+}) {
+  const [liveUrl, setLiveUrl] = useState(application.submission?.live_url || "");
+  const [githubUrl, setGithubUrl] = useState(application.submission?.github_url || "");
+  const [notes, setNotes] = useState(application.submission?.notes || "");
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submissionDeadline = resolveSubmissionDeadline(project);
+
+  const submit = async () => {
+    if (submitting) return;
+    if (!liveUrl.trim() || !githubUrl.trim()) {
+      toast.error("Live URL and GitHub URL are required.");
+      return;
+    }
+    if (!application.submission?.screenshot_url && !screenshot) {
+      toast.error("Please upload a project screenshot.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let screenshotFileId = application.submission?.screenshot_file_id || "";
+      let screenshotUrl = application.submission?.screenshot_url || "";
+
+      if (screenshot) {
+        const { file } = await backendUpload.upload(screenshot, "cover");
+        screenshotFileId = file.id;
+        screenshotUrl = file.url;
+      }
+
+      const { application: updated } = await backendApplications.submitWork(application.id, {
+        live_url: liveUrl.trim(),
+        github_url: githubUrl.trim(),
+        screenshot_file_id: screenshotFileId,
+        screenshot_url: screenshotUrl,
+        notes: notes.trim(),
+      });
+
+      onSubmitted({
+        id: updated.id,
+        projectId: updated.project_id,
+        status: updated.status,
+        submissionReviewStatus: updated.submission_review_status,
+        submission: updated.submission,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not submit project work.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalShell
+      onClose={onClose}
+      title={`Submit Work: ${project.title}`}
+      subtitle={submissionDeadline ? `Deadline: ${new Date(submissionDeadline).toLocaleString()}` : "Share your final build for Scope review."}
+    >
+      <div className="mt-4 space-y-3">
+        <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs text-muted-foreground">
+          Scope Admin will receive your screenshot, live link, and GitHub link here and can mark the project as passed after review.
+        </div>
+        <div>
+          <Label htmlFor="live-url">Live URL</Label>
+          <Input id="live-url" value={liveUrl} onChange={(e) => setLiveUrl(e.target.value)} placeholder="https://your-project.vercel.app" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="github-url">GitHub URL</Label>
+          <Input id="github-url" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/you/project" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="screenshot">Project Screenshot</Label>
+          <Input id="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setScreenshot(e.target.files?.[0] || null)} className="mt-1.5" />
+          {application.submission?.screenshot_url && !screenshot && (
+            <p className="mt-1 text-xs text-muted-foreground">Existing screenshot already uploaded. Upload a new file only if you want to replace it.</p>
+          )}
+        </div>
+        <div>
+          <Label htmlFor="submission-notes">Submission Notes</Label>
+          <Textarea id="submission-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What should admin verify? Features shipped, login credentials, known limits..." className="mt-1.5" rows={4} />
+        </div>
+        {application.submissionReviewStatus !== "not_submitted" && (
+          <div className="rounded-lg border border-border bg-secondary/40 p-3 text-xs">
+            <div className="font-semibold text-foreground">Current review status</div>
+            <div className="mt-1 capitalize text-muted-foreground">{application.submissionReviewStatus.replace("_", " ")}</div>
+            {application.submission?.admin_comment && (
+              <div className="mt-2 text-muted-foreground">Admin note: {application.submission.admin_comment}</div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+        <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground">
+          {submitting ? "Submitting..." : "Submit Project"}
+        </Button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function IdeaModal({ onClose }: { onClose: () => void }) {
+  const [title, setTitle] = useState("");
+  const [problem, setProblem] = useState("");
+  const [why, setWhy] = useState("");
+  const [teamSkills, setTeamSkills] = useState("");
+  const [campusRelevance, setCampusRelevance] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
+
+  const submit = () => {
+    if (!title.trim() || !problem.trim()) {
+      toast.error("Title and problem statement are required.");
+      return;
+    }
+    toast.success("Idea sent privately to Scope.");
+    onClose();
+  };
+
+  return (
+    <ModalShell onClose={onClose} title="Suggest an Idea to Scope" subtitle="Your submission stays private. Great ideas deserve the right launch.">
+      <div className="mt-4 space-y-3">
+        <div>
+          <Label htmlFor="iTitle">Idea title</Label>
+          <Input id="iTitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A new initiative for…" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="iProblem">Problem statement</Label>
+          <Textarea id="iProblem" value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="What pain are we solving?" className="mt-1.5" rows={3} />
+        </div>
+        <div>
+          <Label htmlFor="iWhy">Why it matters</Label>
+          <Textarea id="iWhy" value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why now? Who benefits?" className="mt-1.5" rows={2} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="iTeam">Suggested team skills</Label>
+            <Input id="iTeam" value={teamSkills} onChange={(e) => setTeamSkills(e.target.value)} placeholder="Design, Engineering…" className="mt-1.5" />
+          </div>
+          <div>
+            <Label htmlFor="iCampus">Campus relevance</Label>
+            <Input id="iCampus" value={campusRelevance} onChange={(e) => setCampusRelevance(e.target.value)} placeholder="Pan-India / your campus" className="mt-1.5" />
+          </div>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/40 p-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">Submit anonymously</div>
+            <div className="text-xs text-muted-foreground">Hide your identity from the Scope team.</div>
+          </div>
+          <Switch checked={anonymous} onCheckedChange={setAnonymous} />
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={submit} className="bg-gradient-brand text-brand-foreground">
+          <Sparkles className="mr-1.5 h-4 w-4" /> Submit Privately
+        </Button>
+      </div>
+    </ModalShell>
+  );
+}
+
+
+function AdminAddProjectModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Engineering");
+  const [timeline, setTimeline] = useState("6 weeks");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const user = useUser();
+
+  const submit = async () => {
+    if (!title.trim() || !description.trim()) {
+      toast.error("Please fill in the title and description.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { projects } = await import("@/lib/scope-store");
+      await projects.create({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        problem: `${timeline} · Live builder opportunity`,
+        team: user?.campus || "Campus Chapter",
+      } as any);
+      toast.success("Campus project launched!");
+      onSuccess();
+    } catch (err) {
+      toast.error("Failed to launch project.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalShell onClose={onClose} title="Launch Campus Project" subtitle="Create an exclusive opportunity for your students.">
+      <div className="mt-4 space-y-4">
+        <div>
+          <Label htmlFor="pTitle">Project Title</Label>
+          <Input id="pTitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. AI Content Generator" className="mt-1.5" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="pCat">Category</Label>
+            <select id="pCat" value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option>Engineering</option>
+              <option>Design</option>
+              <option>Marketing</option>
+              <option>Founder</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="pTime">Timeline</Label>
+            <Input id="pTime" value={timeline} onChange={(e) => setTimeline(e.target.value)} placeholder="e.g. 4 weeks" className="mt-1.5" />
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="pDesc">Project Summary</Label>
+          <Textarea id="pDesc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What are students building? What are the goals?" className="mt-1.5" rows={4} />
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+        <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground shadow-brand">
+          {submitting ? "Launching..." : "Launch Project"}
+        </Button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function EmptyState({ title, body, cta }: {
+  title: string; body: string; cta?: { label: string; onClick?: () => void; to?: string };
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-secondary/20 p-12 text-center animate-fade-in">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-3xl">🏜️</div>
+      <h3 className="text-lg font-bold text-foreground">{title}</h3>
+      <p className="mt-2 max-w-sm text-sm text-muted-foreground">{body}</p>
+      {cta && (
+        <div className="mt-6">
+          {cta.to ? (
+            <Button asChild className="bg-gradient-brand text-brand-foreground">
+              <Link to={cta.to}>{cta.label}</Link>
+            </Button>
+          ) : (
+            <Button onClick={cta.onClick} className="bg-gradient-brand text-brand-foreground">
+              {cta.label}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

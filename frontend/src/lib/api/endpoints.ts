@@ -1,0 +1,570 @@
+import { api } from "./client";
+import type { Notification, Project, ScopeUser } from "@/lib/scope-store";
+
+export type AuthPayload = {
+  user: ScopeUser;
+  access_token: string;
+  refresh_token: string;
+  access_token_expires_in: number;
+};
+
+export const backendAuth = {
+  signup(body: { email: string; password: string; name: string; institution_id?: string }) {
+    return api<AuthPayload>("/api/v1/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  login(body: { email: string; password: string }) {
+    return api<AuthPayload>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  logout(refreshToken: string | null) {
+    return api<{ revoked: number }>("/api/v1/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  },
+  me() {
+    return api<{ user: ScopeUser }>("/api/v1/auth/me");
+  },
+};
+
+export const backendUsers = {
+  list(params: { institutionId?: string; role?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.institutionId) qs.set("institution_id", params.institutionId);
+    if (params.role) qs.set("role", params.role);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ items: ScopeUser[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/users${suffix}`);
+  },
+  getRank() {
+    return api<{ globalRank: number; campusRank: number | null }>("/api/v1/users/me/rank");
+  },
+  update(id: string, body: Record<string, unknown>) {
+    return api<{ user: ScopeUser }>(`/api/v1/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  adminUpdate(id: string, body: Record<string, unknown>) {
+    return api<{ user: ScopeUser }>(`/api/v1/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  updateMemberStatus(id: string, studentStatus: "pending_verification" | "active" | "rejected") {
+    return api<{ user: ScopeUser }>(`/api/v1/users/${id}/member-status`, {
+      method: "PATCH",
+      body: JSON.stringify({ student_status: studentStatus }),
+    });
+  },
+  setPortfolioLinks(portfolioLinks: Record<string, string>) {
+    const links = Object.entries(portfolioLinks)
+      .filter(([, url]) => url.trim())
+      .map(([key, url]) => ({
+        key,
+        label: key.replace(/[-_]/g, " "),
+        url,
+        category: key.startsWith("custom:") ? "custom" : "domain",
+      }));
+
+    return api<{ user: ScopeUser }>("/api/v1/users/profile", {
+      method: "POST",
+      body: JSON.stringify({ portfolio_links: links }),
+    });
+  },
+  activity(limit = 20) {
+    return api<{ items: Array<{ id: string; kind: string; text: string; created_at: string; meta?: Record<string, unknown> }>; next_cursor: string | null; has_more: boolean }>(`/api/v1/users/me/activity?limit=${limit}`);
+  },
+  async listStudentsByXp(params: { institutionId?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.institutionId) qs.set("institution_id", params.institutionId);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    const response = await api<{ items: ScopeUser[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/users/leaderboard/students${suffix}`);
+    return {
+      ...response,
+      items: [...response.items].sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0)),
+    };
+  },
+  listCampusesByMembers() {
+    return api<{ items: Array<{ id: string; name: string; sub: string; value: number }>; next_cursor: string | null; has_more: boolean }>("/api/v1/users/leaderboard/campuses");
+  },
+  listChaptersByXp() {
+    return api<{ items: Array<{ id: string; name: string; sub: string; value: number }>; next_cursor: string | null; has_more: boolean }>("/api/v1/users/leaderboard/chapters");
+  },
+  awardDashboardPoints(segments: Array<"joined_campus" | "complete_profile" | "first_application" | "first_portfolio">) {
+    return api<{ awarded: number; awarded_segments: string[]; user: ScopeUser }>("/api/v1/users/me/dashboard-points", {
+      method: "POST",
+      body: JSON.stringify({ segments }),
+    });
+  },
+  addXP(amount: number, reason?: string) {
+    return api<{ xp: number }>("/api/v1/users/me/xp", {
+      method: "POST",
+      body: JSON.stringify({ amount, reason }),
+    });
+  },
+  tickStreak() {
+    return api<{ streak: number; xp: number }>("/api/v1/users/me/streak-tick", { method: "POST" });
+  },
+};
+
+type BackendInstitution = {
+  id: string;
+  name: string;
+  city?: string;
+  state?: string;
+  pipeline_stage?: string;
+  documents?: Array<{
+    kind: "brochure" | "proposal" | "pricing" | "mou";
+    file_id: string;
+    file_name: string;
+    file_url: string;
+    sent_at: string;
+  }>;
+};
+
+export const backendInstitutions = {
+  publicList() {
+    return api<{ items: BackendInstitution[]; next_cursor: string | null; has_more: boolean }>("/api/v1/institutions/public");
+  },
+  campusSummary() {
+    return api<{
+      campus_name: string | null;
+      city: string | null;
+      active_members: number;
+      leaders: number;
+      projects_shipped: number;
+      weekly_growth_pct: number;
+    }>("/api/v1/institutions/me/campus-summary");
+  },
+  sendDocument(id: string, body: {
+    kind: "brochure" | "proposal" | "pricing" | "mou" | "document";
+    file_id: string;
+    file_name: string;
+    file_url: string;
+  }) {
+    return api<{ item: BackendInstitution }>("/api/v1/institutions/" + id + "/documents", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  list() {
+    return api<{ items: BackendInstitution[] }>("/api/v1/institutions");
+  }
+};
+
+export type BackendProject = {
+  id: string;
+  created_by: string;
+  institution_id?: string | null;
+  title: string;
+  summary?: string | null;
+  description?: string | null;
+  domain?: string | null;
+  tags?: string[];
+  status: string;
+  capacity: number;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  cover_url?: string | null;
+  visibility: string;
+  meta?: Record<string, string>;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type BackendNotification = {
+  id: string;
+  kind: string;
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  read: boolean;
+  created_at: string;
+};
+type InstitutionCommunicationPayload = {
+  channel: "broadcast" | "email" | "notice";
+  title: string;
+  body: string;
+};
+
+export const backendProjects = {
+  list() {
+    return api<{ items: BackendProject[]; next_cursor: string | null; has_more: boolean }>("/api/v1/projects?limit=100");
+  },
+  create(project: any) {
+    return api<{ project: BackendProject }>("/api/v1/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        title: project.title,
+        summary: project.summary || project.problem,
+        description: project.description,
+        domain: project.domain || project.category,
+        tags: project.tags || [project.domain || project.category].filter(Boolean),
+        capacity: project.capacity || 3,
+        visibility: project.visibility || "public",
+        status: project.status || "open",
+      }),
+    });
+  },
+  apply(id: string, message: string) {
+    return api<{ application: BackendApplication }>(`/api/v1/projects/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+  },
+  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string }>) {
+    return api<{ project: BackendProject }>(`/api/v1/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<null>(`/api/v1/projects/${id}`, { method: "DELETE" });
+  },
+};
+
+export const backendNotifications = {
+  list() {
+    return api<{ items: BackendNotification[]; next_cursor: string | null; has_more: boolean }>("/api/v1/notifications?limit=100");
+  },
+  markRead(id: string) {
+    return api<{ notification: BackendNotification }>(`/api/v1/notifications/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ read: true }),
+    });
+  },
+  markAllRead() {
+    return api<{ updated: number }>("/api/v1/notifications/read-all", { method: "POST" });
+  },
+  listInstitution(limit = 50) {
+    return api<{ items: BackendNotification[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/notifications/institution?limit=${limit}`);
+  },
+  sendInstitution(body: InstitutionCommunicationPayload) {
+    return api<{ created: number }>("/api/v1/notifications/institution", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+export type BackendApplication = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  user_name?: string | null;
+  user_institution?: string | null;
+  message?: string;
+  status: "pending" | "shortlisted" | "accepted" | "rejected" | "withdrawn";
+  submission_review_status: "not_submitted" | "submitted" | "passed" | "needs_changes";
+  submission?: {
+    live_url?: string | null;
+    github_url?: string | null;
+    screenshot_file_id?: string | null;
+    screenshot_url?: string | null;
+    notes?: string | null;
+    submitted_at?: string | null;
+    reviewed_by?: string | null;
+    reviewed_at?: string | null;
+    admin_comment?: string | null;
+  } | null;
+  created_at: string;
+};
+
+export const backendApplications = {
+  list(params: { projectId?: string; status?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.projectId) qs.set("project_id", params.projectId);
+    if (params.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ items: BackendApplication[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/applications${suffix}`);
+  },
+  listMe() {
+    return api<{ items: BackendApplication[]; next_cursor: string | null; has_more: boolean }>("/api/v1/applications");
+  },
+  updateStatus(id: string, status: BackendApplication["status"]) {
+    return api<{ application: BackendApplication }>(`/api/v1/applications/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+  submitWork(id: string, body: {
+    live_url: string;
+    github_url: string;
+    screenshot_file_id: string;
+    screenshot_url: string;
+    notes?: string;
+  }) {
+    return api<{ application: BackendApplication }>(`/api/v1/applications/${id}/submission`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  reviewSubmission(id: string, body: {
+    submission_review_status: "submitted" | "passed" | "needs_changes";
+    admin_comment?: string;
+  }) {
+    return api<{ application: BackendApplication }>(`/api/v1/applications/${id}/submission-review`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+export const backendAdminUsers = {
+  create(body: {
+    email: string;
+    name?: string;
+    salutation?: "Dr" | "Mrs" | "Mr";
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    phone?: string;
+    password?: string;
+    role: "student" | "faculty" | "institution_admin" | "scope_admin" | "super_admin";
+    role_variant?: string;
+    institution_id?: string | null;
+    department_id?: string | null;
+    send_invite?: boolean;
+  }) {
+    return api<{ user: ScopeUser; invite_token?: string | null }>("/api/v1/admin/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<{ message: string }>(`/api/v1/admin/users/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+export const backendAnalytics = {
+  dau() {
+    return api<{ series: Array<{ date: string; value: number }>; total_unique: number }>("/api/v1/analytics/dau");
+  },
+  wau() {
+    return api<{ series: Array<{ date: string; value: number }>; total_unique: number }>("/api/v1/analytics/wau");
+  },
+  engagement() {
+    return api<{
+      dau_wau_ratio: number;
+      avg_sessions_per_user: number;
+      median_session_minutes: number;
+      top_events: Array<{ event: string; count: number }>;
+    }>("/api/v1/analytics/engagement");
+  },
+};
+
+export type BackendEvent = {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  venue: string;
+  seats: number;
+  color: "brand" | "cyan" | "primary";
+  institution?: string | null;
+};
+
+export const backendEvents = {
+  list(institutionId?: string) {
+    return api<{ items: BackendEvent[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/events${institutionId ? `?institutionId=${institutionId}` : ""}`);
+  },
+  create(body: Omit<BackendEvent, "id">) {
+    return api<{ event: BackendEvent }>("/api/v1/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<null>(`/api/v1/events/${id}`, { method: "DELETE" });
+  },
+};
+
+export type BackendFeedPost = {
+  id: string;
+  author: string;
+  campus: string;
+  time: string;
+  type: string;
+  content: string;
+  likes: number;
+  celebrates: number;
+  comments: number;
+  userLiked: boolean;
+  userCelebrated: boolean;
+  commentList: Array<{ id: string; author: string; text: string; at: number }>;
+  media?: Array<{ type: "image" | "video"; url: string; fileId?: string }>;
+};
+
+export const backendFeed = {
+  list(limit = 100) {
+    return api<{ items: BackendFeedPost[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/feed?limit=${limit}`);
+  },
+  listCampus(limit = 100) {
+    return api<{ items: BackendFeedPost[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/feed?scope=campus&limit=${limit}`);
+  },
+  create(content: string, type?: string, targetInstitutionId?: string | null, media?: Array<{ type: "image" | "video"; url: string; fileId?: string }>) {
+    return api<{ post: BackendFeedPost }>("/api/v1/feed", {
+      method: "POST",
+      body: JSON.stringify({ content, type, target_institution_id: targetInstitutionId, media }),
+    });
+  },
+  react(id: string, reaction: "like" | "celebrate") {
+    return api<{ post: BackendFeedPost }>(`/api/v1/feed/${id}/react`, { method: "POST", body: JSON.stringify({ reaction }) });
+  },
+  comment(id: string, text: string) {
+    return api<{ post: BackendFeedPost }>(`/api/v1/feed/${id}/comment`, { method: "POST", body: JSON.stringify({ text }) });
+  },
+};
+
+export type BackendPortfolioItem = {
+  id: string;
+  user_id: string;
+  type: "Project" | "Design" | "Research" | "Startup Idea" | "Campaign" | "Certificate";
+  title: string;
+  description: string;
+  skills: string[];
+  link: string;
+  cover: string;
+  created_at: string;
+};
+
+export const backendPortfolio = {
+  listMe() {
+    return api<{ items: BackendPortfolioItem[]; next_cursor: string | null; has_more: boolean }>("/api/v1/portfolio-items/me");
+  },
+  create(body: Omit<BackendPortfolioItem, "id" | "user_id" | "created_at">) {
+    return api<{ item: BackendPortfolioItem }>("/api/v1/portfolio-items", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  update(id: string, body: Partial<Omit<BackendPortfolioItem, "id" | "user_id" | "created_at">>) {
+    return api<{ item: BackendPortfolioItem }>(`/api/v1/portfolio-items/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<null>(`/api/v1/portfolio-items/${id}`, { method: "DELETE" });
+  },
+};
+
+export const backendReports = {
+  institution(id: string) {
+    return api<{
+      institution: { id: string; name: string };
+      metrics: {
+        totalStudents: number;
+        activeStudents: number;
+        verifiedStudents: number;
+        completionRate: number;
+        totalCampusXp: number;
+        campusRank: number;
+      };
+      growthTrend: Array<{ month: string; students: number }>;
+      skillDistribution: Array<{ name: string; value: number }>;
+      projectMetrics: {
+        total: number;
+        open: number;
+        inProgress: number;
+        completed: number;
+      };
+      topPerformers: ScopeUser[];
+    }>(`/api/v1/reports/institution/${id}`);
+  },
+  globalLeaderboard() {
+    return api<{ items: Array<{ id: string; name: string; xp: number; logo: string }> }>("/api/v1/reports/global/leaderboard");
+  },
+};
+
+export const backendDepartments = {
+  list(institutionId?: string) {
+    return api<Array<{
+      id: string;
+      name: string;
+      code: string;
+      description: string;
+      headOfDepartment: string;
+      studentCount: number;
+    }>>(`/api/v1/departments${institutionId ? `?institutionId=${institutionId}` : ""}`);
+  },
+  create(body: { name: string; code?: string; description?: string; headOfDepartment?: string }) {
+    return api<any>(`/api/v1/departments`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  update(id: string, body: any) {
+    return api<any>(`/api/v1/departments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  remove(id: string) {
+    return api<any>(`/api/v1/departments/${id}`, { method: "DELETE" });
+  },
+};
+
+export function mapBackendProject(project: BackendProject): Project {
+  return {
+    id: project.id,
+    authorId: project.created_by,
+    author: "Scope Builder",
+    campus: project.institution_id || "Scope Connect",
+    title: project.title,
+    description: project.description || project.summary || "",
+    problem: project.summary || "Solving a real campus / industry pain.",
+    team: "Scope Builder",
+    category: project.domain || project.tags?.[0] || "Software",
+    votes: 0,
+    cover: project.cover_url || "🚀",
+    createdAt: project.created_at ? new Date(project.created_at).getTime() : Date.now(),
+    endsAt: project.ends_on ? new Date(project.ends_on).getTime() : undefined,
+  };
+}
+
+export function mapBackendNotification(notification: BackendNotification): Notification {
+  return {
+    id: notification.id,
+    text: notification.body ? `${notification.title}: ${notification.body}` : notification.title,
+    at: notification.created_at ? new Date(notification.created_at).getTime() : Date.now(),
+    read: notification.read,
+    icon: notification.kind === "application_received" ? "users" : notification.kind === "achievement" ? "trophy" : "spark",
+    href: notification.link || undefined,
+    dedupKey: `backend:${notification.id}`,
+  };
+}
+
+export type BackendFile = {
+  id: string;
+  url: string;
+  mime_type: string;
+  byte_size: number;
+  kind: string;
+};
+
+export const backendUpload = {
+  async upload(file: File, kind: "avatar" | "cover" | "resume" | "document" = "document") {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("kind", kind);
+    formData.append("public", "true");
+    return api<{ file: BackendFile }>("/api/v1/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+};
+
+export const backendDocuments = {
+  list() {
+    return api<{ files: Array<BackendFile & { file_name: string; created_at: string }> }>("/api/v1/upload/documents");
+  }
+};
