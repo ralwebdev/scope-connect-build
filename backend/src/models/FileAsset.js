@@ -3,10 +3,11 @@ import mongoose from "mongoose";
 const fileAssetSchema = new mongoose.Schema(
   {
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    kind: { type: String, enum: ["avatar", "cover", "resume", "document"], required: true },
+    kind: { type: String, enum: ["avatar", "cover", "resume", "document", "brochure", "proposal", "pricing", "mou"], required: true },
     mimeType: { type: String, required: true },
     byteSize: { type: Number, required: true },
     storageKey: { type: String, required: true },
+    originalName: { type: String },
     public: { type: Boolean, default: true },
     checksumSha256: { type: String, required: true },
   },

@@ -40,6 +40,16 @@ const institutionSchema = new mongoose.Schema(
     potentialValue: { type: Number, default: 0 },
     pipelineStage: { type: String, enum: pipelineStages, default: "Prospect", index: true },
     notes: { type: String, default: "" },
+    totalStudentXp: { type: Number, default: 0 },
+    documents: [
+      {
+        kind: { type: String, enum: ["brochure", "proposal", "pricing", "mou", "document"] },
+        fileId: { type: mongoose.Schema.Types.ObjectId, ref: "FileAsset" },
+        fileName: String,
+        fileUrl: String,
+        sentAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true },
 );

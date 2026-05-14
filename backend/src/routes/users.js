@@ -12,11 +12,12 @@ import { validate } from "../utils/validate.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
 import { serializeUser } from "../utils/serializers.js";
+import { Institution as InstitutionModel } from "../models/Institution.js";
 
 export const usersRouter = express.Router();
 export const adminUsersRouter = express.Router();
 
-const url = z.string().url().regex(/^https?:\/\//).nullable().optional();
+const url = z.string().max(2000).regex(/^(https?:\/\/|\/)/).nullable().optional();
 
 const patchUserSchema = z.object({
   email: z.string().email().optional(),
@@ -58,10 +59,16 @@ const portfolioSchema = z.object({
 
 const adminCreateSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(1).max(120),
+  name: z.string().min(1).max(120).optional(),
+  salutation: z.enum(["Dr", "Mrs", "Mr"]).optional(),
+  firstName: z.string().min(1).max(120).optional(),
+  middleName: z.string().max(120).optional(),
+  lastName: z.string().min(1).max(120).optional(),
+  phone: z.string().max(20).optional(),
   role: z.enum(roles),
   role_variant: z.enum(roleVariants).optional(),
   institution_id: z.string().optional().nullable(),
+  department_id: z.string().optional().nullable(),
   send_invite: z.boolean().optional().default(false),
   password: z.string().min(8).max(128).optional(),
 }).refine((body) => body.send_invite || Boolean(body.password), {
@@ -88,8 +95,13 @@ const dashboardPointsSchema = z.object({
   segments: z.array(z.enum(["joined_campus", "complete_profile", "first_application", "first_portfolio"])).max(10),
 });
 
+const addXpSchema = z.object({
+  amount: z.number().int().min(1).max(1000),
+  reason: z.string().max(200).optional(),
+});
+
 async function findHydratedUser(id) {
-  return User.findById(id).populate({ path: "profile", populate: { path: "institution" } });
+  return User.findById(id).populate({ path: "profile", populate: { path: "institution" } }).populate("department");
 }
 
 function roleVariantFor(role, requested) {
@@ -115,7 +127,9 @@ async function uniqueHandle(email) {
 
 function canCreateAdminUser(req) {
   if (req.user.role === "super_admin") return true;
-  return req.user.role === "scope_admin" && req.body.role === "institution_admin" && Boolean(req.body.institution_id);
+  if (req.user.role === "scope_admin" && req.body.role === "institution_admin" && Boolean(req.body.institution_id)) return true;
+  if (req.user.role === "institution_admin" && req.body.role === "faculty" && String(req.body.institution_id) === String(req.user.institution)) return true;
+  return false;
 }
 async function logProfileActivity(userId, kind, text, meta = {}) {
   await ProfileActivity.create({ user: userId, kind, text, meta }).catch(() => null);
@@ -125,16 +139,22 @@ usersRouter.use(authMiddleware);
 
 usersRouter.get("/leaderboard/students", asyncHandler(async (req, res) => {
   if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
-  const filter = { role: "student", disabledAt: null };
-  if (req.query.institution_id) filter.institution = req.query.institution_id;
-  const users = await User.find(filter).sort({ createdAt: -1 }).limit(1000);
-  const hydrated = await Promise.all(users.map((user) => findHydratedUser(user._id)));
-  const items = (await Promise.all(
-    hydrated
-      .filter(Boolean)
-      .map((user) => serializeUser(user, { includePrivate: false })),
-  )).sort((a, b) => (b.stats?.xp ?? 0) - (a.stats?.xp ?? 0));
-  sendSuccess(res, { items, next_cursor: null, has_more: false });
+  
+  // Rank only students by XP
+  const rows = await Profile.aggregate([
+    { $lookup: { from: "users", localField: "user", foreignField: "_id", as: "userDetails" } },
+    { $unwind: "$userDetails" },
+    { $match: { "userDetails.role": "student", "userDetails.disabledAt": null } },
+    { $sort: { xp: -1 } },
+    { $limit: 100 },
+  ]);
+
+  const items = await Promise.all(rows.map(async (row) => {
+    const hydrated = await findHydratedUser(row.user);
+    return serializeUser(hydrated, { includePrivate: false });
+  }));
+
+  sendSuccess(res, { items: items.filter(Boolean), next_cursor: null, has_more: false });
 }));
 
 usersRouter.get("/leaderboard/campuses", asyncHandler(async (req, res) => {
@@ -153,7 +173,40 @@ usersRouter.get("/leaderboard/campuses", asyncHandler(async (req, res) => {
     items: rows.map((row) => ({
       id: row.id,
       name: row.name,
-      sub: row.city || "",
+      sub: row.city || "Scope Chapter",
+      value: row.value || 0,
+    })),
+    next_cursor: null,
+    has_more: false,
+  });
+}));
+
+usersRouter.get("/leaderboard/chapters", asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
+  
+  // Rank institutions by Total XP of their students
+  const rows = await Profile.aggregate([
+    { $match: { institution: { $ne: null } } },
+    { $group: { _id: "$institution", totalXp: { $sum: { $ifNull: ["$xp", 0] } }, members: { $sum: 1 } } },
+    { $lookup: { from: "institutions", localField: "_id", foreignField: "_id", as: "institution" } },
+    { $unwind: "$institution" },
+    { $project: { 
+      _id: 0, 
+      id: { $toString: "$institution._id" }, 
+      name: "$institution.name", 
+      city: "$institution.city", 
+      value: "$totalXp",
+      count: "$members"
+    } },
+    { $sort: { value: -1, count: -1 } },
+    { $limit: 100 },
+  ]);
+
+  sendSuccess(res, {
+    items: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      sub: `${row.count} Members · ${row.city || "Active"}`,
       value: row.value || 0,
     })),
     next_cursor: null,
@@ -220,6 +273,29 @@ usersRouter.get("/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, { user: await serializeUser(user, { includePrivate }) });
 }));
 
+usersRouter.get("/me/rank", asyncHandler(async (req, res) => {
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+  
+  const xp = profile.xp || 0;
+  
+  // Global Rank (National)
+  const globalRank = await Profile.countDocuments({ 
+    xp: { $gt: xp }
+  }) + 1;
+  
+  // Campus Rank
+  let campusRank = null;
+  if (req.user.institution) {
+    campusRank = await Profile.countDocuments({ 
+      institution: req.user.institution,
+      xp: { $gt: xp }
+    }) + 1;
+  }
+  
+  sendSuccess(res, { globalRank, campusRank });
+}));
+
 usersRouter.get("/me/activity", asyncHandler(async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 20), 100);
   const items = await ProfileActivity.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(limit);
@@ -282,16 +358,85 @@ usersRouter.post("/me/dashboard-points", validate(dashboardPointsSchema), asyncH
     });
   }
 
-  if (awarded > 0) await profile.save();
-  sendSuccess(res, {
-    awarded,
-    awarded_segments: awardedSegments,
-    user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }),
-  });
-}));
+    if (awarded > 0) await profile.save();
+    if (awarded > 0 && req.user.institution) {
+      await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: awarded } });
+    }
+    sendSuccess(res, {
+      awarded,
+      awarded_segments: awardedSegments,
+      user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }),
+    });
+  }),
+);
+
+usersRouter.post(
+  "/me/xp",
+  validate(addXpSchema),
+  asyncHandler(async (req, res) => {
+    const profile = await Profile.findOne({ user: req.user._id });
+    if (!profile) throw notFound("Profile not found");
+
+    const amount = req.body.amount;
+    profile.xp = (profile.xp || 0) + amount;
+    await profile.save();
+
+    if (req.user.institution) {
+      await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: amount } });
+    }
+
+    await logProfileActivity(req.user._id, "xp_earned", req.body.reason || `Earned ${amount} XP`, { amount });
+
+    sendSuccess(res, { xp: profile.xp }, "XP synchronized");
+  }),
+);
+
+usersRouter.post(
+  "/me/streak-tick",
+  asyncHandler(async (req, res) => {
+    const profile = await Profile.findOne({ user: req.user._id });
+    if (!profile) throw notFound("Profile not found");
+
+    const now = new Date();
+    const last = profile.lastActiveDate;
+    
+    // Normalize to dates (remove time)
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastDate = last ? new Date(last.getFullYear(), last.getMonth(), last.getDate()) : null;
+
+    if (lastDate && today.getTime() === lastDate.getTime()) {
+      return sendSuccess(res, { streak: profile.streakDays || 1, status: "already_ticked" });
+    }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (lastDate && lastDate.getTime() === yesterday.getTime()) {
+      profile.streakDays = (profile.streakDays || 0) + 1;
+    } else {
+      profile.streakDays = 1;
+    }
+
+    profile.lastActiveDate = now;
+    await profile.save();
+
+    // Reward XP for streak (if > 1)
+    if (profile.streakDays > 1) {
+      const amount = 50;
+      profile.xp = (profile.xp || 0) + amount;
+      await profile.save();
+      if (req.user.institution) {
+        await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: amount } });
+      }
+      await logProfileActivity(req.user._id, "streak_bonus", `Maintained a ${profile.streakDays} day streak!`, { amount, days: profile.streakDays });
+    }
+
+    sendSuccess(res, { streak: profile.streakDays, xp: profile.xp }, "Streak updated");
+  }),
+);
 
 usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, res) => {
-  if (req.user.id !== req.params.id && req.user.role !== "super_admin") throw forbidden();
+  if (String(req.user.id) !== String(req.params.id) && req.user.role !== "super_admin") throw forbidden();
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
   if (req.body.email) {
@@ -370,13 +515,26 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
   }
   const inviteToken = req.body.send_invite ? crypto.randomUUID() : null;
   const derived = deriveRoleFromEmail(email, req.body.role);
+
+  let finalName = req.body.name;
+  if (!finalName && req.body.firstName && req.body.lastName) {
+    finalName = [req.body.firstName, req.body.middleName, req.body.lastName].filter(Boolean).join(" ");
+  }
+  if (!finalName) finalName = email.split("@")[0];
+
   const user = await User.create({
     email,
-    name: req.body.name,
+    name: finalName,
+    salutation: req.body.salutation,
+    firstName: req.body.firstName,
+    middleName: req.body.middleName,
+    lastName: req.body.lastName,
+    phone: req.body.phone,
     passwordHash: await bcrypt.hash(req.body.password || inviteToken, 12),
     role: req.body.role || derived.role,
     roleVariant: roleVariantFor(req.body.role || derived.role, req.body.role_variant),
     institution: institution?._id ?? null,
+    department: req.body.department_id || null,
     founder: derived.founder,
   });
   try {
@@ -408,9 +566,16 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
   }, "User created", 201);
 }));
 
-adminUsersRouter.patch("/:id", requirePermission("manage_users"), validate(adminPatchSchema), asyncHandler(async (req, res) => {
+adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
+
+  // Permission Check: Super Admin OR Institutional Admin for their own campus members
+  const isSuperAdmin = hasPermission(req.user, "manage_users");
+  const isInstAdmin = (req.user.role === "institutional_admin" || req.user.role === "institution_admin") && 
+                     user.institution?.toString() === req.user.institution?.toString();
+
+  if (!isSuperAdmin && !isInstAdmin) throw forbidden();
   if (req.body.role !== undefined) user.role = req.body.role;
   if (req.body.role_variant !== undefined || req.body.role !== undefined) {
     user.roleVariant = roleVariantFor(req.body.role || user.role, req.body.role_variant);
@@ -431,4 +596,21 @@ adminUsersRouter.patch("/:id", requirePermission("manage_users"), validate(admin
   }
   if (user.disabledAt) await Session.updateMany({ user: user._id, revokedAt: null }, { revokedAt: new Date() });
   sendSuccess(res, { user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }) });
+}));
+adminUsersRouter.delete("/:id", asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) throw notFound("User not found");
+
+  // Permission Check: Super Admin OR Institutional Admin for their own campus members
+  const isSuperAdmin = hasPermission(req.user, "manage_users");
+  const isInstAdmin = (req.user.role === "institutional_admin" || req.user.role === "institution_admin") && 
+                     user.institution?.toString() === req.user.institution?.toString();
+
+  if (!isSuperAdmin && !isInstAdmin) throw forbidden();
+
+  await User.findByIdAndDelete(req.params.id);
+  await Profile.deleteOne({ user: req.params.id });
+  await Session.deleteMany({ user: req.params.id });
+  
+  sendSuccess(res, { message: "User deleted successfully" });
 }));

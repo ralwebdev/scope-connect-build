@@ -16,3 +16,4 @@ export { ProfileActivity } from "./ProfileActivity.js";
 export { FeedPost } from "./FeedPost.js";
 export { Event } from "./Event.js";
 export { PortfolioItem } from "./PortfolioItem.js";
+export { Department } from "./Department.js";

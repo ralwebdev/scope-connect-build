@@ -35,16 +35,16 @@ const institutionSchema = z.object({
   country: z.string().max(2).optional(),
   domain: z.string().max(160).optional(),
   verified: z.boolean().optional(),
-  logo_url: z.string().url().regex(/^https?:\/\//).optional(),
-  mou_status: z.enum(["none", "in_discussion", "signed"]).optional(),
+  logo_url: z.string().url().regex(/^https?:\/\//).or(z.literal("")).optional().transform(v => v === "" ? undefined : v),
+  mou_status: z.enum(["none", "in_discussion", "signed"]).or(z.literal("")).optional().transform(v => v === "" ? undefined : v),
   contact_person: z.string().max(160).optional(),
   designation: z.string().max(160).optional(),
   phone: z.string().max(40).optional(),
-  email: z.string().email().optional(),
-  owner_id: z.string().optional().nullable(),
+  email: z.string().email().or(z.literal("")).optional().transform(v => v === "" ? undefined : v),
+  owner_id: z.string().optional().nullable().transform(v => v === "" ? undefined : v),
   priority: z.number().int().min(1).max(5).optional(),
   potential_value: z.number().min(0).optional(),
-  pipeline_stage: z.enum(pipelineStages).optional(),
+  pipeline_stage: z.enum(pipelineStages).or(z.literal("")).optional().transform(v => v === "" ? undefined : v),
   notes: z.string().max(10000).optional(),
 });
 
@@ -230,6 +230,12 @@ institutionsRouter.patch("/crm/visits/:id", requirePermission("manage_partnershi
   sendSuccess(res, { visit: serializeCrmVisit(visit) });
 }));
 
+institutionsRouter.delete("/crm/visits/:id", requirePermission("manage_partnerships"), asyncHandler(async (req, res) => {
+  const visit = await CrmVisit.findByIdAndDelete(req.params.id);
+  if (!visit) throw notFound("Visit not found");
+  sendSuccess(res, null, "Visit deleted");
+}));
+
 institutionsRouter.patch("/crm/launches/:institutionId", requirePermission("manage_partnerships"), validate(launchSchema), asyncHandler(async (req, res) => {
   const institution = await Institution.findById(req.params.institutionId);
   if (!institution) throw notFound("Institution not found");
@@ -240,7 +246,56 @@ institutionsRouter.patch("/crm/launches/:institutionId", requirePermission("mana
     { [req.body.key]: nextValue },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
-  sendSuccess(res, { launch: serializeLaunchChecklist(checklist) });
+  sendSuccess(res, serializeLaunchChecklist(checklist));
+}));
+
+const sendDocSchema = z.object({
+  kind: z.enum(["brochure", "proposal", "pricing", "mou", "document"]),
+  file_id: z.string().min(1),
+  file_name: z.string().min(1),
+  file_url: z.string().min(1),
+});
+
+institutionsRouter.post("/:id/documents", requirePermission("manage_crm"), validate(sendDocSchema), asyncHandler(async (req, res) => {
+  const institution = await Institution.findById(req.params.id);
+  if (!institution) throw notFound("Institution not found");
+
+  const doc = {
+    kind: req.body.kind,
+    fileId: req.body.file_id,
+    fileName: req.body.file_name,
+    fileUrl: req.body.file_url,
+    sentAt: new Date(),
+  };
+
+  institution.documents.push(doc);
+  await institution.save();
+
+  // Notify via Email (Simulated)
+  if (institution.email) {
+    const { sendEmail } = await import("../utils/email.js");
+    await sendEmail({
+      to: institution.email,
+      subject: `New Document from Scope Connect: ${doc.fileName}`,
+      body: `Hello ${institution.contactPerson || "there"},\n\nA new ${doc.kind} has been shared with ${institution.name} via Scope Connect.\n\nFile: ${doc.fileName}\nView here: ${doc.fileUrl}\n\nBest regards,\nScope Connect Admin`,
+      attachments: [{ name: doc.fileName, url: doc.fileUrl }]
+    }).catch(err => console.error("Email simulation failed", err));
+  }
+
+  // Notify Institutional Admin if mapped
+  const admin = await User.findOne({ institution: institution._id, role: "institutional_admin" });
+  if (admin) {
+    const { Notification } = await import("../models/index.js");
+    await Notification.create({
+      user: admin._id,
+      kind: "system",
+      title: "New Document Received",
+      body: `Scope Admin has sent a new ${doc.kind}: ${doc.fileName}`,
+      link: "/institution-admin",
+    });
+  }
+
+  sendSuccess(res, serializeInstitution(institution), "Document sent to institution");
 }));
 
 institutionsRouter.get("/", asyncHandler(async (_req, res) => {

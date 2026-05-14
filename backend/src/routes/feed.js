@@ -9,7 +9,18 @@ import { validate } from "../utils/validate.js";
 
 export const feedRouter = express.Router();
 
-const createSchema = z.object({ content: z.string().min(1).max(5000), type: z.string().max(80).optional() });
+const createSchema = z.object({ 
+  content: z.string().max(5000).optional().default(""), 
+  type: z.string().max(80).optional(),
+  target_institution_id: z.string().optional().nullable(),
+  media: z.array(z.object({
+    type: z.enum(["image", "video"]),
+    url: z.string().url(),
+    fileId: z.string().optional()
+  })).optional()
+}).refine(data => data.content.trim().length > 0 || (data.media && data.media.length > 0), {
+  message: "Post must have content or media"
+});
 const commentSchema = z.object({ text: z.string().min(1).max(1000) });
 const reactionSchema = z.object({ reaction: z.enum(["like", "celebrate"]) });
 
@@ -31,6 +42,7 @@ function serializePost(post, meId) {
     userLiked: liked,
     userCelebrated: celebrated,
     commentList: post.comments.map((c) => ({ id: c._id.toString(), author: c.authorName, text: c.text, at: c.createdAt.getTime() })),
+    media: post.media || [],
   };
 }
 
@@ -38,9 +50,12 @@ feedRouter.get("/", asyncHandler(async (req, res) => {
   const filter = {};
   if (req.query.scope === "campus") {
     if (req.user.institution) {
-      filter.user = { $in: (await User.find({ institution: req.user.institution }).select("_id")).map((u) => u._id) };
+      filter.$or = [
+        { targetInstitution: req.user.institution },
+        { targetInstitution: null }
+      ];
     } else {
-      filter.user = null;
+      filter.targetInstitution = null;
     }
   }
   const posts = await FeedPost.find(filter).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 100), 200));
@@ -50,16 +65,34 @@ feedRouter.get("/", asyncHandler(async (req, res) => {
 feedRouter.post("/", validate(createSchema), asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
   const profile = await Profile.findOne({ user: req.user._id }).populate("institution");
-  const campus = profile?.institution?.name || (req.user.institution ? (await Institution.findById(req.user.institution))?.name : "") || "";
+  
+  let targetInstitution = null;
+  let campusName = "";
+
+  if (user.role === "scope_admin" || user.role === "super_admin") {
+    targetInstitution = req.body.target_institution_id || null;
+    if (targetInstitution) {
+      const inst = await Institution.findById(targetInstitution);
+      campusName = inst ? inst.name : "Target Campus";
+    } else {
+      campusName = "Global Update";
+    }
+  } else {
+    targetInstitution = req.user.institution;
+    campusName = profile?.institution?.name || (req.user.institution ? (await Institution.findById(req.user.institution))?.name : "") || "";
+  }
+
   const post = await FeedPost.create({
     user: req.user._id,
+    targetInstitution,
     authorName: user?.name || req.user.email || "Scope User",
-    campus,
+    campus: campusName,
     type: req.body.type || "Update",
     content: req.body.content,
     likes: [],
     celebrates: [],
     comments: [],
+    media: req.body.media || [],
   });
   sendSuccess(res, { post: serializePost(post, req.user.id) }, "Post created", 201);
 }));

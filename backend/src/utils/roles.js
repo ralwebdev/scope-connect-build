@@ -39,6 +39,7 @@ export const permissionsByRole = {
     "approve_students",
     "manage_members",
     "view_institution_analytics",
+    "manage_events",
   ],
   institution_admin: [
     "view_dashboard",
@@ -54,6 +55,7 @@ export const permissionsByRole = {
     "manage_members",
     "view_institution_analytics",
     "manage_institution",
+    "manage_events",
   ],
   scope_admin: [
     "view_dashboard",

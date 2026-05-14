@@ -12,13 +12,19 @@ const commentSchema = new mongoose.Schema(
 const feedPostSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    targetInstitution: { type: mongoose.Schema.Types.ObjectId, ref: "Institution", default: null, index: true },
     authorName: { type: String, required: true },
     campus: { type: String, default: "" },
     type: { type: String, default: "Update", maxlength: 80 },
-    content: { type: String, required: true, maxlength: 5000 },
+    content: { type: String, default: "", maxlength: 5000 },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     celebrates: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     comments: [commentSchema],
+    media: [{
+      type: { type: String, enum: ["image", "video"] },
+      url: { type: String, required: true },
+      fileId: { type: mongoose.Schema.Types.ObjectId, ref: "FileAsset" }
+    }],
   },
   { timestamps: true },
 );

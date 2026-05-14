@@ -15,10 +15,14 @@ export const uploadRouter = express.Router();
 export const filesRouter = express.Router();
 
 const allowedMime = {
-  avatar: ["image/jpeg", "image/png", "image/webp"],
-  cover: ["image/jpeg", "image/png", "image/webp"],
+  avatar: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  cover: ["image/jpeg", "image/png", "image/webp", "image/gif"],
   resume: ["application/pdf"],
   document: ["application/pdf"],
+  brochure: ["application/pdf"],
+  proposal: ["application/pdf"],
+  pricing: ["application/pdf"],
+  mou: ["application/pdf"],
 };
 
 const storage = multer.diskStorage({
@@ -57,6 +61,7 @@ uploadRouter.post("/", authMiddleware, uploadRateLimit, upload.single("file"), a
     mimeType: req.file.mimetype,
     byteSize: req.file.size,
     storageKey: req.file.filename,
+    originalName: req.file.originalname,
     public: req.body.public !== "false",
     checksumSha256: crypto.createHash("sha256").update(buffer).digest("hex"),
   });
@@ -64,12 +69,31 @@ uploadRouter.post("/", authMiddleware, uploadRateLimit, upload.single("file"), a
   sendSuccess(res, {
     file: {
       id: file.id,
-      url: `/api/files/${file.id}`,
+      url: `/api/v1/files/${file.id}`,
       mime_type: file.mimeType,
       byte_size: file.byteSize,
       kind: file.kind,
     },
   }, "File uploaded", 201);
+}));
+
+uploadRouter.get("/documents", authMiddleware, asyncHandler(async (req, res) => {
+  const files = await FileAsset.find({
+    owner: req.user._id,
+    kind: { $in: ["document", "brochure", "proposal", "pricing", "mou"] }
+  }).sort({ createdAt: -1 });
+
+  sendSuccess(res, {
+    files: files.map(file => ({
+      id: file.id,
+      url: `/api/v1/files/${file.id}`,
+      mime_type: file.mimeType,
+      byte_size: file.byteSize,
+      kind: file.kind,
+      file_name: file.originalName || "Unnamed Document",
+      created_at: file.createdAt
+    }))
+  }, "Documents retrieved");
 }));
 
 filesRouter.get("/:id", asyncHandler(async (req, res, next) => {
@@ -87,7 +111,8 @@ filesRouter.get("/:id", asyncHandler(async (req, res, next) => {
   }
 
   res.setHeader("Content-Type", file.mimeType);
+  // Allow frontend apps served from another local origin to render uploaded files.
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   if (file.public) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   res.sendFile(path.resolve(env.uploadDir, file.storageKey));
 }));
-

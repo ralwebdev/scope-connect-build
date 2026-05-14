@@ -18,6 +18,8 @@ import { uploadRouter, filesRouter } from "./routes/upload.js";
 import { healthRouter } from "./routes/health.js";
 import { eventsRouter } from "./routes/events.js";
 import { portfolioItemsRouter } from "./routes/portfolio-items.js";
+import { reportsRouter } from "./routes/reports.js";
+import { departmentsRouter } from "./routes/departments.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -48,19 +50,25 @@ export function createApp() {
 
   app.use("/api/health", healthRouter);
   app.use("/api", globalRateLimit);
-  app.use("/api/auth", authRouter);
-  app.use("/api/users", usersRouter);
-  app.use("/api/admin/users", adminUsersRouter);
-  app.use("/api/institutions", institutionsRouter);
-  app.use("/api/projects", projectsRouter);
-  app.use("/api/applications", applicationsRouter);
-  app.use("/api/feed", feedRouter);
-  app.use("/api/notifications", notificationsRouter);
-  app.use("/api/analytics", analyticsRouter);
-  app.use("/api/upload", uploadRouter);
-  app.use("/api/files", filesRouter);
-  app.use("/api/events", eventsRouter);
-  app.use("/api/portfolio-items", portfolioItemsRouter);
+
+  const v1Router = express.Router();
+  v1Router.use("/auth", authRouter);
+  v1Router.use("/users", usersRouter);
+  v1Router.use("/admin/users", adminUsersRouter);
+  v1Router.use("/institutions", institutionsRouter);
+  v1Router.use("/projects", projectsRouter);
+  v1Router.use("/applications", applicationsRouter);
+  v1Router.use("/feed", feedRouter);
+  v1Router.use("/notifications", notificationsRouter);
+  v1Router.use("/analytics", analyticsRouter);
+  v1Router.use("/upload", uploadRouter);
+  v1Router.use("/files", filesRouter);
+  v1Router.use("/events", eventsRouter);
+  v1Router.use("/portfolio-items", portfolioItemsRouter);
+  v1Router.use("/reports", reportsRouter);
+  v1Router.use("/departments", departmentsRouter);
+
+  app.use("/api/v1", v1Router);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

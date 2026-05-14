@@ -1,7 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { Project, Application, Notification, ProfileActivity } from "../models/index.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
@@ -29,26 +29,55 @@ const projectSchema = z.object({
   cover_url: z.string().url().regex(/^https?:\/\//).optional(),
   visibility: z.enum(["public", "institution", "private"]).optional().default("public"),
   status: z.enum(["draft", "open", "in_review", "in_progress", "completed", "cancelled"]).optional().default("draft"),
+  institution_id: z.string().optional().nullable(),
+  meta: z.record(z.string()).optional(),
 });
 
 const applySchema = z.object({ message: z.string().max(2000).optional() });
 const applicationPatchSchema = z.object({
   status: z.enum(["pending", "shortlisted", "accepted", "rejected", "withdrawn"]),
 });
+const submissionSchema = z.object({
+  live_url: z.string().url().regex(/^https?:\/\//, "Must be a valid http(s) URL"),
+  github_url: z.string().url().regex(/^https?:\/\//, "Must be a valid http(s) URL"),
+  screenshot_file_id: z.string().min(1),
+  screenshot_url: z.string().url().regex(/^https?:\/\//, "Must be a valid http(s) URL").or(z.string().startsWith("/")),
+  notes: z.string().max(4000).optional().default(""),
+});
+const submissionReviewSchema = z.object({
+  submission_review_status: z.enum(["submitted", "passed", "needs_changes"]),
+  admin_comment: z.string().max(2000).optional().default(""),
+});
 
-projectsRouter.use(authMiddleware);
-
-projectsRouter.get("/", asyncHandler(async (req, res) => {
+projectsRouter.get("/", optionalAuthMiddleware, asyncHandler(async (req, res) => {
   const { limit, cursor, sort } = parsePagination(req.query, ["createdAt", "startsOn"]);
   const filter = { ...cursorFilter(cursor, sort) };
+
+  // Visibility and Role-based filtering
+  if (!hasPermission(req.user, "manage_projects")) {
+    filter.$or = [
+      { visibility: "public" },
+      ...(req.user.institution ? [{ institution: req.user.institution, visibility: "institution" }] : []),
+      { createdBy: req.user._id },
+    ];
+  }
+
   if (req.query.status) filter.status = req.query.status;
   if (req.query.domain) filter.domain = req.query.domain;
   if (req.query.tag) filter.tags = req.query.tag;
-  if (req.query.q) filter.$or = [
-    { title: new RegExp(req.query.q, "i") },
-    { summary: new RegExp(req.query.q, "i") },
-    { description: new RegExp(req.query.q, "i") },
-  ];
+  if (req.query.institution_id) filter.institution = req.query.institution_id === "null" ? null : req.query.institution_id;
+  
+  if (req.query.q) {
+    filter.$and = filter.$and || [];
+    filter.$and.push({
+      $or: [
+        { title: new RegExp(req.query.q, "i") },
+        { summary: new RegExp(req.query.q, "i") },
+        { description: new RegExp(req.query.q, "i") },
+      ],
+    });
+  }
+
   const projects = await Project.find(filter).sort({ [sort.field]: sort.direction === "desc" ? -1 : 1 }).limit(limit + 1);
   const hasMore = projects.length > limit;
   const pageProjects = hasMore ? projects.slice(0, limit) : projects;
@@ -60,18 +89,26 @@ projectsRouter.get("/", asyncHandler(async (req, res) => {
   });
 }));
 
-projectsRouter.get("/:id", asyncHandler(async (req, res) => {
+
+
+projectsRouter.get("/:id", optionalAuthMiddleware, asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
-  if (project.status === "draft" && project.createdBy.toString() !== req.user.id && !hasPermission(req.user, "manage_projects")) {
+  if (project.status === "draft" && (!req.user || (project.createdBy.toString() !== req.user.id && !hasPermission(req.user, "manage_projects")))) {
     throw notFound("Project not found");
   }
   sendSuccess(res, { project: serializeProject(project) });
 }));
 
-projectsRouter.post("/", requirePermission("create_project"), validate(projectSchema), asyncHandler(async (req, res) => {
+projectsRouter.post("/", authMiddleware, requirePermission("create_project"), validate(projectSchema), asyncHandler(async (req, res) => {
+  const isAdmin = hasPermission(req.user, "manage_projects");
+  const institutionId = isAdmin && req.body.institution_id !== undefined 
+    ? req.body.institution_id 
+    : req.user.institution;
+
   const project = await Project.create({
     createdBy: req.user._id,
+    institution: institutionId,
     title: req.body.title,
     summary: req.body.summary,
     description: req.body.description,
@@ -83,15 +120,18 @@ projectsRouter.post("/", requirePermission("create_project"), validate(projectSc
     coverUrl: req.body.cover_url,
     visibility: req.body.visibility,
     status: req.body.status,
+    meta: req.body.meta,
   });
   await logProfileActivity(req.user._id, "project_created", `Created project: ${project.title}`, { project_id: project.id });
   sendSuccess(res, { project: serializeProject(project) }, "Project created", 201);
 }));
 
-projectsRouter.patch("/:id", validate(projectSchema.partial()), asyncHandler(async (req, res) => {
+projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
-  if (project.createdBy.toString() !== req.user.id && !hasPermission(req.user, "manage_projects")) throw forbidden();
+  
+  const isAdmin = hasPermission(req.user, "manage_projects");
+  if (project.createdBy.toString() !== req.user.id && !isAdmin) throw forbidden();
 
   Object.assign(project, {
     ...(req.body.title !== undefined && { title: req.body.title }),
@@ -105,12 +145,14 @@ projectsRouter.patch("/:id", validate(projectSchema.partial()), asyncHandler(asy
     ...(req.body.cover_url !== undefined && { coverUrl: req.body.cover_url }),
     ...(req.body.visibility !== undefined && { visibility: req.body.visibility }),
     ...(req.body.status !== undefined && { status: req.body.status }),
+    ...(req.body.meta !== undefined && { meta: req.body.meta }),
+    ...(isAdmin && req.body.institution_id !== undefined && { institution: req.body.institution_id }),
   });
   await project.save();
   sendSuccess(res, { project: serializeProject(project) });
 }));
 
-projectsRouter.delete("/:id", asyncHandler(async (req, res) => {
+projectsRouter.delete("/:id", authMiddleware, asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
   if (project.createdBy.toString() !== req.user.id && !hasPermission(req.user, "manage_projects")) throw forbidden();
@@ -119,7 +161,7 @@ projectsRouter.delete("/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, null);
 }));
 
-projectsRouter.post("/:id/apply", requirePermission("apply_to_project"), validate(applySchema), asyncHandler(async (req, res) => {
+projectsRouter.post("/:id/apply", authMiddleware, requirePermission("apply_to_project"), validate(applySchema), asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
   if (project.status !== "open") throw new AppError(422, "BUSINESS_RULE_VIOLATION", "Project is not open");
@@ -141,14 +183,23 @@ projectsRouter.post("/:id/apply", requirePermission("apply_to_project"), validat
 applicationsRouter.use(authMiddleware);
 
 applicationsRouter.get("/", asyncHandler(async (req, res) => {
-  const filter = req.query.project_id ? { project: req.query.project_id } : { user: req.user._id };
+  const isManager = hasPermission(req.user, "manage_projects") || hasPermission(req.user, "review_application");
+  const filter = req.query.project_id
+    ? { project: req.query.project_id }
+    : isManager
+      ? {}
+      : { user: req.user._id };
   if (req.query.status) filter.status = req.query.status;
   if (req.query.project_id) {
     const project = await Project.findById(req.query.project_id);
     if (!project) throw notFound("Project not found");
-    if (project.createdBy.toString() !== req.user.id && !hasPermission(req.user, "manage_projects")) throw forbidden();
+    if (project.createdBy.toString() !== req.user.id && !isManager) throw forbidden();
   }
-  const applications = await Application.find(filter).sort({ createdAt: -1 });
+  let query = Application.find(filter).sort({ createdAt: -1 });
+  if (isManager) {
+    query = query.populate({ path: "user", populate: { path: "institution", select: "name" } });
+  }
+  const applications = await query;
   sendSuccess(res, { items: applications.map(serializeApplication), next_cursor: null, has_more: false });
 }));
 
@@ -175,4 +226,66 @@ applicationsRouter.patch("/:id", validate(applicationPatchSchema), asyncHandler(
     dedupeKey: `app:${application.id}:status:${application.status}`,
   }).catch(() => null);
   sendSuccess(res, { application: serializeApplication(application) });
+}));
+
+applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHandler(async (req, res) => {
+  const application = await Application.findById(req.params.id).populate("project");
+  if (!application) throw notFound("Application not found");
+  const isApplicant = application.user.toString() === req.user.id;
+  if (!isApplicant) throw forbidden();
+  if (["rejected", "withdrawn"].includes(application.status)) {
+    throw new AppError(422, "BUSINESS_RULE_VIOLATION", "This application can no longer receive submissions");
+  }
+
+  application.submission = {
+    liveUrl: req.body.live_url,
+    githubUrl: req.body.github_url,
+    screenshotFileId: req.body.screenshot_file_id,
+    screenshotUrl: req.body.screenshot_url,
+    notes: req.body.notes,
+    submittedAt: new Date(),
+    reviewedBy: null,
+    reviewedAt: null,
+    adminComment: "",
+  };
+  application.submissionReviewStatus = "submitted";
+  await application.save();
+
+  await Notification.create({
+    user: application.project.createdBy,
+    kind: "project_submission_received",
+    title: "Project submission received",
+    body: "A student submitted their project deliverables for review.",
+    link: `/projects/${application.project.id}`,
+    dedupeKey: `app:${application.id}:submission:${application.updatedAt?.getTime?.() || Date.now()}`,
+  }).catch(() => null);
+
+  sendSuccess(res, { application: serializeApplication(application) }, "Submission received");
+}));
+
+applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSchema), asyncHandler(async (req, res) => {
+  const application = await Application.findById(req.params.id).populate("project");
+  if (!application) throw notFound("Application not found");
+  const isReviewer = application.project.createdBy.toString() === req.user.id || hasPermission(req.user, "review_application");
+  if (!isReviewer) throw forbidden();
+  if (!application.submission?.submittedAt) {
+    throw new AppError(422, "BUSINESS_RULE_VIOLATION", "No project submission found for this application");
+  }
+
+  application.submissionReviewStatus = req.body.submission_review_status;
+  application.submission.reviewedBy = req.user._id;
+  application.submission.reviewedAt = new Date();
+  application.submission.adminComment = req.body.admin_comment;
+  await application.save();
+
+  await Notification.create({
+    user: application.user,
+    kind: "project_submission_reviewed",
+    title: "Project submission reviewed",
+    body: `Your submission is marked as ${application.submissionReviewStatus.replace("_", " ")}.`,
+    link: `/projects/${application.project.id}`,
+    dedupeKey: `app:${application.id}:submission-review:${application.submissionReviewStatus}`,
+  }).catch(() => null);
+
+  sendSuccess(res, { application: serializeApplication(application) }, "Submission review updated");
 }));

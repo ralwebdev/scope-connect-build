@@ -17,6 +17,7 @@ const projectSchema = new mongoose.Schema(
     endsOn: Date,
     coverUrl: String,
     visibility: { type: String, enum: ["public", "institution", "private"], default: "public" },
+    meta: { type: Map, of: String },
   },
   { timestamps: true },
 );

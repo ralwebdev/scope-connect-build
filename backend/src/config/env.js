@@ -10,7 +10,7 @@ const numberFromEnv = (key, fallback) => {
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: numberFromEnv("PORT", 8080),
-  mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/scope_connect",
+  mongoUri: process.env.MONGODB_URI || "mongodb+srv://Auth:hs9MofCPaymr0g8M@cluster0.fmtt8p1.mongodb.net/scopeConnect",
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-me-change-me",
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev-refresh-secret-change-me-change-me",
   jwtAccessTtlSeconds: numberFromEnv("JWT_ACCESS_TTL_SECONDS", 900),
