@@ -482,6 +482,34 @@ export const backendReports = {
   globalLeaderboard() {
     return api<{ items: Array<{ id: string; name: string; xp: number; logo: string }> }>("/api/v1/reports/global/leaderboard");
   },
+  facultyOverview(id: string) {
+    return api<{
+      metrics: {
+        verifiedMembers: number;
+        pendingApprovals: number;
+        reviewsDue: number;
+        monthlyActivity: number;
+      };
+      studentsToReview: Array<{
+        id: string;
+        name: string;
+        reason: string;
+        when: string;
+      }>;
+      projectChecks: Array<{
+        id: string;
+        title: string;
+        quality: number;
+        status: "review" | "ok";
+      }>;
+      events: Array<{
+        id: string;
+        title: string;
+        status: string;
+        ok: boolean;
+      }>;
+    }>(`/api/v1/reports/faculty/${id}`);
+  },
 };
 
 export const backendDepartments = {

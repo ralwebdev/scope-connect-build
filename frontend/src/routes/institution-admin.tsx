@@ -1115,6 +1115,7 @@ function FacultyAddDialog({
     lastName: "",
     phone: "",
     email: "",
+    password: "",
   });
 
   const handleSubmit = async () => {
@@ -1141,6 +1142,7 @@ function FacultyAddDialog({
         lastName: "",
         phone: "",
         email: "",
+        password: "",
       });
       onSuccess();
     } catch (error) {
@@ -1218,6 +1220,16 @@ function FacultyAddDialog({
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Initial Password (Optional)</Label>
+            <Input
+              type="password"
+              placeholder="Min. 8 characters"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <p className="text-[10px] text-muted-foreground italic">If left blank, user must use the invite link to set password.</p>
           </div>
         </div>
         <DialogFooter>
@@ -1993,7 +2005,7 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
               <div className="space-y-2">
                 <Label>Date & Time *</Label>
                 <Input
-                  placeholder="e.g. May 15, 2:00 PM"
+                  type="datetime-local"
                   value={newEvent.date}
                   onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
                 />

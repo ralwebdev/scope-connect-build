@@ -17,6 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useRole } from "@/hooks/use-rbac";
 import { useUser } from "@/hooks/use-scope";
+import { useEffect, useState } from "react";
+import { backendReports, backendUsers } from "@/lib/api/endpoints";
+import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/faculty")({
   head: () => ({
@@ -65,26 +69,75 @@ function FacultyPortal() {
 
 function FacultyDashboard() {
   const user = useUser();
-  const seed = (user?.email ?? "faculty").split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{
+    metrics: {
+      verifiedMembers: number;
+      pendingApprovals: number;
+      reviewsDue: number;
+      monthlyActivity: number;
+    };
+    studentsToReview: Array<{
+      id: string;
+      name: string;
+      reason: string;
+      when: string;
+    }>;
+    projectChecks: Array<{
+      id: string;
+      title: string;
+      quality: number;
+      status: "review" | "ok";
+    }>;
+    events: Array<{
+      id: string;
+      title: string;
+      status: string;
+      ok: boolean;
+    }>;
+  } | null>(null);
 
-  const verifiedMembers = 240 + (seed % 80);
-  const pendingApprovals = 8 + (seed % 8);
-  const reviewsDue = 3 + (seed % 5);
-  const monthlyActivity = 60 + (seed % 30);
+  const fetchDashboardData = async () => {
+    if (!user?.institution) return;
+    setLoading(true);
+    try {
+      const res = await backendReports.facultyOverview(user.institution.id);
+      setData(res);
+    } catch (error) {
+      toast.error("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const studentsToReview = Array.from({ length: pendingApprovals }).slice(0, 5).map((_, i) => ({
-    id: `s${i + 1}`,
-    name: ["Aarav Sharma", "Riya Sen", "Karan Bose", "Dev Iyer", "Anya Roy"][i % 5],
-    reason: ["Profile flagged", "Project submission", "Role change request", "Verification", "Re-activation"][i % 5],
-    when: ["1h", "3h", "6h", "1d", "2d"][i % 5],
-  }));
+  useEffect(() => {
+    console.log("[FacultyDashboard] Fetching data for institution:", user?.institution?.id);
+    fetchDashboardData();
+  }, [user?.institution?.id]);
 
-  const projectChecks = [
-    { id: "p1", title: "AI for Crop Forecasting", quality: 78, status: "review" as const },
-    { id: "p2", title: "Smart Campus Mobility", quality: 92, status: "ok" as const },
-    { id: "p3", title: "Open Source Lab Notes", quality: 64, status: "review" as const },
-    { id: "p4", title: "Student-Led Research Hub", quality: 88, status: "ok" as const },
-  ];
+  const handleVerify = async (id: string) => {
+    try {
+      await backendUsers.updateMemberStatus(id, "active");
+      toast.success("Student verified successfully");
+      fetchDashboardData();
+    } catch (error) {
+      toast.error("Failed to verify student");
+    }
+  };
+
+  if (loading || !data) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <Activity className="h-8 w-8 animate-spin text-brand" />
+          <p className="text-sm text-muted-foreground">Hydrating dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { metrics, studentsToReview, projectChecks, events } = data;
+  const { verifiedMembers, pendingApprovals, reviewsDue, monthlyActivity } = metrics;
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -138,10 +191,16 @@ function FacultyDashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="truncate text-sm font-semibold">{s.name}</div>
-                  <div className="text-xs text-muted-foreground">{s.reason} · {s.when} ago</div>
+                  <div className="text-xs text-muted-foreground">
+                    {s.reason} · {formatDistanceToNow(new Date(s.when))} ago
+                  </div>
                 </div>
                 <Button size="sm" variant="outline">View</Button>
-                <Button size="sm" className="bg-gradient-brand text-brand-foreground">
+                <Button 
+                  size="sm" 
+                  className="bg-gradient-brand text-brand-foreground"
+                  onClick={() => handleVerify(s.id)}
+                >
                   <ShieldCheck className="mr-1 h-3 w-3" /> Verify
                 </Button>
               </div>
@@ -214,17 +273,12 @@ function FacultyDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </div>
           <ul className="mt-4 space-y-2">
-            {[
-              { l: "Annual hackathon", s: "Approved", ok: true },
-              { l: "Inter-college symposium", s: "Pending docs", ok: false },
-              { l: "Career fair Q3", s: "Approved", ok: true },
-              { l: "Industry guest series", s: "Awaiting bio-data", ok: false },
-            ].map((e) => (
-              <li key={e.l} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-                <span className="font-medium">{e.l}</span>
+            {events.map((e) => (
+              <li key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                <span className="font-medium">{e.title}</span>
                 <Badge variant="outline" className={e.ok ? "border-emerald-500/30 text-emerald-500" : "border-amber-500/30 text-amber-500"}>
                   {e.ok ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <AlertTriangle className="mr-1 h-3 w-3" />}
-                  {e.s}
+                  {e.status}
                 </Badge>
               </li>
             ))}

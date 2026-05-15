@@ -631,9 +631,9 @@ function ProjectCard({
               <Badge variant="outline" className="capitalize">{submissionLabel}</Badge>
             </div>
             <div className="mt-1 text-muted-foreground">
-              {submissionDeadline
+              {submissionDeadline && !isNaN(new Date(submissionDeadline).getTime())
                 ? `Submission deadline: ${new Date(submissionDeadline).toLocaleDateString()}`
-                : "Submit your work when the project is ready for review."}
+                : submissionDeadline ? `Submission deadline: ${submissionDeadline}` : "Submit your work when the project is ready for review."}
             </div>
           </div>
         )}
@@ -746,7 +746,7 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
         <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground">
-          {submitting ? "Sending…" : "Send Application (+20 XP)"}
+          {submitting ? "Sending…" : "Send Application (+100 XP)"}
         </Button>
       </div>
     </ModalShell>

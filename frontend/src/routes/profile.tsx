@@ -623,7 +623,7 @@ function OverviewTab(props: {
                   <p className="text-[10px] text-muted-foreground text-right">Next: {level.next}</p>
                 </div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Streak</span><b>{streak} days</b></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Joined</span><b>{new Date(user.joinedAt).toLocaleDateString()}</b></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Joined</span><b>{user.joinedAt && !isNaN(new Date(user.joinedAt).getTime()) ? new Date(user.joinedAt).toLocaleDateString() : "—"}</b></div>
               </div>
             </Card>
           </>
@@ -633,7 +633,7 @@ function OverviewTab(props: {
             <div className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Role</span><b>{ROLE_LABELS[role]}</b></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Organization</span><b>{user.campus || "—"}</b></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Joined</span><b>{new Date(user.joinedAt).toLocaleDateString()}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Joined</span><b>{user.joinedAt && !isNaN(new Date(user.joinedAt).getTime()) ? new Date(user.joinedAt).toLocaleDateString() : "—"}</b></div>
             </div>
           </Card>
         )}

@@ -86,8 +86,43 @@ function DashboardPage() {
 
   const formatEventDate = (value: string) => {
     const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return value;
-    return d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+    if (!isNaN(d.getTime())) return d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+    
+    // Manual fallback for common Indian/user formats like "May 15, 2:00 PM"
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const lower = value.toLowerCase();
+    const monthIndex = months.findIndex(m => lower.includes(m.toLowerCase()));
+    const dayMatch = value.match(/\b(\d{1,2})\b/);
+    
+    if (monthIndex !== -1 && dayMatch) {
+      return `${months[monthIndex]} ${dayMatch[1].padStart(2, "0")}`;
+    }
+    return value;
+  };
+
+  const getEventDateParts = (value: string) => {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) {
+      return {
+        month: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
+        day: d.getDate().toString(),
+      };
+    }
+
+    // Manual fallback parsing
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const lower = value.toLowerCase();
+    const monthIndex = months.findIndex(m => lower.includes(m.toLowerCase()));
+    const dayMatch = value.match(/\b(\d{1,2})\b/);
+
+    if (monthIndex !== -1 && dayMatch) {
+      return {
+        month: months[monthIndex],
+        day: dayMatch[1],
+      };
+    }
+
+    return { month: "DATE", day: "?" };
   };
 
   if (!user) return null;
@@ -143,12 +178,12 @@ function DashboardPage() {
         if (eventsData.status === "fulfilled") {
           setUpcomingHydrated(
             eventsData.value.items.slice(0, 3).map((eventItem) => {
-              const d = new Date(eventItem.date);
+              const parts = getEventDateParts(eventItem.date);
               return {
                 id: eventItem.id,
                 title: eventItem.title,
-                month: d.toLocaleDateString("en-US", { month: "short" }),
-                day: d.getDate().toString(),
+                month: parts.month,
+                day: parts.day,
                 venue: eventItem.venue,
               };
             }),
@@ -199,12 +234,12 @@ function DashboardPage() {
   const upcomingRows = (upcomingHydrated && upcomingHydrated.length > 0)
     ? upcomingHydrated
     : upcoming.map((e) => {
-      const d = new Date(e.date);
+      const parts = getEventDateParts(e.date);
       return {
         id: e.id,
         title: e.title,
-        month: d.toLocaleDateString("en-US", { month: "short" }),
-        day: d.getDate().toString(),
+        month: parts.month,
+        day: parts.day,
         venue: e.venue,
       };
     });

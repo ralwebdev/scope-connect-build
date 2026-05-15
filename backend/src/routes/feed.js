@@ -3,7 +3,7 @@ import { z } from "zod";
 import { FeedPost, User, Profile, Institution } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { notFound } from "../utils/errors.js";
+import { forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 
@@ -26,9 +26,50 @@ const reactionSchema = z.object({ reaction: z.enum(["like", "celebrate"]) });
 
 feedRouter.use(authMiddleware);
 
+function isScopeTeam(user) {
+  return user.role === "scope_admin" || user.role === "super_admin";
+}
+
+function buildFeedVisibilityFilter(user, scope) {
+  if (scope === "campus") {
+    if (user.institution) {
+      return {
+        $or: [
+          { targetInstitution: user.institution },
+          { targetInstitution: null },
+        ],
+      };
+    }
+    return { targetInstitution: null };
+  }
+
+  if (isScopeTeam(user)) {
+    return {};
+  }
+
+  if (user.institution) {
+    return {
+      $or: [
+        { targetInstitution: user.institution },
+        { targetInstitution: null },
+      ],
+    };
+  }
+
+  return { targetInstitution: null };
+}
+
+function canViewPost(post, user) {
+  if (isScopeTeam(user)) return true;
+  const targetInstitution = post.targetInstitution?.toString?.() || null;
+  if (!targetInstitution) return true;
+  return targetInstitution === user.institution?.toString?.();
+}
+
 function serializePost(post, meId) {
   const liked = post.likes.some((id) => id.toString() === meId);
   const celebrated = post.celebrates.some((id) => id.toString() === meId);
+  const targetInstitutionId = post.targetInstitution?.toString?.() || null;
   return {
     id: post.id,
     author: post.authorName,
@@ -43,21 +84,13 @@ function serializePost(post, meId) {
     userCelebrated: celebrated,
     commentList: post.comments.map((c) => ({ id: c._id.toString(), author: c.authorName, text: c.text, at: c.createdAt.getTime() })),
     media: post.media || [],
+    targetInstitutionId,
+    visibility: targetInstitutionId ? "institution" : "global",
   };
 }
 
 feedRouter.get("/", asyncHandler(async (req, res) => {
-  const filter = {};
-  if (req.query.scope === "campus") {
-    if (req.user.institution) {
-      filter.$or = [
-        { targetInstitution: req.user.institution },
-        { targetInstitution: null }
-      ];
-    } else {
-      filter.targetInstitution = null;
-    }
-  }
+  const filter = buildFeedVisibilityFilter(req.user, req.query.scope);
   const posts = await FeedPost.find(filter).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 100), 200));
   sendSuccess(res, { items: posts.map((post) => serializePost(post, req.user.id)), next_cursor: null, has_more: false });
 }));
@@ -69,10 +102,11 @@ feedRouter.post("/", validate(createSchema), asyncHandler(async (req, res) => {
   let targetInstitution = null;
   let campusName = "";
 
-  if (user.role === "scope_admin" || user.role === "super_admin") {
+  if (isScopeTeam(user)) {
     targetInstitution = req.body.target_institution_id || null;
     if (targetInstitution) {
       const inst = await Institution.findById(targetInstitution);
+      if (!inst) throw notFound("Target institution not found");
       campusName = inst ? inst.name : "Target Campus";
     } else {
       campusName = "Global Update";
@@ -100,6 +134,7 @@ feedRouter.post("/", validate(createSchema), asyncHandler(async (req, res) => {
 feedRouter.post("/:id/react", validate(reactionSchema), asyncHandler(async (req, res) => {
   const post = await FeedPost.findById(req.params.id);
   if (!post) throw notFound("Post not found");
+  if (!canViewPost(post, req.user)) throw forbidden("You cannot react to this post");
   const mine = req.user._id.toString();
   const key = req.body.reaction === "like" ? "likes" : "celebrates";
   const has = post[key].some((id) => id.toString() === mine);
@@ -112,6 +147,7 @@ feedRouter.post("/:id/react", validate(reactionSchema), asyncHandler(async (req,
 feedRouter.post("/:id/comment", validate(commentSchema), asyncHandler(async (req, res) => {
   const post = await FeedPost.findById(req.params.id);
   if (!post) throw notFound("Post not found");
+  if (!canViewPost(post, req.user)) throw forbidden("You cannot comment on this post");
   const user = await User.findById(req.user._id);
   post.comments.push({ user: req.user._id, authorName: user?.name || req.user.email || "Scope User", text: req.body.text });
   await post.save();

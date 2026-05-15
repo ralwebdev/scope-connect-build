@@ -15,7 +15,7 @@ import { useProfileStrength, useStreak, useUser, useStoreValue } from "@/hooks/u
 import { retention } from "@/lib/scope-store";
 
 const WEEKLY_MISSIONS = [
-  { title: "Apply to 1 Scope Challenge", reward: "+50 XP", icon: "🚀" },
+  { title: "Apply to 1 Scope Challenge", reward: "+100 XP", icon: "🚀" },
   { title: "Add 2 portfolio items", reward: "+60 XP", icon: "🧠" },
   { title: "RSVP to a campus event", reward: "+30 XP", icon: "🎟️" },
   { title: "Comment on 3 feed posts", reward: "+20 XP", icon: "💬" },
@@ -121,7 +121,7 @@ export function RetentionLayer() {
             </div>
             <div className="space-y-3 p-6">
               <Step n={1} title="Complete your profile" sub="+25 XP · attracts collaborators" />
-              <Step n={2} title="Apply to your first Scope Challenge" sub="+20 XP · curated opportunities only" />
+              <Step n={2} title="Apply to your first Scope Challenge" sub="+100 XP · curated opportunities only" />
               <Step n={3} title="Add a portfolio item" sub="+30 XP · proof-of-work that opens doors" />
               <Button onClick={closeWelcome} size="lg" className="mt-2 w-full bg-gradient-brand text-brand-foreground shadow-brand">
                 Let's go <ArrowRight className="ml-2 h-4 w-4" />

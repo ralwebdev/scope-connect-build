@@ -276,6 +276,7 @@ function normalizeApiUser(user: ScopeUser): ScopeUser {
 
   const normalizedUser = {
     ...user,
+    role: user.role === "institution_admin" ? ("institutional_admin" as any) : user.role,
     bio: user.bio ?? "",
     campus: user.campus || user.institution?.name || "",
     skills: user.skills ?? [],

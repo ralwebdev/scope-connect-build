@@ -20,7 +20,7 @@ import {
 import type { RoleId } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/use-scope";
-import { backendProjects, backendUsers } from "@/lib/api/endpoints";
+import { backendProjects, backendUsers, backendReports } from "@/lib/api/endpoints";
 
 type Kpi = {
   key: string;
@@ -157,13 +157,43 @@ export function CampusLeaderKpis() {
 }
 
 export function FacultyKpis() {
+  const user = useUser();
+  const institutionId = user?.institution?.id;
+  const [stats, setStats] = useState({
+    verified: 0,
+    pending: 0,
+    trend: "+0%",
+    reports: 0,
+  });
+
+  useEffect(() => {
+    if (!institutionId) return;
+    let cancelled = false;
+    
+    backendReports.facultyOverview(institutionId)
+      .then((data) => {
+        if (cancelled) return;
+        setStats({
+          verified: data.metrics.verifiedMembers,
+          pending: data.metrics.pendingApprovals,
+          trend: "+8%", // Keep trend as a placeholder for now or derive from backend if available
+          reports: data.metrics.reviewsDue,
+        });
+      })
+      .catch(() => {
+        // Silently fail, keep zeros or previous stats
+      });
+
+    return () => { cancelled = true; };
+  }, [institutionId]);
+
   return (
     <MetricsRail
       kpis={[
-        { key: "verified", icon: UserCheck, label: "Verified", value: "286" },
-        { key: "pending", icon: ClipboardList, label: "Pending", value: "12" },
-        { key: "trend", icon: TrendingUp, label: "Trend", value: "+8%" },
-        { key: "reports", icon: FileBarChart, label: "Reports", value: "3" },
+        { key: "verified", icon: UserCheck, label: "Verified", value: String(stats.verified) },
+        { key: "pending", icon: ClipboardList, label: "Pending", value: String(stats.pending) },
+        { key: "trend", icon: TrendingUp, label: "Trend", value: stats.trend },
+        { key: "reports", icon: FileBarChart, label: "Reports", value: String(stats.reports) },
       ]}
     />
   );

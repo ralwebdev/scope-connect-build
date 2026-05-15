@@ -1,4 +1,6 @@
-export const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+const envBase = import.meta.env.VITE_API_BASE_URL ?? "";
+// If BASE points to the same port as frontend (5050), use relative paths to allow Vite proxy to work.
+export const BASE = envBase.includes(":5050") ? "" : envBase;
 const ACCESS_KEY = "scope_access_token";
 const REFRESH_KEY = "scope_refresh_token";
 
