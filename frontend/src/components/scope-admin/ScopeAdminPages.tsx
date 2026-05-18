@@ -31,7 +31,7 @@ function EmptyState({ cta }: { cta: string }) {
     <Card className="p-8 text-center">
       <p className="text-sm font-medium">No data available yet. Start by adding activity.</p>
       <Button asChild className="mt-4 bg-gradient-brand text-brand-foreground">
-        <Link to="/scope-admin">{cta}</Link>
+        <Link to="/scope-admin" search={{ tab: "crm" }}>{cta}</Link>
       </Button>
     </Card>
   );
@@ -48,7 +48,7 @@ function PageShell({ title, children, cta, ctaTo = "/scope-admin" }: { title: st
               <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
             </div>
             <Button asChild className="bg-gradient-brand text-brand-foreground">
-              <Link to={ctaTo}><Plus className="mr-1 h-4 w-4" /> {cta}</Link>
+              <Link to={ctaTo as any} search={{ tab: "crm" } as any}><Plus className="mr-1 h-4 w-4" /> {cta}</Link>
             </Button>
           </header>
           <div className="mt-6">{children}</div>

@@ -92,6 +92,8 @@ export function serializeProject(project) {
     tags: project.tags || [],
     status: project.status,
     capacity: project.capacity,
+    teams_allowed: project.teamsAllowed ?? 0,
+    team_members_limit: project.teamMembersLimit ?? 1,
     starts_on: project.startsOn,
     ends_on: project.endsOn,
     cover_url: project.coverUrl,
@@ -127,6 +129,35 @@ export function serializeApplication(application) {
     } : null,
     reviewed_by: idOf(application.reviewedBy),
     reviewed_at: application.reviewedAt,
+    created_at: application.createdAt,
+    updated_at: application.updatedAt,
+  };
+}
+
+export function serializeOpportunityApplication(application) {
+  const user = application.user;
+  const opportunity = application.opportunity;
+  return {
+    id: idOf(application._id),
+    opportunity_id: idOf(opportunity?._id || opportunity),
+    opportunity_title: opportunity?.title || null,
+    user_id: idOf(user?._id || user),
+    user_name: user?.name || null,
+    user_email: user?.email || null,
+    user_institution: user?.institution?.name || null,
+    user_portfolio_links: user?.profile?.portfolioLinks || null,
+    profile_type: application.profileType,
+    status: application.status,
+    fit_note: application.fitNote || "",
+    portfolio_url: application.portfolioUrl || null,
+    github_url: application.githubUrl || null,
+    dribbble_url: application.dribbbleUrl || null,
+    other_url: application.otherUrl || null,
+    resume_file_id: idOf(application.resumeFileId),
+    resume_url: application.resumeUrl || null,
+    admin_comment: application.adminComment || "",
+    reviewed_by: idOf(application.reviewedBy),
+    reviewed_at: application.reviewedAt || null,
     created_at: application.createdAt,
     updated_at: application.updatedAt,
   };

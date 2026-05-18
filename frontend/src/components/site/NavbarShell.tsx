@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useImageSrc } from "@/hooks/use-image-src";
 import { useUserSession } from "@/hooks/use-session";
 import { useUnreadNotifications } from "@/hooks/use-scope";
-import { auth, meta } from "@/lib/scope-store";
+import { auth, meta, notifications } from "@/lib/scope-store";
 import { useBrand } from "@/hooks/use-platform";
 import { useTheme } from "@/hooks/use-theme";
 import { landingRouteForRole } from "@/lib/rbac";
@@ -55,6 +55,53 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
     const t = setTimeout(() => setShimmer(false), 1600);
     return () => clearTimeout(t);
   }, [session.ready]);
+
+  useEffect(() => {
+    if (!session.isAuthenticated || !session.ready) return;
+
+    let lastUnreadCount = 0;
+    let isInitial = true;
+
+    const sync = async () => {
+      try {
+        const list = await notifications.syncFromBackend();
+        const currentUnread = list.filter((n) => !n.read);
+        const unreadCount = currentUnread.length;
+
+        if (!isInitial && unreadCount > lastUnreadCount) {
+          // Find the newest unread notifications
+          const newNotifs = currentUnread.filter((n) => {
+            // Check if this notification has a newer timestamp or was not in the previous run
+            return n.id && !n.read;
+          }).slice(0, unreadCount - lastUnreadCount);
+
+          newNotifs.forEach((n) => {
+            toast.info(n.text, {
+              description: "New platform signal received.",
+              icon: <Bell className="h-4 w-4 text-brand animate-bounce" />,
+              action: n.href
+                ? {
+                    label: "View",
+                    onClick: () => navigate({ to: n.href }),
+                  }
+                : undefined,
+            });
+          });
+        }
+        lastUnreadCount = unreadCount;
+        isInitial = false;
+      } catch (err) {
+        console.warn("Live notifications poll error", err);
+      }
+    };
+
+    // Initial sync
+    void sync();
+
+    // Auto-polling interval every 15 seconds
+    const interval = setInterval(sync, 15000);
+    return () => clearInterval(interval);
+  }, [session.isAuthenticated, session.ready, navigate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

@@ -168,6 +168,8 @@ export type BackendProject = {
   tags?: string[];
   status: string;
   capacity: number;
+  teams_allowed?: number;
+  team_members_limit?: number;
   starts_on?: string | null;
   ends_on?: string | null;
   cover_url?: string | null;
@@ -206,6 +208,8 @@ export const backendProjects = {
         domain: project.domain || project.category,
         tags: project.tags || [project.domain || project.category].filter(Boolean),
         capacity: project.capacity || 3,
+        teams_allowed: project.teams_allowed || 0,
+        team_members_limit: project.team_members_limit || 1,
         visibility: project.visibility || "public",
         status: project.status || "open",
       }),
@@ -356,7 +360,36 @@ export const backendAnalytics = {
       avg_sessions_per_user: number;
       median_session_minutes: number;
       top_events: Array<{ event: string; count: number }>;
+      dau?: number;
+      wau?: number;
+      member_count?: number;
+      student_faculty_count?: number;
+      activity_rate_pct?: number;
     }>("/api/v1/analytics/engagement");
+  },
+  /** Institution-scoped DAU (last 30 days). */
+  institutionDau(institutionId: string) {
+    return api<{ series: Array<{ date: string; value: number }>; total_unique: number }>(
+      `/api/v1/analytics/institution/${institutionId}/dau`,
+    );
+  },
+  /** Institution-scoped WAU (last 12 weeks). */
+  institutionWau(institutionId: string) {
+    return api<{ series: Array<{ date: string; value: number }>; total_unique: number; member_count: number }>(
+      `/api/v1/analytics/institution/${institutionId}/wau`,
+    );
+  },
+  /** Institution-scoped engagement breakdown. */
+  institutionEngagement(institutionId: string) {
+    return api<{
+      dau_wau_ratio: number;
+      dau: number;
+      wau: number;
+      member_count: number;
+      engagement_count: number;
+      activity_rate_pct: number;
+      top_events: Array<{ event: string; count: number }>;
+    }>(`/api/v1/analytics/institution/${institutionId}/engagement`);
   },
 };
 
@@ -555,6 +588,8 @@ export function mapBackendProject(project: BackendProject): Project {
     cover: project.cover_url || "🚀",
     createdAt: project.created_at ? new Date(project.created_at).getTime() : Date.now(),
     endsAt: project.ends_on ? new Date(project.ends_on).getTime() : undefined,
+    teams_allowed: project.teams_allowed,
+    team_members_limit: project.team_members_limit,
   };
 }
 
@@ -564,7 +599,12 @@ export function mapBackendNotification(notification: BackendNotification): Notif
     text: notification.body ? `${notification.title}: ${notification.body}` : notification.title,
     at: notification.created_at ? new Date(notification.created_at).getTime() : Date.now(),
     read: notification.read,
-    icon: notification.kind === "application_received" ? "users" : notification.kind === "achievement" ? "trophy" : "spark",
+    icon:
+      notification.kind === "application_received" || notification.kind === "opportunity_application_received"
+        ? "users"
+        : notification.kind === "achievement" || notification.kind === "opportunity_application_status_changed"
+        ? "trophy"
+        : "spark",
     href: notification.link || undefined,
     dedupKey: `backend:${notification.id}`,
   };
@@ -595,4 +635,85 @@ export const backendDocuments = {
   list() {
     return api<{ files: Array<BackendFile & { file_name: string; created_at: string }> }>("/api/v1/upload/documents");
   }
+};
+
+export type BackendOpportunity = {
+  id: string;
+  title: string;
+  by: string;
+  company: string;
+  category: string;
+  description: string;
+  requiredSkills: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export const backendOpportunities = {
+  list() {
+    return api<{ items: BackendOpportunity[] }>("/api/v1/opportunities");
+  },
+  create(opportunity: Omit<BackendOpportunity, "id">) {
+    return api<{ opportunity: BackendOpportunity }>("/api/v1/opportunities", {
+      method: "POST",
+      body: JSON.stringify(opportunity),
+    });
+  },
+};
+
+export type BackendOpportunityApplication = {
+  id: string;
+  opportunity_id: string;
+  opportunity_title?: string | null;
+  user_id: string;
+  user_name?: string | null;
+  user_email?: string | null;
+  user_institution?: string | null;
+  profile_type: "developer" | "designer" | "general";
+  status: "pending" | "shortlisted" | "accepted" | "rejected" | "withdrawn";
+  fit_note: string;
+  portfolio_url?: string | null;
+  github_url?: string | null;
+  dribbble_url?: string | null;
+  other_url?: string | null;
+  resume_file_id?: string | null;
+  resume_url?: string | null;
+  admin_comment?: string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export const backendOpportunityApplications = {
+  list(params: { opportunityId?: string; status?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.opportunityId) qs.set("opportunity_id", params.opportunityId);
+    if (params.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ items: BackendOpportunityApplication[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/opportunities/applications${suffix}`);
+  },
+  apply(id: string, body: {
+    fit_note?: string;
+    portfolio_url?: string | null;
+    github_url?: string | null;
+    dribbble_url?: string | null;
+    other_url?: string | null;
+    resume_file_id?: string | null;
+    resume_url?: string | null;
+  }) {
+    return api<{ application: BackendOpportunityApplication }>(`/api/v1/opportunities/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateStatus(id: string, body: {
+    status?: BackendOpportunityApplication["status"];
+    admin_comment?: string;
+  }) {
+    return api<{ application: BackendOpportunityApplication }>(`/api/v1/opportunities/applications/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
 };

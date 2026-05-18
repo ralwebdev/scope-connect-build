@@ -111,7 +111,7 @@ export function FeedComposer({ onPosted }: { onPosted?: () => void }) {
         analytics.track("feed_post_created", {
           media_count: media.length,
           audience: target ?? "global",
-        });
+        } as any);
         setDraft("");
         setMedia([]);
         toast.success("Post published successfully.");

@@ -755,85 +755,326 @@ function memberFromUser(user: ScopeUser): Member {
   };
 }
 
+// ─── Analytics helpers ────────────────────────────────────────────────────────
+
+type AnalyticsSeries = Array<{ date: string; value: number }>;
+
+function AnalyticsStat({
+  label, value, sub, accent = false, loading = false,
+}: { label: string; value: string | number; sub?: string; accent?: boolean; loading?: boolean }) {
+  return (
+    <Card className={`p-4 ${accent ? "border-brand/30 bg-gradient-to-br from-brand/5 to-transparent" : ""}`}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      {loading ? (
+        <div className="mt-2 h-8 w-16 animate-pulse rounded bg-secondary" />
+      ) : (
+        <div className={`mt-2 text-2xl font-bold ${accent ? "text-brand" : ""}`}>{value}</div>
+      )}
+      {sub && <div className="mt-1 text-[10px] text-muted-foreground">{sub}</div>}
+    </Card>
+  );
+}
+
+function SparkChart({ series, color = "#00D1FF", label }: { series: AnalyticsSeries; color?: string; label: string }) {
+  if (!series.length) {
+    return (
+      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border">
+        <p className="text-xs text-muted-foreground">No {label} data yet</p>
+      </div>
+    );
+  }
+  return (
+    <ResponsiveContainer width="100%" height={130}>
+      <AreaChart data={series} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+        <defs>
+          <linearGradient id={`grad-${label}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+        <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+          tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
+        <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
+        <Tooltip
+          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
+          labelStyle={{ color: "hsl(var(--foreground))" }}
+        />
+        <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2}
+          fill={`url(#grad-${label})`} dot={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+function EventBreakdownBar({ events }: { events: Array<{ event: string; count: number }> }) {
+  if (!events.length) return null;
+  const max = Math.max(...events.map((e) => e.count), 1);
+  return (
+    <div className="space-y-2">
+      {events.slice(0, 6).map((ev) => (
+        <div key={ev.event} className="flex items-center gap-3">
+          <div className="w-32 shrink-0 truncate text-xs text-muted-foreground">{ev.event.replaceAll("_", " ")}</div>
+          <div className="flex-1 overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-2 rounded-full bg-brand transition-all"
+              style={{ width: `${Math.round((ev.count / max) * 100)}%` }}
+            />
+          </div>
+          <div className="w-8 shrink-0 text-right text-xs font-semibold">{ev.count}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PerformersList({
+  title,
+  subtitle,
+  performers,
+  loading,
+  emptyText,
+}: {
+  title: string;
+  subtitle?: string;
+  performers: Array<{ id: string; name: string; role: string; xp: number }>;
+  loading: boolean;
+  emptyText: string;
+}) {
+  return (
+    <Card className="p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold">{title}</h3>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+        <Badge variant="outline" className="text-[10px]">{performers.length} ranked</Badge>
+      </div>
+      <div className="divide-y divide-border">
+        {loading && [1, 2, 3].map((n) => (
+          <div key={n} className="flex items-center gap-3 py-2.5">
+            <div className="h-7 w-7 animate-pulse rounded-full bg-secondary" />
+            <div className="flex-1 space-y-1">
+              <div className="h-3 w-28 animate-pulse rounded bg-secondary" />
+              <div className="h-2 w-16 animate-pulse rounded bg-secondary/60" />
+            </div>
+          </div>
+        ))}
+        {!loading && performers.map((m, i) => (
+          <div key={m.id} className="flex items-center justify-between py-2.5">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold
+                ${i === 0 ? "bg-yellow-400/20 text-yellow-600" : i === 1 ? "bg-slate-300/20 text-slate-500" : i === 2 ? "bg-orange-400/20 text-orange-600" : "bg-secondary text-muted-foreground"}`}>
+                {i + 1}
+              </div>
+              <div>
+                <div className="text-sm font-semibold">{m.name}</div>
+                <div className="text-xs text-muted-foreground capitalize">{m.role.replaceAll("_", " ")}</div>
+              </div>
+            </div>
+            <Badge variant="outline" className={i === 0 ? "border-yellow-400/50 text-yellow-600" : ""}>
+              {m.xp.toLocaleString()} XP
+            </Badge>
+          </div>
+        ))}
+        {!loading && performers.length === 0 && (
+          <p className="py-6 text-center text-sm text-muted-foreground">{emptyText}</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ─── Main Analytics View ──────────────────────────────────────────────────────
+
 function AnalyticsView({ institutionId }: { institutionId: string }) {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ dau: 0, wau: 0, submitted: 0, movement: 0, topEventsCount: 0 });
-  const [top, setTop] = useState<Array<{ id: string; name: string; role: string; xp: number }>>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const [stats, setStats] = useState({
+    dau: 0, wau: 0, memberCount: 0, engagementCount: 0, activityRatePct: 0, dauWauRatio: 0,
+  });
+  const [dauSeries, setDauSeries] = useState<AnalyticsSeries>([]);
+  const [wauSeries, setWauSeries] = useState<AnalyticsSeries>([]);
+  const [topEvents, setTopEvents] = useState<Array<{ event: string; count: number }>>([]);
+  const [topPerformers, setTopPerformers] = useState<Array<{ id: string; name: string; role: string; xp: number }>>([]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      backendAnalytics.dau(),
-      backendAnalytics.wau(),
-      backendAnalytics.engagement(),
+    setError(null);
+
+    Promise.allSettled([
+      backendAnalytics.institutionDau(institutionId),
+      backendAnalytics.institutionWau(institutionId),
+      backendAnalytics.institutionEngagement(institutionId),
       backendUsers.list({ institutionId }),
-      backendProjects.list(),
-    ])
-      .then(([dauData, wauData, engagementData, usersData, projectsData]) => {
-        if (cancelled) return;
-        const members = usersData.items;
-        const institutionProjects = projectsData.items.filter((project) => project.institution_id === institutionId);
-        const topPerformers = members
-          .map((member) => ({
-            id: member.id,
-            name: member.name,
-            role: member.role_variant || member.role || "student",
-            xp: member.stats?.xp ?? 0,
+    ]).then(([dauRes, wauRes, engRes, usersRes]) => {
+      if (cancelled) return;
+
+      // DAU series
+      if (dauRes.status === "fulfilled") {
+        setDauSeries(dauRes.value.series);
+      }
+
+      // WAU series
+      if (wauRes.status === "fulfilled") {
+        setWauSeries(wauRes.value.series);
+      }
+
+      // Engagement
+      if (engRes.status === "fulfilled") {
+        const eng = engRes.value;
+        setStats({
+          dau: eng.dau,
+          wau: eng.wau,
+          memberCount: eng.member_count,
+          engagementCount: eng.engagement_count ?? eng.member_count,
+          activityRatePct: eng.activity_rate_pct,
+          dauWauRatio: eng.dau_wau_ratio,
+        });
+        setTopEvents(eng.top_events);
+      } else if (dauRes.status === "fulfilled") {
+        // Fallback — at least show current DAU from series
+        setStats((prev) => ({ ...prev, dau: dauRes.value.series.at(-1)?.value ?? 0 }));
+      }
+
+      // Top performers — exclude ALL admin roles
+      if (usersRes.status === "fulfilled") {
+        const performers = usersRes.value.items
+          .filter((m) => {
+            const r = (m.role || "").toLowerCase();
+            const rv = (m.role_variant || "").toLowerCase();
+            return !r.includes("admin") && !rv.includes("admin");
+          })
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            role: m.role_variant || m.role || "student",
+            xp: m.stats?.xp ?? 0,
           }))
           .sort((a, b) => b.xp - a.xp)
-          .slice(0, 5);
-        setStats({
-          dau: dauData.series.at(-1)?.value ?? 0,
-          wau: wauData.series.at(-1)?.value ?? 0,
-          submitted: institutionProjects.length,
-          movement: Math.max(0, Math.round((engagementData.dau_wau_ratio || 0) * 100)),
-          topEventsCount: engagementData.top_events.length,
-        });
-        setTop(topPerformers);
-      })
-      .catch((error) => {
-        console.warn("Analytics hydration failed", error);
-        toast.error(error instanceof Error ? error.message : "Could not hydrate analytics data.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+          .slice(0, 10);
+        setTopPerformers(performers);
+      }
+
+      setLoading(false);
+    }).catch((err) => {
+      if (!cancelled) {
+        setError(err instanceof Error ? err.message : "Failed to load analytics");
+        setLoading(false);
+      }
+    });
+
     return () => { cancelled = true; };
   }, [institutionId]);
 
   return (
-    <div className="space-y-4">
-      {loading && <p className="text-sm text-muted-foreground">Hydrating analytics...</p>}
+    <div className="space-y-6">
+      {/* ── KPI row ── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="DAU" value={stats.dau} />
-        <Stat label="WAU" value={stats.wau} />
-        <Stat label="Applications submitted" value={stats.submitted} />
-        <Stat label="Leaderboard movement" value={`+${stats.movement}%`} accent />
+        <AnalyticsStat label="Daily Active Users" value={stats.dau} sub="students & faculty · last 24 h" accent loading={loading} />
+        <AnalyticsStat label="Weekly Active Users" value={stats.wau} sub="students & faculty · last 7 days" loading={loading} />
+        <AnalyticsStat label="Total Members" value={stats.memberCount} sub={`incl. admin · ${stats.engagementCount} students/faculty`} loading={loading} />
+        <AnalyticsStat
+          label="Activity Rate"
+          value={`${stats.activityRatePct}%`}
+          sub="WAU / students & faculty"
+          accent
+          loading={loading}
+        />
       </div>
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold">Top performers</h3>
-          <Badge variant="outline" className="text-[10px]">{stats.topEventsCount} tracked events</Badge>
-        </div>
-        <div className="mt-3 divide-y divide-border">
-          {top.map((member, i) => (
-            <div key={member.id} className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-bold">{i + 1}</div>
-                <div>
-                  <div className="text-sm font-semibold">{member.name}</div>
-                  <div className="text-xs text-muted-foreground">{member.role.replaceAll("_", " ")}</div>
-                </div>
-              </div>
-              <Badge variant="outline">{member.xp} XP</Badge>
+
+      {error && (
+        <Card className="border-destructive/40 bg-destructive/5 p-4">
+          <p className="text-sm text-destructive">{error}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Some data may be unavailable. Check that the backend is running.</p>
+        </Card>
+      )}
+
+      {/* ── Charts row ── */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold">Daily Active Users</h3>
+              <p className="text-xs text-muted-foreground">Last 30 days — campus only</p>
             </div>
-          ))}
-          {top.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No active members yet.</p>}
+            <Badge variant="outline" className="text-[10px]">{stats.dau} today</Badge>
+          </div>
+          {loading ? (
+            <div className="h-32 animate-pulse rounded-lg bg-secondary" />
+          ) : (
+            <SparkChart series={dauSeries} color="#00D1FF" label="dau" />
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold">Weekly Active Users</h3>
+              <p className="text-xs text-muted-foreground">Last 12 weeks — campus only</p>
+            </div>
+            <Badge variant="outline" className="text-[10px]">{stats.wau} this week</Badge>
+          </div>
+          {loading ? (
+            <div className="h-32 animate-pulse rounded-lg bg-secondary" />
+          ) : (
+            <SparkChart series={wauSeries} color="#34D399" label="wau" />
+          )}
+        </Card>
+      </div>
+
+      {/* ── Top Performers: Students | Faculty (admins excluded) ── */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PerformersList
+          title="Top Students"
+          subtitle="Students & campus leaders by XP"
+          performers={topPerformers.filter((m) => {
+            const r = m.role.toLowerCase();
+            return r === "student" || r === "campus_leader";
+          })}
+          loading={loading}
+          emptyText="No students with activity yet."
+        />
+        <PerformersList
+          title="Top Faculty"
+          subtitle="Faculty coordinators by XP"
+          performers={topPerformers.filter((m) => {
+            const r = m.role.toLowerCase();
+            return r === "faculty" || r === "faculty_coordinator";
+          })}
+          loading={loading}
+          emptyText="No faculty with activity yet."
+        />
+      </div>
+
+      {/* ── Activity Breakdown ── */}
+      <Card className="p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold">Activity Breakdown</h3>
+          <Badge variant="outline" className="text-[10px]">{topEvents.length} event types</Badge>
         </div>
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="flex items-center gap-3">
+                <div className="h-2 w-28 animate-pulse rounded bg-secondary" />
+                <div className="h-2 flex-1 animate-pulse rounded bg-secondary/60" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EventBreakdownBar events={topEvents} />
+        )}
+        {!loading && topEvents.length === 0 && (
+          <p className="py-4 text-center text-xs text-muted-foreground">No tracked events yet.</p>
+        )}
       </Card>
     </div>
   );
 }
+
 function Stat({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <Card className={`p-4 ${accent ? "border-brand/30" : ""}`}>
@@ -1505,41 +1746,108 @@ function SubmissionReviewDialog({
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Review Submission: {application.user_name}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="grid gap-2 text-sm">
-            {sub.live_url && (
-              <div><span className="font-semibold text-muted-foreground">Live URL:</span> <a href={sub.live_url} target="_blank" rel="noreferrer" className="text-brand hover:underline">{sub.live_url}</a></div>
-            )}
-            {sub.github_url && (
-              <div><span className="font-semibold text-muted-foreground">GitHub:</span> <a href={sub.github_url} target="_blank" rel="noreferrer" className="text-brand hover:underline">{sub.github_url}</a></div>
-            )}
+      <DialogContent className="flex max-h-[90vh] max-w-xl flex-col overflow-hidden p-0">
+        {/* ── Fixed header ── */}
+        <div className="shrink-0 border-b border-border px-6 py-4">
+          <DialogTitle className="text-base font-bold">
+            Review Submission: {application.user_name}
+          </DialogTitle>
+          {application.project_title && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{application.project_title}</p>
+          )}
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-4">
+
+            {/* Links row — always visible first */}
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/30 p-3 text-sm">
+              {sub.live_url ? (
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 font-semibold text-muted-foreground">Live URL:</span>
+                  <a href={sub.live_url} target="_blank" rel="noreferrer"
+                    className="min-w-0 break-all text-brand hover:underline">
+                    {sub.live_url}
+                  </a>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground italic">No live URL provided.</div>
+              )}
+              {sub.github_url ? (
+                <div className="flex items-start gap-2">
+                  <span className="shrink-0 font-semibold text-muted-foreground">GitHub:</span>
+                  <a href={sub.github_url} target="_blank" rel="noreferrer"
+                    className="min-w-0 break-all text-brand hover:underline">
+                    {sub.github_url}
+                  </a>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground italic">No GitHub URL provided.</div>
+              )}
+            </div>
+
+            {/* Screenshot — capped height thumbnail */}
             {sub.screenshot_url && (
               <div>
-                <span className="font-semibold text-muted-foreground">Screenshot:</span>
-                <a href={sub.screenshot_url} target="_blank" rel="noreferrer" className="ml-2 text-xs text-brand hover:underline">(Open full size)</a>
-                <img src={sub.screenshot_url} alt="Screenshot" className="mt-2 rounded-md border border-border" />
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-muted-foreground">Screenshot</span>
+                  <a href={sub.screenshot_url} target="_blank" rel="noreferrer"
+                    className="text-xs text-brand hover:underline">
+                    Open full size ↗
+                  </a>
+                </div>
+                <img
+                  src={sub.screenshot_url}
+                  alt="Project screenshot"
+                  className="max-h-48 w-full rounded-md border border-border object-contain"
+                />
               </div>
             )}
+
+            {/* Submission notes */}
             {sub.notes && (
-              <div className="mt-2 rounded-md bg-secondary/50 p-3 italic text-muted-foreground">"{sub.notes}"</div>
+              <div className="rounded-md bg-secondary/50 p-3 text-sm italic text-muted-foreground">
+                {sub.notes}
+              </div>
             )}
+
             {!sub.live_url && !sub.github_url && !sub.screenshot_url && !sub.notes && (
-              <div className="text-muted-foreground italic">No specific deliverables provided.</div>
+              <div className="text-sm italic text-muted-foreground">No specific deliverables provided.</div>
             )}
-          </div>
-          <div className="space-y-2 pt-4 border-t border-border/50">
-            <Label>Admin Comment (Optional)</Label>
-            <Textarea placeholder="Feedback for the student..." value={comment} onChange={e => setComment(e.target.value)} />
+
+            {/* Admin comment */}
+            <div className="space-y-1.5 border-t border-border/50 pt-4">
+              <Label>Admin Comment (Optional)</Label>
+              <Textarea
+                placeholder="Feedback for the student..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={3}
+              />
+            </div>
           </div>
         </div>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onUpdate(application.id, "needs_changes", comment)} className="text-warning border-warning/50 hover:bg-warning/10">Needs Changes</Button>
-          <Button onClick={() => onUpdate(application.id, "passed", comment)} className="bg-success text-success-foreground hover:bg-success/90">Mark as Passed</Button>
-        </DialogFooter>
+
+        {/* ── Fixed footer — always visible ── */}
+        <div className="shrink-0 border-t border-border bg-card px-6 py-4">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => onUpdate(application.id, "needs_changes", comment)}
+              className="border-warning/50 text-warning hover:bg-warning/10"
+            >
+              Needs Changes
+            </Button>
+            <Button
+              onClick={() => onUpdate(application.id, "passed", comment)}
+              className="bg-success text-success-foreground hover:bg-success/90"
+            >
+              Mark as Passed
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -1678,6 +1986,8 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
     description: "",
     domain: "",
     capacity: 10,
+    teams_allowed: 5,
+    team_members_limit: 4,
     status: "open",
     visibility: "institution"
   });
@@ -1718,6 +2028,8 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
         description: "",
         domain: "",
         capacity: 10,
+        teams_allowed: 5,
+        team_members_limit: 4,
         status: "open",
         visibility: "institution"
       });
@@ -1774,11 +2086,29 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Team Capacity</Label>
+                <Label>Total Student Capacity</Label>
                 <Input
                   type="number"
                   value={newProject.capacity}
                   onChange={(e) => setNewProject({ ...newProject, capacity: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Teams Allowed</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 5"
+                  value={newProject.teams_allowed}
+                  onChange={(e) => setNewProject({ ...newProject, teams_allowed: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Members per Team</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 4"
+                  value={newProject.team_members_limit}
+                  onChange={(e) => setNewProject({ ...newProject, team_members_limit: Number(e.target.value) })}
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
@@ -1838,10 +2168,21 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                       <h4 className="mt-3 font-bold text-foreground line-clamp-1">{project.title}</h4>
                       <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{project.summary || project.description}</p>
 
-                      <div className="mt-6 flex items-center justify-between border-t border-border/50 pt-4">
+                      <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-secondary/30 p-2.5 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Teams Allowed</span>
+                          <span className="font-semibold text-foreground">{project.teams_allowed || "No Limit"}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Members / Team</span>
+                          <span className="font-semibold text-foreground">{project.team_members_limit || "1"}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
                         <div className="flex items-center text-xs text-muted-foreground">
                           <Users className="mr-1.5 h-3.5 w-3.5" />
-                          <span>Capacity: {project.capacity}</span>
+                          <span>Total Capacity: {project.capacity}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-[10px]">

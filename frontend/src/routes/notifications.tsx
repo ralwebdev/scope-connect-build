@@ -8,6 +8,7 @@ import { RoleNotificationCenter } from "@/components/site/RoleNotificationCenter
 import { useUserSession } from "@/hooks/use-session";
 import { useUnreadNotifications } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
+import { notifications } from "@/lib/scope-store";
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({
@@ -27,6 +28,7 @@ function NotificationsPage() {
 
   useEffect(() => {
     analytics.track("notification_opened");
+    void notifications.syncFromBackend().catch(console.warn);
   }, []);
 
   return (

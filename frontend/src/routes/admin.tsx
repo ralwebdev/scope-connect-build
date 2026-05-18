@@ -109,7 +109,7 @@ function AdminPage() {
               <Link to="/admin/campuses/new"><Building2 className="mr-1.5 h-3.5 w-3.5" /> New campus</Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground">
-              <Link to="/scope-admin"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Scope Admin</Link>
+              <Link to="/scope-admin" search={{ tab: "crm" }}><Building2 className="mr-1.5 h-3.5 w-3.5" /> Scope Admin</Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground">
               <Link to="/scope-super-admin"><Sparkles className="mr-1.5 h-3.5 w-3.5" /> Command Center</Link>

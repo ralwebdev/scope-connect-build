@@ -414,6 +414,8 @@ function ProjectsPage() {
           project={submissionTarget}
           application={appByProjectId.get(submissionTarget.id)!}
           onClose={() => setSubmissionTarget(null)}
+          isAdmin={isAdmin}
+          institutionId={user?.institution?.id}
           onSubmitted={(application) => {
             setUserApps((current) => current.map((app) => (app.id === application.id ? application : app)));
             setSubmissionTarget(null);
@@ -787,7 +789,9 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
             <div className="mt-1 text-muted-foreground">
               {submissionDeadline
                 ? `Submit by ${new Date(submissionDeadline).toLocaleString()}.`
-                : "You can submit screenshot, live URL, and GitHub link here for Scope review."}
+                : project.scope === "campus"
+                  ? "Submit your screenshot, live URL, and GitHub link for Institution Admin review."
+                  : "You can submit screenshot, live URL, and GitHub link here for Scope review."}
             </div>
           </div>
         )}
@@ -806,11 +810,13 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
   );
 }
 
-function SubmissionModal({ project, application, onClose, onSubmitted }: {
+function SubmissionModal({ project, application, onClose, onSubmitted, isAdmin = false, institutionId }: {
   project: CuratedProject;
   application: ProjectApplication;
   onClose: () => void;
   onSubmitted: (application: ProjectApplication) => void;
+  isAdmin?: boolean;
+  institutionId?: string;
 }) {
   const [liveUrl, setLiveUrl] = useState(application.submission?.live_url || "");
   const [githubUrl, setGithubUrl] = useState(application.submission?.github_url || "");
@@ -819,8 +825,36 @@ function SubmissionModal({ project, application, onClose, onSubmitted }: {
   const [submitting, setSubmitting] = useState(false);
   const submissionDeadline = resolveSubmissionDeadline(project);
 
+  // Admin-only: student picker
+  const [students, setStudents] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [loadingStudents, setLoadingStudents] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin || !institutionId) return;
+    setLoadingStudents(true);
+    import("@/lib/api/endpoints").then(({ backendUsers }) =>
+      backendUsers.list({ institutionId })
+    ).then(({ items }) => {
+      const studs = items
+        .filter((m) => {
+          const r = (m.role || "").toLowerCase();
+          const rv = (m.role_variant || "").toLowerCase();
+          return !r.includes("admin") && !rv.includes("admin");
+        })
+        .map((m) => ({ id: m.id, name: m.name, email: m.email }));
+      setStudents(studs);
+      if (studs.length > 0) setSelectedStudentId(studs[0].id);
+    }).catch(() => { /* non-fatal */ })
+      .finally(() => setLoadingStudents(false));
+  }, [isAdmin, institutionId]);
+
   const submit = async () => {
     if (submitting) return;
+    if (isAdmin && !selectedStudentId) {
+      toast.error("Please select the student this submission is for.");
+      return;
+    }
     if (!liveUrl.trim() || !githubUrl.trim()) {
       toast.error("Live URL and GitHub URL are required.");
       return;
@@ -841,12 +875,18 @@ function SubmissionModal({ project, application, onClose, onSubmitted }: {
         screenshotUrl = file.url;
       }
 
+      // When admin submits on behalf of a student, prepend a structured tag to notes
+      const selectedStudent = students.find((s) => s.id === selectedStudentId);
+      const adminNotePrefix = isAdmin && selectedStudent
+        ? `[Submitted on behalf of: ${selectedStudent.name} <${selectedStudent.email}>]\n`
+        : "";
+
       const { application: updated } = await backendApplications.submitWork(application.id, {
         live_url: liveUrl.trim(),
         github_url: githubUrl.trim(),
         screenshot_file_id: screenshotFileId,
         screenshot_url: screenshotUrl,
-        notes: notes.trim(),
+        notes: adminNotePrefix + notes.trim(),
       });
 
       onSubmitted({
@@ -870,9 +910,43 @@ function SubmissionModal({ project, application, onClose, onSubmitted }: {
       subtitle={submissionDeadline ? `Deadline: ${new Date(submissionDeadline).toLocaleString()}` : "Share your final build for Scope review."}
     >
       <div className="mt-4 space-y-3">
-        <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs text-muted-foreground">
-          Scope Admin will receive your screenshot, live link, and GitHub link here and can mark the project as passed after review.
-        </div>
+        {/* Admin-only: student assignment */}
+        {isAdmin && (
+          <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wide text-amber-600">Admin Submission</span>
+              <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-700">On behalf of student</span>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              You are submitting this project as an institutional admin. Select the student whose work is being submitted.
+            </p>
+            <label className="text-xs font-medium text-foreground">Student Profile</label>
+            {loadingStudents ? (
+              <div className="mt-1.5 h-9 animate-pulse rounded-md bg-secondary" />
+            ) : students.length === 0 ? (
+              <p className="mt-1.5 text-xs text-muted-foreground">No students found in your institution.</p>
+            ) : (
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} — {s.email}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {!isAdmin && (
+          <div className={`rounded-lg border p-3 text-xs text-muted-foreground ${project.scope === "campus" ? "border-emerald-400/30 bg-emerald-400/5" : "border-brand/20 bg-brand/5"}`}>
+            {project.scope === "campus"
+              ? "Your Institution Admin will receive your screenshot, live link, and GitHub link and can mark this campus project as passed after review."
+              : "Scope Admin will receive your screenshot, live link, and GitHub link here and can mark the project as passed after review."}
+          </div>
+        )}
+
         <div>
           <Label htmlFor="live-url">Live URL</Label>
           <Input id="live-url" value={liveUrl} onChange={(e) => setLiveUrl(e.target.value)} placeholder="https://your-project.vercel.app" className="mt-1.5" />
@@ -904,8 +978,8 @@ function SubmissionModal({ project, application, onClose, onSubmitted }: {
       </div>
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-        <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground">
-          {submitting ? "Submitting..." : "Submit Project"}
+        <Button onClick={submit} disabled={submitting || (isAdmin && loadingStudents)} className="bg-gradient-brand text-brand-foreground">
+          {submitting ? "Submitting..." : isAdmin ? "Submit on Behalf of Student" : "Submit Project"}
         </Button>
       </div>
     </ModalShell>

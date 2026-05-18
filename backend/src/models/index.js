@@ -17,3 +17,5 @@ export { FeedPost } from "./FeedPost.js";
 export { Event } from "./Event.js";
 export { PortfolioItem } from "./PortfolioItem.js";
 export { Department } from "./Department.js";
+export { Opportunity } from "./Opportunity.js";
+export { OpportunityApplication } from "./OpportunityApplication.js";

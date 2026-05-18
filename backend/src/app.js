@@ -11,6 +11,7 @@ import { authRouter } from "./routes/auth.js";
 import { usersRouter, adminUsersRouter } from "./routes/users.js";
 import { institutionsRouter } from "./routes/institutions.js";
 import { projectsRouter, applicationsRouter } from "./routes/projects.js";
+import { opportunitiesRouter } from "./routes/opportunities.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { feedRouter } from "./routes/feed.js";
@@ -58,6 +59,7 @@ export function createApp() {
   v1Router.use("/institutions", institutionsRouter);
   v1Router.use("/projects", projectsRouter);
   v1Router.use("/applications", applicationsRouter);
+  v1Router.use("/opportunities", opportunitiesRouter);
   v1Router.use("/feed", feedRouter);
   v1Router.use("/notifications", notificationsRouter);
   v1Router.use("/analytics", analyticsRouter);

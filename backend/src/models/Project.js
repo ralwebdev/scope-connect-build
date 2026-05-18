@@ -13,6 +13,8 @@ const projectSchema = new mongoose.Schema(
     tags: [{ type: String }],
     status: { type: String, enum: projectStatuses, default: "draft", index: true },
     capacity: { type: Number, default: 1, min: 1 },
+    teamsAllowed: { type: Number, default: 0 },
+    teamMembersLimit: { type: Number, default: 1 },
     startsOn: Date,
     endsOn: Date,
     coverUrl: String,

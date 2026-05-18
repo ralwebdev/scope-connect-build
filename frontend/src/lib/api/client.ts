@@ -1,5 +1,23 @@
-const envBase = import.meta.env.VITE_API_BASE_URL ?? "";
-// If BASE points to the same port as frontend (5050), use relative paths to allow Vite proxy to work.
+function normalizeApiBase(rawBase: string) {
+  if (!rawBase) return "";
+
+  try {
+    const url = new URL(rawBase);
+
+    // `localhost` can trigger aggregated socket errors on some Windows setups.
+    // Use IPv4 loopback explicitly for local API traffic.
+    if (url.hostname === "localhost") {
+      url.hostname = "127.0.0.1";
+    }
+
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return rawBase.replace(/\/$/, "");
+  }
+}
+
+const envBase = normalizeApiBase(import.meta.env.VITE_API_BASE_URL ?? "");
+// When the API is on the local dev backend, prefer relative requests so Vite can proxy them.
 export const BASE = envBase.includes(":5050") ? "" : envBase;
 const ACCESS_KEY = "scope_access_token";
 const REFRESH_KEY = "scope_refresh_token";

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink } from "lucide-react";
+import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink, BarChart2, TrendingUp, Globe2, ArrowUpRight } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { AccessDenied } from "@/components/site/AccessDenied";
@@ -12,14 +12,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { crm, PIPELINE_STAGES, type Institution, type PipelineStage } from "@/lib/crm-store";
-import { backendAdminUsers, backendEvents, type BackendEvent, backendProjects, type BackendProject, backendApplications, type BackendApplication, backendInstitutions, backendDocuments } from "@/lib/api/endpoints";
+import { backendAdminUsers, backendEvents, type BackendEvent, backendProjects, type BackendProject, backendApplications, type BackendApplication, backendInstitutions, backendDocuments, backendAnalytics, backendUsers, backendOpportunityApplications, type BackendOpportunityApplication } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
 import { FeedComposer } from "@/components/site/FeedComposer";
+import { opportunities } from "@/lib/scope-store";
+import { normalizeSkills } from "@/lib/skill-matching";
 
 export const Route = createFileRoute("/scope-admin")({
   head: () => ({ meta: [{ title: "Scope Admin · Territory CRM" }, { name: "robots", content: "noindex" }] }),
@@ -129,6 +131,8 @@ function ScopeAdminPortal() {
             <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="events">Scope Events</TabsTrigger>
             <TabsTrigger value="projects">Scope Projects</TabsTrigger>
+            <TabsTrigger value="opportunities">Scope Opportunities</TabsTrigger>
+            <TabsTrigger value="analytics"><BarChart2 className="mr-1.5 h-3.5 w-3.5 inline" />Analytics</TabsTrigger>
           </TabsList>
           
           <TabsContent value="crm" className="mt-6">
@@ -140,15 +144,606 @@ function ScopeAdminPortal() {
           <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? user?.id ?? ""} /></TabsContent>
           <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
           <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
-          <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} /></TabsContent>
+          <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} admins={all.admins} /></TabsContent>
           <TabsContent value="events" className="mt-6"><ScopeEventsManager /></TabsContent>
           <TabsContent value="projects" className="mt-6"><ScopeProjectsManager /></TabsContent>
+          <TabsContent value="opportunities" className="mt-6"><ScopeOpportunitiesManager /></TabsContent>
+          <TabsContent value="analytics" className="mt-6"><ScopeAnalyticsDashboard institutions={institutions} /></TabsContent>
         </Tabs>
       </section>
       </RbacSidebar>
     </AppShell>
   );
 }
+
+// ─── Scope Analytics Dashboard ────────────────────────────────────────────────
+
+type AnalyticsSeries = Array<{ date: string; value: number }>;
+
+function MiniBar({ value, max, accent }: { value: number; max: number; accent?: boolean }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+      <div
+        className={`h-full rounded-full transition-all duration-700 ${accent ? "bg-brand" : "bg-emerald-500"}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+function SparkLine({ series, color = "#00D1FF" }: { series: AnalyticsSeries; color?: string }) {
+  const max = Math.max(...series.map((s) => s.value), 1);
+  const W = 200, H = 48;
+  const pts = series.map((s, i) => {
+    const x = (i / Math.max(series.length - 1, 1)) * W;
+    const y = H - (s.value / max) * (H - 4);
+    return `${x},${y}`;
+  }).join(" ");
+  if (series.length < 2) return <div className="h-12 flex items-center justify-center text-xs text-muted-foreground">No data yet</div>;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12" preserveAspectRatio="none">
+      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" points={pts} />
+    </svg>
+  );
+}
+
+function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: boolean }) {
+  return (
+    <Card className={`p-4 ${accent ? "border-brand/30 bg-brand/5" : ""}`}>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-2xl font-bold ${accent ? "text-brand" : "text-foreground"}`}>{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
+    </Card>
+  );
+}
+
+function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: string; name: string; stage: string }> }) {
+  const [mode, setMode] = useState<"global" | "institution">("global");
+  const [selectedInstId, setSelectedInstId] = useState("");
+
+  // ── Global data ──
+  const [globalDau, setGlobalDau] = useState<AnalyticsSeries>([]);
+  const [globalWau, setGlobalWau] = useState<AnalyticsSeries>([]);
+  const [globalTopEvents, setGlobalTopEvents] = useState<Array<{ event: string; count: number }>>([]);
+  const [globalStats, setGlobalStats] = useState({ dau: 0, wau: 0, memberCount: 0, studentFacultyCount: 0, activityRatePct: 0 });
+  const [globalLoading, setGlobalLoading] = useState(false);
+
+  // ── Institution data ──
+  const [instDau, setInstDau] = useState<AnalyticsSeries>([]);
+  const [instWau, setInstWau] = useState<AnalyticsSeries>([]);
+  const [instStats, setInstStats] = useState({ dau: 0, wau: 0, memberCount: 0, engagementCount: 0, activityRatePct: 0, topEvents: [] as Array<{ event: string; count: number }> });
+  const [instLoading, setInstLoading] = useState(false);
+
+  const liveInstitutions = useMemo(
+    () => institutions.filter((i) => ["Live Chapter", "Launch Pending", "MoU Signed"].includes(i.stage)),
+    [institutions],
+  );
+
+  // Load global analytics once on mount
+  useEffect(() => {
+    setGlobalLoading(true);
+    Promise.allSettled([
+      backendAnalytics.dau(),
+      backendAnalytics.wau(),
+      backendAnalytics.engagement(),
+    ]).then(([dauRes, wauRes, engRes]) => {
+      if (dauRes.status === "fulfilled") setGlobalDau(dauRes.value.series);
+      if (wauRes.status === "fulfilled") setGlobalWau(wauRes.value.series);
+      if (engRes.status === "fulfilled") {
+        const e = engRes.value;
+        setGlobalTopEvents(e.top_events);
+        setGlobalStats({
+          dau: e.dau ?? 0,
+          wau: e.wau ?? 0,
+          memberCount: e.member_count ?? 0,
+          studentFacultyCount: e.student_faculty_count ?? 0,
+          activityRatePct: e.activity_rate_pct ?? 0,
+        });
+      }
+      setGlobalLoading(false);
+    });
+  }, []);
+
+  // Load institution analytics when selected
+  useEffect(() => {
+    if (!selectedInstId) return;
+    setInstLoading(true);
+    Promise.allSettled([
+      backendAnalytics.institutionDau(selectedInstId),
+      backendAnalytics.institutionWau(selectedInstId),
+      backendAnalytics.institutionEngagement(selectedInstId),
+    ]).then(([dauRes, wauRes, engRes]) => {
+      if (dauRes.status === "fulfilled") setInstDau(dauRes.value.series);
+      if (wauRes.status === "fulfilled") setInstWau(wauRes.value.series);
+      if (engRes.status === "fulfilled") {
+        const e = engRes.value;
+        setInstStats({
+          dau: e.dau,
+          wau: e.wau,
+          memberCount: e.member_count,
+          engagementCount: e.engagement_count ?? e.member_count,
+          activityRatePct: e.activity_rate_pct,
+          topEvents: e.top_events,
+        });
+      }
+      setInstLoading(false);
+    });
+  }, [selectedInstId]);
+
+  const globalTopCount = globalTopEvents[0]?.count ?? 0;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Header + mode toggle ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Platform Analytics</h2>
+          <p className="text-sm text-muted-foreground">Global overview or drill into any institution.</p>
+        </div>
+        <div className="flex overflow-hidden rounded-lg border border-border">
+          <button
+            onClick={() => setMode("global")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
+              mode === "global" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            <Globe2 className="h-3.5 w-3.5" /> Global Overview
+          </button>
+          <button
+            onClick={() => setMode("institution")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
+              mode === "institution" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            <Building2 className="h-3.5 w-3.5" /> Institution Drill-Down
+          </button>
+        </div>
+      </div>
+
+      {/* ══════════════════ GLOBAL MODE ══════════════════ */}
+      {mode === "global" && (
+        <div className="space-y-6">
+          {globalLoading ? (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading platform data…
+            </div>
+          ) : (
+            <>
+              {/* KPI row */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Daily Active Users" value={globalStats.dau} sub="unique users · last 24 h" accent />
+                <StatCard label="Weekly Active Users" value={globalStats.wau} sub="unique users · last 7 days" />
+                <StatCard label="Total Registered Members" value={globalStats.memberCount} sub={`incl. admins · ${globalStats.studentFacultyCount} students/faculty`} />
+                <StatCard label="Global Activity Rate" value={`${globalStats.activityRatePct}%`} sub="WAU / students &amp; faculty" accent />
+              </div>
+
+              {/* Charts side by side */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Daily Active Users</div>
+                      <div className="mt-0.5 text-2xl font-bold text-foreground">{globalStats.dau}</div>
+                    </div>
+                    <TrendingUp className="h-5 w-5 text-brand" />
+                  </div>
+                  <div className="mt-4">
+                    <SparkLine series={globalDau} color="#00D1FF" />
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted-foreground">Last 30 days · all users platform-wide</p>
+                </Card>
+                <Card className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Weekly Active Users</div>
+                      <div className="mt-0.5 text-2xl font-bold text-foreground">{globalStats.wau}</div>
+                    </div>
+                    <BarChart2 className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div className="mt-4">
+                    <SparkLine series={globalWau} color="#10b981" />
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted-foreground">Last 12 weeks · all users platform-wide</p>
+                </Card>
+              </div>
+
+              {/* Platform-wide top events */}
+              <Card className="p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold">Platform Activity Breakdown</div>
+                    <p className="text-xs text-muted-foreground">All event types across every institution · all time</p>
+                  </div>
+                  <Badge variant="outline">{globalTopEvents.length} event types</Badge>
+                </div>
+                <div className="space-y-3">
+                  {globalTopEvents.length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">No events tracked yet.</p>
+                  )}
+                  {globalTopEvents.map((ev) => (
+                    <div key={ev.event}>
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground">{ev.event}</span>
+                        <span className="font-bold text-brand">{ev.count.toLocaleString()}</span>
+                      </div>
+                      <MiniBar value={ev.count} max={globalTopCount} accent />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════ INSTITUTION DRILL-DOWN ══════════════════ */}
+      {mode === "institution" && (
+        <div className="space-y-6">
+          {/* Institution selector */}
+          <Card className="p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Building2 className="h-4 w-4 shrink-0 text-brand" />
+              <label className="text-sm font-semibold">Select Institution</label>
+              <select
+                value={selectedInstId}
+                onChange={(e) => setSelectedInstId(e.target.value)}
+                className="h-9 min-w-[280px] flex-1 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">— Choose a live institution —</option>
+                {liveInstitutions.map((inst) => (
+                  <option key={inst.id} value={inst.id}>{inst.name}</option>
+                ))}
+              </select>
+              {selectedInstId && (
+                <Badge className="bg-brand/10 text-brand border-none">
+                  {liveInstitutions.find((i) => i.id === selectedInstId)?.stage}
+                </Badge>
+              )}
+            </div>
+          </Card>
+
+          {!selectedInstId && (
+            <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/20 text-center">
+              <Building2 className="mb-2 h-8 w-8 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Select an institution above to view its analytics.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Showing Live Chapter, Launch Pending and MoU Signed institutions.</p>
+            </div>
+          )}
+
+          {selectedInstId && instLoading && (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading institution data…
+            </div>
+          )}
+
+          {selectedInstId && !instLoading && (
+            <>
+              {/* KPI row */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Daily Active Users" value={instStats.dau} sub="students &amp; faculty · last 24 h" accent />
+                <StatCard label="Weekly Active Users" value={instStats.wau} sub="students &amp; faculty · last 7 days" />
+                <StatCard label="Total Members" value={instStats.memberCount} sub={`incl. admin · ${instStats.engagementCount} students/faculty`} />
+                <StatCard label="Activity Rate" value={`${instStats.activityRatePct}%`} sub="WAU / students &amp; faculty" accent />
+              </div>
+
+              {/* Charts */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Daily Sessions</div>
+                      <div className="mt-0.5 text-2xl font-bold">{instDau.at(-1)?.value ?? 0}</div>
+                    </div>
+                    <TrendingUp className="h-5 w-5 text-brand" />
+                  </div>
+                  <div className="mt-4"><SparkLine series={instDau} /></div>
+                  <p className="mt-2 text-[10px] text-muted-foreground">Last 30 days · students &amp; faculty only</p>
+                </Card>
+                <Card className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Weekly Sessions</div>
+                      <div className="mt-0.5 text-2xl font-bold">{instWau.at(-1)?.value ?? 0}</div>
+                    </div>
+                    <BarChart2 className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div className="mt-4"><SparkLine series={instWau} color="#10b981" /></div>
+                  <p className="mt-2 text-[10px] text-muted-foreground">Last 12 weeks · students &amp; faculty only</p>
+                </Card>
+              </div>
+
+              {/* Activity breakdown */}
+              <Card className="p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold">Institution Activity Breakdown</div>
+                    <p className="text-xs text-muted-foreground">Student &amp; faculty events only · admin actions excluded</p>
+                  </div>
+                  <Badge variant="outline">{instStats.topEvents.length} event types</Badge>
+                </div>
+                <div className="space-y-3">
+                  {instStats.topEvents.length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">No student/faculty events tracked yet for this institution.</p>
+                  )}
+                  {instStats.topEvents.map((ev) => (
+                    <div key={ev.event}>
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground">{ev.event}</span>
+                        <span className="font-bold text-brand">{ev.count}</span>
+                      </div>
+                      <MiniBar value={ev.count} max={instStats.topEvents[0]?.count ?? 1} accent />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Scope Opportunities Manager ────────────────────────────────────────────────
+function ScopeOpportunitiesManager() {
+  const [items, setItems] = useState<any[]>([]);
+  const [applications, setApplications] = useState<BackendOpportunityApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    by: "",
+    company: "",
+    category: "Design",
+    requiredSkills: "",
+    description: "",
+  });
+
+  const fetchOpps = async () => {
+    try {
+      const [allOpps, appRes] = await Promise.all([
+        opportunities.syncFromBackend(),
+        backendOpportunityApplications.list().catch(() => ({ items: [] as BackendOpportunityApplication[] })),
+      ]);
+      setItems(allOpps.map((item: any) => ({ ...item, campus: item.company })));
+      setApplications(appRes.items);
+    } catch (error) {
+      toast.error("Could not load opportunities.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOpps();
+  }, []);
+
+  const applicationsForOpportunity = (opportunityId: string) =>
+    applications.filter((application) => application.opportunity_id === opportunityId);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!form.title || !form.by || !form.company || !form.description) {
+      toast.error("All fields are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await opportunities.create({
+        title: form.title,
+        by: form.by,
+        company: form.company,
+        category: form.category as any,
+        requiredSkills: normalizeSkills(form.requiredSkills.split(",")),
+        description: form.description,
+      });
+      toast.success("Opportunity posted successfully!");
+      setForm({
+        title: "",
+        by: "",
+        company: "",
+        category: "Design",
+        requiredSkills: "",
+        description: "",
+      });
+      await fetchOpps();
+    } catch (error) {
+      toast.error("Could not post opportunity.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card className="p-5 border-brand/10">
+        <h3 className="text-sm font-bold text-foreground">Post New Opportunity</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Publish co-founder matching, internships, or builder sprints directly to student dashboards.</p>
+        <form onSubmit={submit} className="mt-4 space-y-3.5">
+          <div>
+            <Label className="text-xs font-semibold">Opportunity Title</Label>
+            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. React Developer — Campus Marketplace" className="mt-1" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-semibold">Posted By</Label>
+              <Input value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} placeholder="e.g. CampusDAO" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold">Company Name</Label>
+              <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="e.g. MediMatch AI" className="mt-1" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-semibold">Category</Label>
+              <select 
+                value={form.category} 
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="Design">Design</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Founder">Founder</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Pitch">Pitch</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold">Required Skills</Label>
+              <Input value={form.requiredSkills} onChange={(e) => setForm({ ...form, requiredSkills: e.target.value })} placeholder="e.g. React, APIs, Tailwind CSS" className="mt-1" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs font-semibold">Detailed Description</Label>
+            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the role requirements, duration, equity/stipend terms..." rows={4} className="mt-1" />
+          </div>
+          <Button type="submit" disabled={saving} className="w-full bg-gradient-brand text-brand-foreground font-semibold">
+            {saving ? "Publishing..." : "Publish Opportunity"}
+          </Button>
+        </form>
+      </Card>
+
+      <Card className="p-5 border-brand/10">
+        <h3 className="text-sm font-bold text-foreground">Live Dashboard Opportunities ({items.length})</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Real-time student interest tracking powered by MongoDB collections.</p>
+        <div className="mt-4 space-y-3 overflow-y-auto max-h-[500px] pr-1">
+          {loading && (
+            <div className="flex h-32 items-center justify-center">
+              <Activity className="h-6 w-6 animate-spin text-brand" />
+            </div>
+          )}
+          {!loading && items.length === 0 && (
+            <p className="text-sm text-muted-foreground italic text-center py-8">No opportunities posted yet.</p>
+          )}
+          {!loading && items.map((item) => (
+            <div key={item.id} className="relative rounded-lg border border-border p-4 bg-muted/5 transition-colors hover:bg-muted/10">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
+                  <Badge className="bg-gradient-brand text-brand-foreground text-[10px]">
+                    {(item.requiredSkills?.length ?? 0)} skill{(item.requiredSkills?.length ?? 0) === 1 ? "" : "s"} required
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {applicationsForOpportunity(item.id).length} applicant{applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
+                  </Badge>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {applicationsForOpportunity(item.id).length} total applicant{applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <h4 className="mt-2.5 text-sm font-bold text-foreground">{item.title}</h4>
+              <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+              {!!item.requiredSkills?.length && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {item.requiredSkills.slice(0, 5).map((skill: string) => (
+                    <Badge key={skill} variant="secondary" className="text-[10px]">{skill}</Badge>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3">
+                <Button size="sm" variant="outline" onClick={() => setSelectedOpportunityId(item.id)}>
+                  View Applicants
+                </Button>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+                <span>by <b className="text-foreground">{item.by}</b> · {item.campus}</span>
+                <span>{item.id.startsWith("o_") ? "Seed Data" : "Live DB"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <OpportunityApplicantsDialog
+        opportunity={items.find((item) => item.id === selectedOpportunityId) ?? null}
+        applications={selectedOpportunityId ? applicationsForOpportunity(selectedOpportunityId) : []}
+        onClose={() => setSelectedOpportunityId(null)}
+        onStatusChange={(updated) => {
+          setApplications((current) => current.map((item) => item.id === updated.id ? updated : item));
+        }}
+      />
+    </div>
+  );
+}
+
+function OpportunityApplicantsDialog({
+  opportunity,
+  applications,
+  onClose,
+  onStatusChange,
+}: {
+  opportunity: { id: string; title: string; company?: string; campus?: string } | null;
+  applications: BackendOpportunityApplication[];
+  onClose: () => void;
+  onStatusChange: (application: BackendOpportunityApplication) => void;
+}) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const updateStatus = async (applicationId: string, status: BackendOpportunityApplication["status"]) => {
+    setUpdatingId(applicationId);
+    try {
+      const { application } = await backendOpportunityApplications.updateStatus(applicationId, { status });
+      onStatusChange(application);
+      toast.success(`Application ${status}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update application.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <Dialog open={Boolean(opportunity)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>{opportunity?.title ?? "Applicants"}</DialogTitle>
+          <DialogDescription>
+            Review all applicants for {opportunity?.company ?? opportunity?.campus ?? "this opportunity"}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[70vh] overflow-y-auto pr-1">
+          {applications.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">No applications received yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {applications.map((application) => (
+                <div key={application.id} className="rounded-lg border border-border/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="font-semibold text-foreground">{application.user_name}</h4>
+                      <p className="text-xs text-muted-foreground">
+                        {application.user_institution || "Institute not set"} · {application.user_email || "No email"}
+                      </p>
+                    </div>
+                    <Badge variant="outline">{application.status}</Badge>
+                  </div>
+                  {application.fit_note && <p className="mt-3 text-sm text-muted-foreground">{application.fit_note}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    {application.github_url && <a href={application.github_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">GitHub</a>}
+                    {application.portfolio_url && <a href={application.portfolio_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">Portfolio</a>}
+                    {application.dribbble_url && <a href={application.dribbble_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">Dribbble / Design Link</a>}
+                    {application.other_url && <a href={application.other_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">Other Link</a>}
+                    {application.resume_url && <a href={application.resume_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">CV / Resume</a>}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" disabled={updatingId === application.id} onClick={() => updateStatus(application.id, "shortlisted")}>Shortlist</Button>
+                    <Button size="sm" variant="outline" disabled={updatingId === application.id} onClick={() => updateStatus(application.id, "accepted")}>Accept</Button>
+                    <Button size="sm" variant="outline" disabled={updatingId === application.id} onClick={() => updateStatus(application.id, "rejected")}>Reject</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Scope Events Manager ──────────────────────────────────────────────────────
 
 function ScopeEventsManager() {
   const [events, setEvents] = useState<BackendEvent[]>([]);
@@ -241,6 +836,7 @@ function ScopeProjectsManager() {
   const [updatingApplicationId, setUpdatingApplicationId] = useState<string | null>(null);
   const { institutions } = useStoreValue(() => crm.all());
   const [activeSubTab, setActiveSubTab] = useState("active");
+  const [projectScopeFilter, setProjectScopeFilter] = useState<"global" | "campus" | "all">("global");
 
   const [form, setForm] = useState({
     title: "",
@@ -248,8 +844,10 @@ function ScopeProjectsManager() {
     description: "",
     domain: "Software",
     capacity: 5,
+    teams_allowed: 5,
+    team_members_limit: 4,
     visibility: "public" as const,
-    status: "open" as const,
+    status: "open" as "open" | "closed" | "draft",
     institution_id: "" as string,
   });
 
@@ -283,7 +881,7 @@ function ScopeProjectsManager() {
       const payload = { ...form, institution_id: form.institution_id || null };
       const { project: created } = await backendProjects.create(payload);
       setProjects((current) => [created, ...current]);
-      setForm({ title: "", summary: "", description: "", domain: "Software", capacity: 5, visibility: "public", status: "open", institution_id: "" });
+      setForm({ title: "", summary: "", description: "", domain: "Software", capacity: 5, teams_allowed: 5, team_members_limit: 4, visibility: "public", status: "open", institution_id: "" });
       setActiveSubTab("active");
       toast.success("Project added successfully.");
     } catch (error) {
@@ -382,6 +980,14 @@ function ScopeProjectsManager() {
     });
   }, [projects, applications]);
 
+  const filteredActiveProjects = useMemo(() => {
+    return projectsWithStats.filter(p => {
+      if (projectScopeFilter === "global") return !p.institution_id;
+      if (projectScopeFilter === "campus") return !!p.institution_id;
+      return true;
+    });
+  }, [projectsWithStats, projectScopeFilter]);
+
   // Sync System: Poll for new applications every 15s to keep stats live
   useEffect(() => {
     const interval = setInterval(() => {
@@ -438,7 +1044,55 @@ function ScopeProjectsManager() {
                 </div>
               )}
 
-              {!loading && projectsWithStats.map((item) => (
+              {!loading && projectsWithStats.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-xl border border-brand/10 bg-secondary/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Filter by Ownership</span>
+                  <div className="flex flex-wrap gap-1 rounded-lg bg-background p-1 border border-border">
+                    <button
+                      onClick={() => setProjectScopeFilter("global")}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        projectScopeFilter === "global"
+                          ? "bg-brand text-brand-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      Global / Scope ({projectsWithStats.filter(p => !p.institution_id).length})
+                    </button>
+                    <button
+                      onClick={() => setProjectScopeFilter("campus")}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        projectScopeFilter === "campus"
+                          ? "bg-brand text-brand-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      Campus Specific ({projectsWithStats.filter(p => !!p.institution_id).length})
+                    </button>
+                    <button
+                      onClick={() => setProjectScopeFilter("all")}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        projectScopeFilter === "all"
+                          ? "bg-brand text-brand-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      All ({projectsWithStats.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!loading && projectsWithStats.length > 0 && filteredActiveProjects.length === 0 && (
+                <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center">
+                  <Layers className="mb-2 h-6 w-6 text-muted-foreground/30" />
+                  <p className="text-sm font-medium text-muted-foreground">No projects found in this category.</p>
+                  <Button variant="link" size="sm" onClick={() => setProjectScopeFilter("all")} className="mt-1">
+                    Show all active projects
+                  </Button>
+                </div>
+              )}
+
+              {!loading && filteredActiveProjects.map((item) => (
                 <Card key={item.id} className="group relative overflow-hidden border-brand/10 p-0 transition-all hover:border-brand/40 hover:shadow-lg">
                   <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                   <div className="relative p-6">
@@ -470,6 +1124,17 @@ function ScopeProjectsManager() {
 
                     <p className="mt-4 text-sm text-muted-foreground line-clamp-2">{item.summary}</p>
 
+                    <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Teams Allowed</span>
+                        <span className="font-semibold text-foreground">{item.teams_allowed || "No Limit"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Members / Team</span>
+                        <span className="font-semibold text-foreground">{item.team_members_limit || "1"}</span>
+                      </div>
+                    </div>
+
                     <div className="mt-6 grid grid-cols-2 gap-6 border-t border-border pt-6">
                       <div className="space-y-1">
                         <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Participation Rate</div>
@@ -488,9 +1153,8 @@ function ScopeProjectsManager() {
                         <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Interest</div>
                         <div className="flex items-end gap-2">
                           <span className="text-2xl font-bold text-foreground">{item.applicantCount}</span>
-                          <span className="mb-1 text-xs text-muted-foreground">applications</span>
+                          <span className="mb-1 text-xs text-muted-foreground">/ {item.capacity} students</span>
                         </div>
-                        <div className="text-[10px] text-brand font-medium">Trending project</div>
                       </div>
                     </div>
 
@@ -616,186 +1280,133 @@ function ScopeProjectsManager() {
                     </div>
                   </div>
                 </Card>
-              ))}
-            </div>
-
-            <div className="space-y-6">
-              <Card className="p-6 bg-gradient-brand text-brand-foreground overflow-hidden relative">
-                <div className="absolute top-0 right-0 p-4 opacity-20"><Trophy className="h-16 w-16" /></div>
-                <h3 className="text-lg font-bold">Network Reach</h3>
-                <p className="text-xs opacity-90 mt-1">Project participation across the territory.</p>
-                <div className="mt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm opacity-80 text-brand-foreground/90">Engaged Students</span>
-                    <span className="text-xl font-bold">{applications.filter(a => a.status === "accepted").length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm opacity-80 text-brand-foreground/90">Participating Institutes</span>
-                    <span className="text-xl font-bold">{new Set(applications.map(a => a.user_institution)).size}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm opacity-80 text-brand-foreground/90">Success Rate</span>
-                    <span className="text-xl font-bold">94%</span>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-bold flex items-center gap-2"><Activity className="h-4 w-4 text-brand" /> Live Activity</h3>
-                <div className="mt-4 space-y-4">
-                  {applications.slice(0, 5).map((app) => (
-                    <div key={app.id} className="relative pl-4 border-l-2 border-brand/20">
-                      <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-brand" />
-                      <p className="text-[10px] font-medium text-muted-foreground">Just now</p>
-                      <p className="text-xs mt-0.5">
-                        <span className="font-bold text-foreground">{app.user_name}</span> applied for <span className="text-brand font-medium">"{projects.find(p => p.id === app.project_id)?.title || 'Project'}"</span>
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{app.user_institution}</p>
-                    </div>
-                  ))}
-                  {applications.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">No recent activity detected.</p>
-                  )}
-                </div>
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-bold flex items-center gap-2"><Target className="h-4 w-4 text-brand" /> Quick Actions</h3>
-                <div className="mt-4 grid gap-2">
-                  <Button variant="outline" className="justify-start text-xs h-9" onClick={() => setActiveSubTab("library")}>
-                    <BookOpen className="mr-2 h-4 w-4" /> Browse Library
-                  </Button>
-                  <Button variant="outline" className="justify-start text-xs h-9" onClick={() => setActiveSubTab("new")}>
-                    <Plus className="mr-2 h-4 w-4" /> Add Custom Project
-                  </Button>
-                  <Button variant="outline" className="justify-start text-xs h-9" onClick={fetchData}>
-                    <Activity className="mr-2 h-4 w-4" /> Refresh Sync
-                  </Button>
-                </div>
-              </Card>
+              ))
+            }
             </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="library" className="m-0">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {PROJECT_TEMPLATES.map((template, idx) => (
-              <Card key={idx} className="group relative flex flex-col overflow-hidden border-brand/10 transition-all hover:border-brand/40 hover:shadow-xl">
-                <div className="p-5 flex-1">
-                  <div className="flex items-start justify-between">
-                    <Badge className="bg-brand/10 text-brand border-none px-2 py-0.5 text-[10px]">{template.domain}</Badge>
-                    <Badge variant="outline" className="text-[10px]">{template.level}</Badge>
+        <TabsContent value="library" className="m-0 p-0">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {PROJECT_TEMPLATES.map((template) => (
+              <Card key={template.title} className="group relative overflow-hidden border-border p-0 transition-all hover:border-brand/40 hover:shadow-lg">
+                <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="relative p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-lg font-bold text-foreground">{template.title}</h4>
+                        <Badge className="bg-brand/10 text-brand text-[10px]">Template</Badge>
+                      </div>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Zap className="h-3 w-3 text-brand" /> {template.domain}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {template.level}</span>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="default" onClick={() => activateTemplate(template)} disabled={saving}>
+                      {saving ? "Activating..." : "Activate"}
+                    </Button>
                   </div>
-                  <h4 className="mt-4 text-lg font-bold group-hover:text-brand transition-colors">{template.title}</h4>
-                  
-                  <div className="mt-4 space-y-3">
-                    <div className="flex items-start gap-2 text-xs">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <span className="font-semibold block">Duration</span>
-                        <span className="text-muted-foreground">{template.duration}</span>
-                      </div>
+
+                  <p className="mt-4 text-sm text-muted-foreground line-clamp-2">Deliverables include {template.deliverables.toLowerCase()}. Progress will be monitored via {template.reporting.toLowerCase()}.</p>
+
+                  <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Duration</span>
+                      <span className="font-semibold text-foreground">{template.duration}</span>
                     </div>
-                    <div className="flex items-start gap-2 text-xs">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <span className="font-semibold block">Team Structure</span>
-                        <span className="text-muted-foreground">{template.team_structure}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2 text-xs">
-                      <Gift className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <span className="font-semibold block">Rewards</span>
-                        <span className="text-muted-foreground">{template.rewards}</span>
-                      </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Team Size</span>
+                      <span className="font-semibold text-foreground">{template.team_structure}</span>
                     </div>
                   </div>
-                </div>
-                <div className="bg-secondary/30 p-4 border-t border-border">
-                  <Button 
-                    className="w-full bg-background hover:bg-brand hover:text-brand-foreground border-brand/20 h-9 transition-all" 
-                    variant="outline"
-                    onClick={() => activateTemplate(template)}
-                    disabled={saving}
-                  >
-                    <Zap className="mr-2 h-4 w-4" /> {saving ? "Activating..." : "Activate Project"}
-                  </Button>
+
+                  <div className="mt-6 grid grid-cols-2 gap-6 border-t border-border pt-6">
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Deliverables</div>
+                      <div className="text-sm font-semibold text-foreground">{template.deliverables}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Rewards</div>
+                      <div className="text-sm font-semibold text-foreground">{template.rewards}</div>
+                    </div>
+                  </div>
                 </div>
               </Card>
             ))}
           </div>
         </TabsContent>
 
-        <TabsContent value="new" className="m-0">
-          <Card className="max-w-2xl mx-auto p-8 border-brand/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5"><Plus className="h-24 w-24" /></div>
-            <div className="relative">
-              <h3 className="text-xl font-bold">Custom Project Architect</h3>
-              <p className="text-sm text-muted-foreground mt-1">Design a unique project tailored for specific territories or global launch.</p>
-              
-              <form onSubmit={submit} className="mt-8 space-y-6">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase tracking-wider font-bold">Project Identity</Label>
-                    <Input 
-                      value={form.title} 
-                      onChange={(e) => setForm({ ...form, title: e.target.value })} 
-                      placeholder="e.g. National Hackathon Series" 
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase tracking-wider font-bold">Quick Pitch (One-liner)</Label>
-                    <Input 
-                      value={form.summary} 
-                      onChange={(e) => setForm({ ...form, summary: e.target.value })} 
-                      placeholder="Solving a specific problem for the ecosystem..." 
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase tracking-wider font-bold">Deep Roadmap & Deliverables</Label>
-                    <Textarea 
-                      value={form.description} 
-                      onChange={(e) => setForm({ ...form, description: e.target.value })} 
-                      className="h-32 resize-none" 
-                      placeholder="Define the milestones, expectations and final outcomes..." 
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase tracking-wider font-bold">Industry Domain</Label>
-                      <Input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} placeholder="Software, AI, Design..." className="h-11" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase tracking-wider font-bold">Student Capacity</Label>
-                      <Input type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) || 1 })} className="h-11" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase tracking-wider font-bold">Deployment Scope</Label>
-                    <select
-                      value={form.institution_id}
-                      onChange={(e) => setForm({ ...form, institution_id: e.target.value })}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-11 focus:ring-2 focus:ring-brand outline-none"
-                    >
-                      <option value="">Global (Available to all campuses)</option>
-                      {institutions.map((inst) => (
-                        <option key={inst.id} value={inst.id}>{inst.name} (Exclusive)</option>
-                      ))}
-                    </select>
-                  </div>
+        <TabsContent value="new" className="m-0 p-0">
+          <Card className="p-6">
+            <h3 className="text-sm font-bold">Create Custom Project</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Build a new project from scratch.</p>
+            <form onSubmit={submit} className="mt-4 grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Title *</Label>
+                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Project title" />
                 </div>
-                
-                <div className="pt-4 flex items-center gap-4">
-                  <Button type="submit" disabled={saving} className="flex-1 h-12 bg-gradient-brand text-brand-foreground font-bold shadow-lg shadow-brand/20">
-                    {saving ? "Launching..." : "Launch Project"}
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => setActiveSubTab("active")} className="h-12 px-8">Discard</Button>
+                <div>
+                  <Label>Domain</Label>
+                  <select value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="Software">Software</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Research">Research</option>
+                    <option value="Design">Design</option>
+                  </select>
                 </div>
-              </form>
-            </div>
+              </div>
+              <div>
+                <Label>Summary *</Label>
+                <Textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="Brief project overview" rows={2} />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detailed project description" rows={3} />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Capacity</Label>
+                  <Input type="number" min={1} value={form.capacity} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) || 1 })} />
+                </div>
+                <div>
+                  <Label>Teams Allowed</Label>
+                  <Input type="number" min={1} value={form.teams_allowed} onChange={(e) => setForm({ ...form, teams_allowed: Number(e.target.value) || 1 })} />
+                </div>
+                <div>
+                  <Label>Members / Team</Label>
+                  <Input type="number" min={1} value={form.team_members_limit} onChange={(e) => setForm({ ...form, team_members_limit: Number(e.target.value) || 1 })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Institution (Optional)</Label>
+                  <select
+                    value={form.institution_id}
+                    onChange={(e) => setForm({ ...form, institution_id: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">All Institutions</option>
+                    {institutions.map((inst) => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "open" | "closed" | "draft" })} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                </div>
+              </div>
+              <Button type="submit" disabled={saving} className="bg-gradient-brand text-brand-foreground justify-self-end">
+                {saving ? "Saving..." : "Create Project"}
+              </Button>
+            </form>
           </Card>
         </TabsContent>
       </Tabs>
@@ -1198,37 +1809,149 @@ function LaunchTracker({ institutions }: { institutions: Institution[] }) {
   );
 }
 
-function PerformanceScorecard({ institutions, visits }: { institutions: Institution[]; visits: ReturnType<typeof crm.visits> }) {
+function PerformanceScorecard({ 
+  institutions, 
+  visits, 
+  admins 
+}: { 
+  institutions: Institution[]; 
+  visits: ReturnType<typeof crm.visits>; 
+  admins: ReturnType<typeof crm.admins>;
+}) {
+  // 1. Personal / Territory Stats
   const meetings = visits.filter(v => v.status === "completed").length;
   const closures = institutions.filter(i => ["MoU Signed","Launch Pending","Live Chapter"].includes(i.stage)).length;
   const rate = institutions.length ? Math.round((closures / institutions.length) * 100) : 0;
   const reactivated = institutions.filter(i => i.stage === "Live Chapter").length;
+
+  // 2. Team Aggregates
+  const totalTeamMeetings = admins.reduce((s, a) => s + a.meetings, 0);
+  const totalTeamClosures = admins.reduce((s, a) => s + a.closures, 0);
+  const teamRate = totalTeamMeetings ? Math.round((totalTeamClosures / totalTeamMeetings) * 100) : 0;
+
   const stats = [
-    { label: "Meetings done", value: meetings, icon: Calendar },
-    { label: "Closures", value: closures, icon: CheckCircle2 },
-    { label: "Conversion", value: `${rate}%`, icon: ArrowRight },
-    { label: "Avg deal time", value: "21 days", icon: Activity },
-    { label: "Monthly rank", value: "#2", icon: Trophy },
-    { label: "Reactivations", value: reactivated, icon: Rocket },
+    { label: "My Territory Meetings", value: meetings, icon: Calendar },
+    { label: "My Territory Closures", value: closures, icon: CheckCircle2 },
+    { label: "My Conversion Rate", value: `${rate}%`, icon: ArrowRight },
+    { label: "Team Total Meetings", value: totalTeamMeetings, icon: Users, accent: true },
+    { label: "Team Total Closures", value: totalTeamClosures, icon: Target, accent: true },
+    { label: "Team Avg Conversion", value: `${teamRate}%`, icon: TrendingUp, accent: true },
   ];
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {stats.map(s => (
-        <Card key={s.label} className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{s.label}</span>
-            <s.icon className="h-4 w-4 text-brand" />
-          </div>
-          <div className="mt-2 text-2xl font-bold">{s.value}</div>
-        </Card>
-      ))}
-      <Card className="p-5 sm:col-span-2 lg:col-span-3">
-        <h3 className="text-sm font-bold">Territory identity</h3>
-        <p className="mt-1 text-xs text-muted-foreground">High-performing territories compound faster.</p>
+    <div className="space-y-6">
+      {/* KPI Cards Grid */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {stats.map(s => (
+          <Card key={s.label} className={`p-4 relative overflow-hidden ${s.accent ? "border-brand/35 bg-brand/5" : ""}`}>
+            {s.accent && <div className="absolute top-0 right-0 h-1.5 w-12 bg-gradient-brand rounded-bl-lg" />}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">{s.label}</span>
+              <s.icon className={`h-4 w-4 ${s.accent ? "text-brand" : "text-muted-foreground"}`} />
+            </div>
+            <div className="mt-2 text-2xl font-bold tracking-tight">{s.value}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Partnership Representative Leaderboard */}
+      <Card className="overflow-hidden border-brand/10 p-0">
+        <div className="border-b border-border bg-muted/20 px-6 py-4">
+          <h3 className="text-sm font-bold text-foreground">Partnership Team Performance</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Real-time rank and closure tracking connected to backend Mongoose CRM records.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted/40 text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border">
+              <tr>
+                <th className="px-6 py-3">Representative</th>
+                <th className="px-6 py-3">Territory / Focus</th>
+                <th className="px-6 py-3 text-center">Meetings Done</th>
+                <th className="px-6 py-3">Closures / Target</th>
+                <th className="px-6 py-3 text-center">Conversion</th>
+                <th className="px-6 py-3 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {admins.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground italic text-xs">
+                    No representatives registered in the system.
+                  </td>
+                </tr>
+              )}
+              {admins.map((admin) => {
+                const closurePct = admin.target > 0 ? Math.min(Math.round((admin.closures / admin.target) * 100), 100) : 0;
+                const adminRate = admin.meetings > 0 ? Math.round((admin.closures / admin.meetings) * 100) : 0;
+                
+                return (
+                  <tr key={admin.id} className="transition-colors hover:bg-muted/10">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-brand text-[11px] font-bold text-brand-foreground uppercase border border-brand/20">
+                          {admin.name[0]}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-foreground">{admin.name}</span>
+                          <span className="text-[10px] text-muted-foreground">{admin.email}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-foreground">{admin.region}</span>
+                        <span className="text-[10px] text-muted-foreground">{admin.focus}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center font-medium">
+                      {admin.meetings}
+                    </td>
+                    <td className="px-6 py-4 min-w-[180px]">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span>{admin.closures} closures</span>
+                          <span className="text-[10px] text-muted-foreground">Target: {admin.target}</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                          <div 
+                            className="h-full bg-brand rounded-full transition-all duration-1000"
+                            style={{ width: `${closurePct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <Badge variant="secondary" className="font-bold">{adminRate}%</Badge>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <Badge 
+                        variant={admin.status === "active" ? "default" : "outline"} 
+                        className={`capitalize px-2 py-0.5 text-[10px] ${
+                          admin.status === "active" 
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                        }`}
+                      >
+                        {admin.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      
+      {/* Territory Identity Card */}
+      <Card className="p-5">
+        <h3 className="text-sm font-bold">Territory Identity & Zones</h3>
+        <p className="mt-1 text-xs text-muted-foreground">High-performing zones compound faster and gain premium access tags.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Badge>Kolkata Region</Badge>
+          <Badge className="bg-brand/10 text-brand">Kolkata Region</Badge>
           <Badge variant="outline">Engineering Colleges East Zone</Badge>
           <Badge variant="outline">CBSE Partnerships</Badge>
+          <Badge variant="outline" className="border-brand/20">National Outreach Hub</Badge>
         </div>
       </Card>
     </div>
@@ -1385,4 +2108,5 @@ function RecentUploadsList() {
     </div>
   );
 }
+
 

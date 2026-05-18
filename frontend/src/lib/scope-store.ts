@@ -18,6 +18,9 @@ import {
   backendPortfolio,
   backendProjects,
   backendUsers,
+  backendOpportunities,
+  backendOpportunityApplications,
+  type BackendOpportunityApplication,
   mapBackendNotification,
   mapBackendProject,
 } from "./api/endpoints";
@@ -104,6 +107,8 @@ export type Project = {
   createdAt: number;
   endsAt?: number;
   userVoted?: boolean;
+  teams_allowed?: number;
+  team_members_limit?: number;
 };
 
 export type PortfolioItem = {
@@ -134,10 +139,10 @@ export type Opportunity = {
   id: string;
   title: string;
   by: string;
-  campus: string;
+  company: string;
   category: "Design" | "Engineering" | "Founder" | "Marketing" | "Pitch";
   description: string;
-  match: number;
+  requiredSkills: string[];
 };
 
 export type Notification = {
@@ -413,6 +418,7 @@ export const auth = {
     void notifications.syncFromBackend();
     void projects.syncFromBackend();
     void portfolio.syncFromBackend();
+    void opportunities.syncFromBackend();
     return user;
   },
   async restoreSession() {
@@ -427,6 +433,7 @@ export const auth = {
     void notifications.syncFromBackend();
     void projects.syncFromBackend();
     void portfolio.syncFromBackend();
+    void opportunities.syncFromBackend();
     return normalized;
   },
   async refreshCurrentUser() {
@@ -879,23 +886,41 @@ export const events = {
 /* --------------------------- Opportunities --------------------------- */
 
 const SEED_OPPS: Opportunity[] = [
-  { id: "o_1", title: "Need UI Designer for HealthTech MVP", by: "MediMatch AI", campus: "IIT Bombay", category: "Design", description: "Design 8 mobile screens. 2-week sprint. Equity available.", match: 92 },
-  { id: "o_2", title: "React Developer \u2014 Campus Marketplace", by: "CampusDAO", campus: "BITS Pilani", category: "Engineering", description: "Build storefront + cart with Tailwind and the Scope API.", match: 88 },
-  { id: "o_3", title: "Co-founder wanted \u2014 EdTech for Tier-3", by: "Diya Sharma", campus: "BITS Pilani", category: "Founder", description: "Looking for a technical co-founder, 50/50 equity.", match: 81 },
-  { id: "o_4", title: "Pitch Deck Expert \u2014 YC application", by: "Layerly", campus: "Recruiter", category: "Pitch", description: "Polish a 10-slide deck for YC W26 application.", match: 76 },
-  { id: "o_5", title: "Marketing Lead for hackathon launch", by: "Sprintly", campus: "ContentCo Hyderabad", category: "Marketing", description: "Drive registrations for Scope Hack '26.", match: 71 },
-  { id: "o_6", title: "Python ML engineer for swarm sim", by: "RoboTrichy", campus: "NIT Trichy", category: "Engineering", description: "Help train swarm RL models on a 2-week timeline.", match: 68 },
+  { id: "o_1", title: "Need UI Designer for HealthTech MVP", by: "Scope Admin", company: "MediMatch AI", category: "Design", description: "Design 8 mobile screens. 2-week sprint. Equity available.", requiredSkills: ["Figma", "UI/UX", "Prototyping"] },
+  { id: "o_2", title: "React Developer - Campus Marketplace", by: "Scope Admin", company: "CampusDAO", category: "Engineering", description: "Build storefront + cart with Tailwind and the Scope API.", requiredSkills: ["React", "Tailwind CSS", "APIs"] },
+  { id: "o_3", title: "Co-founder wanted - EdTech for Tier-3", by: "Scope Admin", company: "Diya Sharma Ventures", category: "Founder", description: "Looking for a technical co-founder, 50/50 equity.", requiredSkills: ["Strategy", "Product", "React"] },
+  { id: "o_4", title: "Pitch Deck Expert - YC application", by: "Scope Admin", company: "Layerly", category: "Pitch", description: "Polish a 10-slide deck for YC W26 application.", requiredSkills: ["Pitch Deck", "Storytelling", "Design"] },
+  { id: "o_5", title: "Marketing Lead for hackathon launch", by: "Scope Admin", company: "Sprintly", category: "Marketing", description: "Drive registrations for Scope Hack '26.", requiredSkills: ["Marketing", "Content", "Community"] },
+  { id: "o_6", title: "Python ML engineer for swarm sim", by: "Scope Admin", company: "RoboTrichy", category: "Engineering", description: "Help train swarm RL models on a 2-week timeline.", requiredSkills: ["Python", "Machine Learning", "APIs"] },
 ];
 
 export const opportunities = {
+  async syncFromBackend() {
+    if (!auth.isLoggedIn()) return opportunities.all();
+    try {
+      const { items } = await backendOpportunities.list();
+      const mapped: Opportunity[] = items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        by: item.by,
+        company: (item as any).company ?? (item as any).campus ?? "Unknown Company",
+        category: item.category as any,
+        description: item.description,
+        requiredSkills: (item as any).requiredSkills ?? [],
+      }));
+      writeNow("scope_opportunities_backend", mapped);
+      return [...mapped, ...SEED_OPPS];
+    } catch (error) {
+      console.warn("Opportunities sync failed", error);
+      return opportunities.all();
+    }
+  },
   all(): Opportunity[] {
-    return SEED_OPPS;
+    const backendItems = read<Opportunity[]>("scope_opportunities_backend", []);
+    return [...backendItems, ...SEED_OPPS];
   },
   saved(): string[] {
     return read<string[]>(KEYS.savedOpps, []);
-  },
-  interested(): string[] {
-    return read<string[]>(KEYS.interestedOpps, []);
   },
   toggleSave(id: string) {
     const cur = opportunities.saved();
@@ -903,15 +928,26 @@ export const opportunities = {
     write(KEYS.savedOpps, next);
     return next;
   },
-  markInterested(id: string) {
-    const cur = opportunities.interested();
-    if (cur.includes(id)) return cur;
-    const next = [...cur, id];
-    write(KEYS.interestedOpps, next);
-    xp.add(15, "Interest sent");
-    notifications.push({ icon: "users", text: "Request sent. Strong match detected." });
-    return next;
-  },
+  async create(input: Omit<Opportunity, "id">) {
+    try {
+      const { opportunity: backendOpp } = await backendOpportunities.create(input);
+      const mapped: Opportunity = {
+        id: backendOpp.id,
+        title: backendOpp.title,
+        by: backendOpp.by,
+        company: (backendOpp as any).company ?? (backendOpp as any).campus ?? "Unknown Company",
+        category: backendOpp.category as any,
+        description: backendOpp.description,
+        requiredSkills: (backendOpp as any).requiredSkills ?? [],
+      };
+      const cur = read<Opportunity[]>("scope_opportunities_backend", []);
+      write("scope_opportunities_backend", [mapped, ...cur]);
+      return mapped;
+    } catch (error) {
+      console.error("Failed to create opportunity", error);
+      throw error;
+    }
+  }
 };
 
 /* --------------------------- Chapter --------------------------- */
