@@ -112,6 +112,7 @@ export function serializeApplication(application) {
     project_id: idOf(application.project?._id || application.project),
     user_id: idOf(user?._id || user),
     user_name: user?.name || null,
+    user_email: user?.email || null,
     user_institution: user?.institution?.name || null,
     message: application.message,
     status: application.status,

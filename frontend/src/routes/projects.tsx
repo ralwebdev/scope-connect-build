@@ -22,7 +22,7 @@ import {
 } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
-import { backendProjects, backendApplications, backendReports, backendUpload, type BackendApplication } from "@/lib/api/endpoints";
+import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, type BackendApplication } from "@/lib/api/endpoints";
 import { xp } from "@/lib/scope-store";
 import { useRole } from "@/hooks/use-rbac";
 
@@ -993,14 +993,32 @@ function IdeaModal({ onClose }: { onClose: () => void }) {
   const [teamSkills, setTeamSkills] = useState("");
   const [campusRelevance, setCampusRelevance] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const submit = () => {
     if (!title.trim() || !problem.trim()) {
       toast.error("Title and problem statement are required.");
       return;
     }
-    toast.success("Idea sent privately to Scope.");
-    onClose();
+    setSubmitting(true);
+    backendProposals.create({
+      title: title.trim(),
+      problem: problem.trim(),
+      why: why.trim(),
+      team_skills: teamSkills.trim(),
+      campus_relevance: campusRelevance.trim(),
+      anonymous,
+    })
+      .then(() => {
+        toast.success("Idea sent privately to Scope!");
+        onClose();
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : "Failed to submit idea.");
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
   };
 
   return (
@@ -1008,24 +1026,24 @@ function IdeaModal({ onClose }: { onClose: () => void }) {
       <div className="mt-4 space-y-3">
         <div>
           <Label htmlFor="iTitle">Idea title</Label>
-          <Input id="iTitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A new initiative for…" className="mt-1.5" />
+          <Input id="iTitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A new initiative for…" className="mt-1.5" disabled={submitting} />
         </div>
         <div>
           <Label htmlFor="iProblem">Problem statement</Label>
-          <Textarea id="iProblem" value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="What pain are we solving?" className="mt-1.5" rows={3} />
+          <Textarea id="iProblem" value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="What pain are we solving?" className="mt-1.5" rows={3} disabled={submitting} />
         </div>
         <div>
           <Label htmlFor="iWhy">Why it matters</Label>
-          <Textarea id="iWhy" value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why now? Who benefits?" className="mt-1.5" rows={2} />
+          <Textarea id="iWhy" value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why now? Who benefits?" className="mt-1.5" rows={2} disabled={submitting} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="iTeam">Suggested team skills</Label>
-            <Input id="iTeam" value={teamSkills} onChange={(e) => setTeamSkills(e.target.value)} placeholder="Design, Engineering…" className="mt-1.5" />
+            <Input id="iTeam" value={teamSkills} onChange={(e) => setTeamSkills(e.target.value)} placeholder="Design, Engineering…" className="mt-1.5" disabled={submitting} />
           </div>
           <div>
             <Label htmlFor="iCampus">Campus relevance</Label>
-            <Input id="iCampus" value={campusRelevance} onChange={(e) => setCampusRelevance(e.target.value)} placeholder="Pan-India / your campus" className="mt-1.5" />
+            <Input id="iCampus" value={campusRelevance} onChange={(e) => setCampusRelevance(e.target.value)} placeholder="Pan-India / your campus" className="mt-1.5" disabled={submitting} />
           </div>
         </div>
         <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/40 p-3">
@@ -1033,13 +1051,13 @@ function IdeaModal({ onClose }: { onClose: () => void }) {
             <div className="text-sm font-medium text-foreground">Submit anonymously</div>
             <div className="text-xs text-muted-foreground">Hide your identity from the Scope team.</div>
           </div>
-          <Switch checked={anonymous} onCheckedChange={setAnonymous} />
+          <Switch checked={anonymous} onCheckedChange={setAnonymous} disabled={submitting} />
         </div>
       </div>
       <div className="mt-6 flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
-        <Button onClick={submit} className="bg-gradient-brand text-brand-foreground">
-          <Sparkles className="mr-1.5 h-4 w-4" /> Submit Privately
+        <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+        <Button onClick={submit} className="bg-gradient-brand text-brand-foreground" disabled={submitting}>
+          {submitting ? "Sending..." : <><Sparkles className="mr-1.5 h-4 w-4" /> Submit Privately</>}
         </Button>
       </div>
     </ModalShell>

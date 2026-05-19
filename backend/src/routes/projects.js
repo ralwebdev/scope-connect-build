@@ -137,6 +137,8 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
   const isAdmin = hasPermission(req.user, "manage_projects");
   if (project.createdBy.toString() !== req.user.id && !isAdmin) throw forbidden();
 
+  const oldStatus = project.status;
+
   Object.assign(project, {
     ...(req.body.title !== undefined && { title: req.body.title }),
     ...(req.body.summary !== undefined && { summary: req.body.summary }),
@@ -155,6 +157,19 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
     ...(isAdmin && req.body.institution_id !== undefined && { institution: req.body.institution_id }),
   });
   await project.save();
+
+  // If status changes to open, notify the creator
+  if (oldStatus !== project.status && project.status === "open") {
+    await Notification.create({
+      user: project.createdBy,
+      kind: "admin_action",
+      title: "Project Approved",
+      body: `Your project "${project.title}" has been approved and is now open.`,
+      link: `/projects/${project._id}`,
+      dedupeKey: `project:${project._id}:approved:${Date.now()}`,
+    }).catch(() => null);
+  }
+
   sendSuccess(res, { project: serializeProject(project) });
 }));
 

@@ -21,6 +21,8 @@ import { eventsRouter } from "./routes/events.js";
 import { portfolioItemsRouter } from "./routes/portfolio-items.js";
 import { reportsRouter } from "./routes/reports.js";
 import { departmentsRouter } from "./routes/departments.js";
+import { publicRouter } from "./routes/public.js";
+import { proposalsRouter } from "./routes/proposals.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -69,6 +71,8 @@ export function createApp() {
   v1Router.use("/portfolio-items", portfolioItemsRouter);
   v1Router.use("/reports", reportsRouter);
   v1Router.use("/departments", departmentsRouter);
+  v1Router.use("/public", publicRouter);
+  v1Router.use("/proposals", proposalsRouter);
 
   app.use("/api/v1", v1Router);
 

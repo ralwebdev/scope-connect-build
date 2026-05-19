@@ -21,6 +21,7 @@ const signupSchema = z.object({
   name: z.string().min(1).max(120),
   institution_id: z.string().optional(),
   role: z.enum(["student", "scope_admin", "super_admin"]).optional(),
+  interests: z.array(z.string().max(80)).optional(),
 });
 
 const loginSchema = z.object({
@@ -93,7 +94,7 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
       handle: await createUniqueHandle(email),
       institution: institution?._id ?? null,
       skills: [],
-      interests: [],
+      interests: req.body.interests || [],
       availability: "Open to collab",
       avatarColor: "#00D1FF",
       xp: 120,

@@ -643,8 +643,26 @@ function OverviewTab(props: {
 }
 
 function ActivityTab({ role }: { role: RoleId }) {
-  const [items, setItems] = useState<string[]>([]);
+  type ActivityItem = {
+    id: string;
+    text: string;
+    created_at: string;
+  };
+  const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const formatActivityDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "";
+      const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+      const monthDay = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      return `${dayName}, ${monthDay} · ${timeStr}`;
+    } catch {
+      return "";
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -652,7 +670,7 @@ function ActivityTab({ role }: { role: RoleId }) {
     backendUsers.activity(30)
       .then(({ items: activityItems }) => {
         if (cancelled) return;
-        setItems(activityItems.map((item) => item.text));
+        setItems(activityItems);
       })
       .catch(() => {
         if (cancelled) return;
@@ -663,13 +681,24 @@ function ActivityTab({ role }: { role: RoleId }) {
       });
     return () => { cancelled = true; };
   }, [role]);
+
   return (
     <Card className="p-6">
       <h3 className="font-semibold text-foreground">Recent activity</h3>
       {loading && <p className="mt-3 text-sm text-muted-foreground">Loading activity...</p>}
-      <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-        {!loading && items.map((t) => <li key={t} className="flex items-start gap-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />{t}</li>)}
-        {!loading && items.length === 0 && <li className="text-muted-foreground">No backend activity yet.</li>}
+      <ul className="mt-4 space-y-3">
+        {!loading && items.map((item) => (
+          <li key={item.id} className="flex flex-col gap-1 py-2 border-b border-border/30 last:border-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex items-start gap-2.5">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+              <span className="text-sm text-foreground/90 font-medium">{item.text}</span>
+            </div>
+            <span className="text-xs text-muted-foreground bg-secondary/70 border border-border/40 px-2.5 py-0.5 rounded-full shrink-0 self-start sm:self-auto">
+              {formatActivityDate(item.created_at)}
+            </span>
+          </li>
+        ))}
+        {!loading && items.length === 0 && <li className="text-sm text-muted-foreground">No backend activity yet.</li>}
       </ul>
     </Card>
   );
@@ -857,7 +886,7 @@ function StudentPortfolioEditor({ user, onUpdate }: { user: ScopeUser; onUpdate?
     setPrimaryDomain((user.primaryDomain as DomainKey) ?? "");
     setSpecialization(user.specialization ?? "");
     setPortfolioLinks(user.portfolioLinks ?? {});
-  }, [user]);
+  }, [user.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -880,7 +909,11 @@ function StudentPortfolioEditor({ user, onUpdate }: { user: ScopeUser; onUpdate?
 
   const isValidUrl = (v: string) => {
     if (!v) return true;
-    try { new URL(v.startsWith("http") ? v : `https://${v}`); return true; } catch { return false; }
+    const value = v.trim();
+    if (!value.startsWith("http://") && !value.startsWith("https://") && !value.includes(".")) {
+      return false;
+    }
+    try { new URL(value.startsWith("http") ? value : `https://${value}`); return true; } catch { return false; }
   };
   const addSkill = (s: string) => {
     const v = s.trim(); if (!v || skills.includes(v)) return;
@@ -891,7 +924,14 @@ function StudentPortfolioEditor({ user, onUpdate }: { user: ScopeUser; onUpdate?
   const setPortfolioLink = (key: string, val: string) => {
     setPortfolioLinks((prev) => {
       const next = { ...prev };
-      if (!val.trim()) delete next[key]; else next[key] = val.trim();
+      next[key] = val;
+      return next;
+    });
+  };
+  const removeCustomLink = (key: string) => {
+    setPortfolioLinks((prev) => {
+      const next = { ...prev };
+      delete next[key];
       return next;
     });
   };
@@ -943,22 +983,71 @@ function StudentPortfolioEditor({ user, onUpdate }: { user: ScopeUser; onUpdate?
   };
 
   const save = async () => {
+    const formatUrl = (v: string) => {
+      const trimmed = v.trim();
+      if (!trimmed) return "";
+      return (trimmed.startsWith("http://") || trimmed.startsWith("https://")) ? trimmed : `https://${trimmed}`;
+    };
+
+    const formatGithub = (v: string) => {
+      const trimmed = v.trim();
+      if (!trimmed) return "";
+      if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+      const username = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+      return `https://github.com/${username}`;
+    };
+
+    const formatTwitter = (v: string) => {
+      const trimmed = v.trim();
+      if (!trimmed) return "";
+      if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+      const username = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+      return `https://x.com/${username}`;
+    };
+
+    const normWebsite = formatUrl(website);
+    const normLinkedin = formatUrl(linkedinUrl);
+    const normPortfolioWeb = formatUrl(portfolioWebsite);
+    const normResume = formatUrl(resumeUrl);
+    const normPortfolioPdf = formatUrl(portfolioPdfUrl);
+    const normInstagram = formatUrl(instagramUrl);
+    const normGithub = formatGithub(github);
+    const normTwitter = formatTwitter(twitter);
+
+    const cleanedLinks = { ...portfolioLinks };
+    for (const k in cleanedLinks) {
+      const trimmed = cleanedLinks[k]?.trim();
+      if (!trimmed) {
+        delete cleanedLinks[k];
+      } else {
+        cleanedLinks[k] = formatUrl(trimmed);
+      }
+    }
+
     const urlChecks: Array<[string, string]> = [
-      ["Website", website], ["LinkedIn", linkedinUrl], ["Portfolio", portfolioWebsite],
-      ["Resume", resumeUrl], ["Portfolio PDF", portfolioPdfUrl], ["Instagram", instagramUrl],
-      ...Object.entries(portfolioLinks).map(([k, v]) => [humanize(k), v] as [string, string]),
+      ["Website", normWebsite], ["LinkedIn", normLinkedin], ["Portfolio", normPortfolioWeb],
+      ["Resume", normResume], ["Portfolio PDF", normPortfolioPdf], ["Instagram", normInstagram],
+      ["GitHub", normGithub], ["Twitter", normTwitter],
+      ...Object.entries(cleanedLinks).map(([k, v]) => [humanize(k), v] as [string, string]),
     ];
     for (const [name, val] of urlChecks) if (val && !isValidUrl(val)) return toast.error(`${name} URL is invalid`);
     try {
       await auth.updateProfile({
         bio, skills, interests, campus,
-        links: { website, github, twitter },
+        links: { website: normWebsite, github: normGithub, twitter: normTwitter },
         availability,
-        linkedinUrl, portfolioWebsite, resumeUrl, portfolioPdfUrl, instagramUrl,
+        linkedinUrl: normLinkedin, portfolioWebsite: normPortfolioWeb, resumeUrl: normResume, portfolioPdfUrl: normPortfolioPdf, instagramUrl: normInstagram,
         primaryDomain: primaryDomain || undefined,
         specialization: specialization || undefined,
-        portfolioLinks,
+        portfolioLinks: cleanedLinks,
       });
+      setWebsite(normWebsite);
+      setLinkedinUrl(normLinkedin);
+      setPortfolioWebsite(normPortfolioWeb);
+      setResumeUrl(normResume);
+      setPortfolioPdfUrl(normPortfolioPdf);
+      setInstagramUrl(normInstagram);
+      setPortfolioLinks(cleanedLinks);
       toast.success("Profile saved. Your profile attracts collaborators.");
       if (onUpdate) onUpdate();
     } catch (error) {
@@ -1102,7 +1191,7 @@ function StudentPortfolioEditor({ user, onUpdate }: { user: ScopeUser; onUpdate?
                   <div key={k} className="flex items-center gap-2">
                     <Badge variant="secondary" className="shrink-0">{humanize(k)}</Badge>
                     <Input value={v} onChange={(e) => setPortfolioLink(k, e.target.value)} className="flex-1" />
-                    <Button type="button" variant="ghost" size="icon" onClick={() => setPortfolioLink(k, "")}>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeCustomLink(k)}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>

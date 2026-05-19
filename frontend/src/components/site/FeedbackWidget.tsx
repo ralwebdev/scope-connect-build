@@ -1,7 +1,3 @@
-// Floating 1-minute feedback button — soft-launch validation tool.
-// - Hidden on /ops, /admin, /auth, /feedback (avoids self-spam).
-// - Captures 1-10 NPS-style score + free-text reason.
-// - Persists to localStorage (read by /ops Soft Launch tab).
 import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { MessageSquarePlus, X, Send } from "lucide-react";
@@ -9,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { analytics } from "@/lib/analytics";
+import { backendPublic } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 const HIDDEN_ROUTES = ["/ops", "/admin", "/auth", "/feedback"];
@@ -17,38 +14,74 @@ const DISMISS_KEY = "scope_feedback_widget_snoozed";
 export function FeedbackWidget() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [snoozed, setSnoozed] = useState(true); // optimistic — actual value set on mount
+  const [snoozed, setSnoozed] = useState(true);
   const [score, setScore] = useState<number | null>(null);
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     try {
       const until = Number(localStorage.getItem(DISMISS_KEY) || 0);
       setSnoozed(until > Date.now());
-    } catch { /* noop */ }
+    } catch {
+      // noop
+    }
   }, []);
 
-  if (HIDDEN_ROUTES.some((r) => location.pathname.startsWith(r))) return null;
+  if (HIDDEN_ROUTES.some((route) => location.pathname.startsWith(route))) return null;
   if (snoozed && !open) return null;
 
-  const submit = () => {
-    if (score == null) { toast.error("Pick a score from 0–10."); return; }
-    analytics.recordNPS(score, reason.trim());
+  const submit = async () => {
+    if (score == null) {
+      toast.error("Pick a score from 0-10.");
+      return;
+    }
+
+    const message = reason.trim() || `Score ${score}/10`;
+    setSubmitting(true);
+
     try {
-      // Mirror to /feedback inbox so admins see qualitative + score together.
+      await backendPublic.submitFeedback({
+        source: "feedback_widget",
+        score,
+        message,
+      });
+      analytics.recordNPS(score, reason.trim());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send feedback.";
+      toast.error(message);
+      setSubmitting(false);
+      return;
+    }
+
+    try {
       const list = JSON.parse(localStorage.getItem("scope_feedback") || "[]");
-      list.unshift({ rating: Math.round(score / 2), type: "Soft launch", text: reason.trim() || `Score ${score}/10`, at: Date.now(), score });
+      list.unshift({
+        rating: Math.max(1, Math.round(score / 2)),
+        type: "Soft launch",
+        text: message,
+        at: Date.now(),
+        score,
+      });
       localStorage.setItem("scope_feedback", JSON.stringify(list.slice(0, 100)));
-    } catch { /* noop */ }
+    } catch {
+      // noop
+    }
+
     toast.success("Thanks. Your signal shapes Scope.");
     setOpen(false);
     setScore(null);
     setReason("");
-    snoozeFor(7); // don't ask again for a week per device
+    snoozeFor(7);
+    setSubmitting(false);
   };
 
   const snoozeFor = (days: number) => {
-    try { localStorage.setItem(DISMISS_KEY, String(Date.now() + days * 86400_000)); } catch { /* noop */ }
+    try {
+      localStorage.setItem(DISMISS_KEY, String(Date.now() + days * 86400_000));
+    } catch {
+      // noop
+    }
     setSnoozed(true);
   };
 
@@ -96,7 +129,9 @@ export function FeedbackWidget() {
                           ? "bg-gradient-brand text-brand-foreground shadow-brand"
                           : "bg-secondary text-foreground hover:bg-secondary/70"
                       }`}
-                    >{n}</button>
+                    >
+                      {n}
+                    </button>
                   ))}
                 </div>
                 <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
@@ -111,16 +146,16 @@ export function FeedbackWidget() {
                   onChange={(e) => setReason(e.target.value)}
                   rows={3}
                   maxLength={280}
-                  placeholder="Optional — but every word helps."
+                  placeholder="Optional - but every word helps."
                   className="mt-1.5 text-sm"
                 />
               </div>
 
               <div className="flex items-center gap-2">
-                <Button onClick={submit} size="sm" className="flex-1 bg-gradient-brand text-brand-foreground">
+                <Button onClick={submit} size="sm" disabled={submitting} className="flex-1 bg-gradient-brand text-brand-foreground">
                   <Send className="mr-1 h-3.5 w-3.5" /> Send
                 </Button>
-                <Button onClick={() => { setOpen(false); snoozeFor(3); }} size="sm" variant="ghost">Later</Button>
+                <Button onClick={() => { setOpen(false); snoozeFor(3); }} size="sm" variant="ghost" disabled={submitting}>Later</Button>
               </div>
             </div>
           </Card>

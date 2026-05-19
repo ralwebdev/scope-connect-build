@@ -19,3 +19,5 @@ export { PortfolioItem } from "./PortfolioItem.js";
 export { Department } from "./Department.js";
 export { Opportunity } from "./Opportunity.js";
 export { OpportunityApplication } from "./OpportunityApplication.js";
+export { PublicSubmission } from "./PublicSubmission.js";
+export { Proposal } from "./Proposal.js";

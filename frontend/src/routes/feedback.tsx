@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { backendPublic } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/feedback")({
   head: () => ({
     meta: [
-      { title: "Feedback — Scope Connect" },
+      { title: "Feedback - Scope Connect" },
       { name: "description", content: "Tell us what would make Scope better." },
     ],
   }),
@@ -25,20 +26,42 @@ function FeedbackPage() {
   const [rating, setRating] = useState(4);
   const [type, setType] = useState<string>(TYPES[0]);
   const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (text.trim().length < 10) {
       toast.error("Add a bit more detail (10+ characters).");
       return;
     }
+
+    setSubmitting(true);
     try {
-      const list = JSON.parse(localStorage.getItem("scope_feedback") || "[]");
-      list.unshift({ rating, type, text: text.trim(), at: Date.now() });
-      localStorage.setItem("scope_feedback", JSON.stringify(list.slice(0, 50)));
-    } catch { /* noop */ }
-    toast.success("Thanks. The Scope team reads every feedback.");
-    setText(""); setRating(4); setType(TYPES[0]);
+      await backendPublic.submitFeedback({
+        source: "feedback_page",
+        rating,
+        type,
+        message: text.trim(),
+      });
+
+      try {
+        const list = JSON.parse(localStorage.getItem("scope_feedback") || "[]");
+        list.unshift({ rating, type, text: text.trim(), at: Date.now() });
+        localStorage.setItem("scope_feedback", JSON.stringify(list.slice(0, 50)));
+      } catch {
+        // noop
+      }
+
+      toast.success("Thanks. The Scope team reads every feedback.");
+      setText("");
+      setRating(4);
+      setType(TYPES[0]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send feedback.";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -75,7 +98,7 @@ function FeedbackPage() {
               <Textarea id="ftext" value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="What's working? What's missing? What broke your flow?" className="mt-1.5" maxLength={1000} />
               <p className="mt-1 text-xs text-muted-foreground">{text.length}/1000</p>
             </div>
-            <Button type="submit" size="lg" className="w-full bg-gradient-brand text-brand-foreground shadow-brand">Send feedback</Button>
+            <Button type="submit" size="lg" disabled={submitting} className="w-full bg-gradient-brand text-brand-foreground shadow-brand">Send feedback</Button>
           </form>
         </Card>
       </section>

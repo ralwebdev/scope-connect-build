@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, ProfileActivity, Session } from "../models/index.js";
+import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, Notification } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -253,6 +253,32 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
     { user: user._id },
     { institutionVerified: req.body.student_status === "active" },
   );
+
+  // Trigger notifications
+  try {
+    if (req.body.student_status === "active") {
+      await Notification.create({
+        user: user._id,
+        kind: "achievement",
+        title: "Account Verified!",
+        body: `An administrator has approved your account. Welcome to Scope Connect!`,
+        link: "/",
+        dedupeKey: `user:${user._id}:verified:${Date.now()}`,
+      }).catch(() => null);
+    } else if (req.body.student_status === "rejected") {
+      await Notification.create({
+        user: user._id,
+        kind: "system",
+        title: "Account Verification Rejected",
+        body: `Your account verification has been rejected by an administrator.`,
+        link: "/",
+        dedupeKey: `user:${user._id}:rejected:${Date.now()}`,
+      }).catch(() => null);
+    }
+  } catch (err) {
+    console.error("Failed to push verification status notification:", err);
+  }
+
   await AnalyticsEvent.create({
     user: req.user._id,
     event: "student_verification",

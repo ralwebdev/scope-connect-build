@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { FeedPost, User, Profile, Institution } from "../models/index.js";
+import { FeedPost, User, Profile, Institution, Notification } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { forbidden, notFound } from "../utils/errors.js";
@@ -128,6 +128,29 @@ feedRouter.post("/", validate(createSchema), asyncHandler(async (req, res) => {
     comments: [],
     media: req.body.media || [],
   });
+
+  // Create notifications for student users
+  try {
+    const students = await User.find(targetInstitution ? { role: "student", institution: targetInstitution } : { role: "student" }).select("_id");
+    const studentIds = students.map(s => s._id);
+    if (studentIds.length > 0) {
+      const authorName = user?.name || "Scope Team";
+      await Notification.insertMany(
+        studentIds.map((studentId) => ({
+          user: studentId,
+          kind: "system",
+          title: `New feed update from ${campusName || authorName}`,
+          body: req.body.content ? req.body.content.slice(0, 150) + (req.body.content.length > 150 ? "..." : "") : "New attachment shared in feed.",
+          link: "/feed",
+          dedupeKey: `feed:${post._id}:${studentId}`,
+        })),
+        { ordered: false }
+      ).catch(() => null);
+    }
+  } catch (err) {
+    console.error("Failed to push feed notifications:", err);
+  }
+
   sendSuccess(res, { post: serializePost(post, req.user.id) }, "Post created", 201);
 }));
 

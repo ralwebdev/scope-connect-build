@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { Notification, Opportunity, OpportunityApplication } from "../models/index.js";
+import { Notification, Opportunity, OpportunityApplication, User } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -106,6 +106,28 @@ opportunitiesRouter.get("/applications", asyncHandler(async (req, res) => {
 
 opportunitiesRouter.post("/", requirePermission("manage_projects"), validate(opportunitySchema), asyncHandler(async (req, res) => {
   const opportunity = await Opportunity.create(req.body);
+
+  // Notify all student users that a new opportunity is published
+  try {
+    const students = await User.find({ role: "student" }).select("_id");
+    const studentIds = students.map(s => s._id);
+    if (studentIds.length > 0) {
+      await Notification.insertMany(
+        studentIds.map(studentId => ({
+          user: studentId,
+          kind: "system",
+          title: "New Opportunity Posted",
+          body: `${opportunity.company} is looking for a ${opportunity.title}. Check it out!`,
+          link: "/opportunities",
+          dedupeKey: `opportunity:${opportunity._id}:${studentId}`,
+        })),
+        { ordered: false }
+      ).catch(() => null);
+    }
+  } catch (err) {
+    console.error("Failed to push opportunity notifications:", err);
+  }
+
   sendSuccess(res, { opportunity }, "Opportunity created", 201);
 }));
 

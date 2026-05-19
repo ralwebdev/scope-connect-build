@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { seedInterests } from "@/lib/scope-store";
+import { backendPublic } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/waitlist")({
   head: () => ({
@@ -28,23 +29,44 @@ function WaitlistPage() {
   const [campus, setCampus] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const toggle = (t: string) =>
-    setInterests((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]));
+  const toggle = (interest: string) =>
+    setInterests((current) => (current.includes(interest) ? current.filter((item) => item !== interest) : [...current, interest]));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.includes("@") || !campus.trim()) {
       toast.error("Name, valid email, and campus are required.");
       return;
     }
+
+    setSubmitting(true);
     try {
-      const list = JSON.parse(localStorage.getItem("scope_waitlist") || "[]");
-      list.unshift({ name: name.trim(), email, campus: campus.trim(), interests, at: Date.now() });
-      localStorage.setItem("scope_waitlist", JSON.stringify(list.slice(0, 500)));
-    } catch { /* noop */ }
-    toast.success("You're on the list. Welcome aboard.");
-    setDone(true);
+      await backendPublic.joinWaitlist({
+        source: "waitlist_page",
+        name: name.trim(),
+        email,
+        campus: campus.trim(),
+        interests,
+      });
+
+      try {
+        const list = JSON.parse(localStorage.getItem("scope_waitlist") || "[]");
+        list.unshift({ name: name.trim(), email, campus: campus.trim(), interests, at: Date.now() });
+        localStorage.setItem("scope_waitlist", JSON.stringify(list.slice(0, 500)));
+      } catch {
+        // noop
+      }
+
+      toast.success("You're on the list. Welcome aboard.");
+      setDone(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not join the waitlist.";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -63,7 +85,7 @@ function WaitlistPage() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-brand text-2xl text-brand-foreground shadow-brand">🎉</div>
             <h2 className="mt-4 text-xl font-bold text-foreground">You're #{Math.floor(Math.random() * 200) + 800} in line.</h2>
             <p className="mt-2 text-sm text-muted-foreground">We'll email you when your cohort opens. Want to skip the line?</p>
-            <Button asChild className="mt-5 bg-gradient-brand text-brand-foreground"><a href="/refer">Invite 3 builders → instant access</a></Button>
+            <Button asChild className="mt-5 bg-gradient-brand text-brand-foreground"><a href="/refer">Invite 3 builders -&gt; instant access</a></Button>
           </Card>
         ) : (
           <Card className="p-6">
@@ -83,17 +105,17 @@ function WaitlistPage() {
               <div>
                 <Label>What pulls you in?</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {seedInterests.map((t) => {
-                    const active = interests.includes(t);
+                  {seedInterests.map((interest) => {
+                    const active = interests.includes(interest);
                     return (
-                      <button type="button" key={t} onClick={() => toggle(t)} className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${active ? "border-transparent bg-gradient-brand text-brand-foreground shadow-brand" : "border-border bg-background text-muted-foreground hover:border-brand/40"}`}>
-                        {t}
+                      <button type="button" key={interest} onClick={() => toggle(interest)} className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${active ? "border-transparent bg-gradient-brand text-brand-foreground shadow-brand" : "border-border bg-background text-muted-foreground hover:border-brand/40"}`}>
+                        {interest}
                       </button>
                     );
                   })}
                 </div>
               </div>
-              <Button type="submit" size="lg" className="w-full bg-gradient-brand text-brand-foreground shadow-brand">Join waitlist</Button>
+              <Button type="submit" size="lg" disabled={submitting} className="w-full bg-gradient-brand text-brand-foreground shadow-brand">Join waitlist</Button>
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><Users className="h-3 w-3" /> 12,400+ builders already in</div>
             </form>
           </Card>

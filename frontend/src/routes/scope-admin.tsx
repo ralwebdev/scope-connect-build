@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { crm, PIPELINE_STAGES, type Institution, type PipelineStage } from "@/lib/crm-store";
-import { backendAdminUsers, backendEvents, type BackendEvent, backendProjects, type BackendProject, backendApplications, type BackendApplication, backendInstitutions, backendDocuments, backendAnalytics, backendUsers, backendOpportunityApplications, type BackendOpportunityApplication } from "@/lib/api/endpoints";
+import { backendAdminUsers, backendEvents, type BackendEvent, backendProjects, type BackendProject, backendApplications, type BackendApplication, backendInstitutions, backendDocuments, backendAnalytics, backendUsers, backendOpportunityApplications, type BackendOpportunityApplication, backendProposals, type BackendProposal } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
 import { FeedComposer } from "@/components/site/FeedComposer";
@@ -148,6 +148,7 @@ function ScopeAdminPortal() {
           <TabsContent value="events" className="mt-6"><ScopeEventsManager /></TabsContent>
           <TabsContent value="projects" className="mt-6"><ScopeProjectsManager /></TabsContent>
           <TabsContent value="opportunities" className="mt-6"><ScopeOpportunitiesManager /></TabsContent>
+          <TabsContent value="ideas" className="mt-6"><StudentIdeasManager /></TabsContent>
           <TabsContent value="analytics" className="mt-6"><ScopeAnalyticsDashboard institutions={institutions} /></TabsContent>
         </Tabs>
       </section>
@@ -749,6 +750,13 @@ function ScopeEventsManager() {
   const [events, setEvents] = useState<BackendEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const minDatetime = useMemo(() => {
+    const tzoffset = new Date().getTimezoneOffset() * 60000;
+    return new Date(Date.now() - tzoffset).toISOString().slice(0, 16);
+  }, []);
+
   const [form, setForm] = useState<Omit<BackendEvent, "id">>({
     title: "",
     type: "",
@@ -773,6 +781,11 @@ function ScopeEventsManager() {
       toast.error("Fill all fields with valid values.");
       return;
     }
+    const eventDate = new Date(form.date);
+    if (eventDate < new Date()) {
+      toast.error("Event date must be in the future.");
+      return;
+    }
     setSaving(true);
     try {
       const { event: created } = await backendEvents.create(form);
@@ -786,6 +799,20 @@ function ScopeEventsManager() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this event?")) return;
+    setDeletingId(id);
+    try {
+      await backendEvents.remove(id);
+      setEvents((current) => current.filter((item) => item.id !== id));
+      toast.success("Event deleted successfully.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete event.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="p-5">
@@ -794,7 +821,7 @@ function ScopeEventsManager() {
         <form onSubmit={submit} className="mt-4 grid gap-3">
           <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div><Label>Type</Label><Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} /></div>
-          <div><Label>Date & Time</Label><Input type="datetime-local" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+          <div><Label>Date & Time</Label><Input type="datetime-local" min={minDatetime} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
           <div><Label>Venue</Label><Input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></div>
           <div><Label>Seats</Label><Input type="number" min={1} value={form.seats} onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 1 })} /></div>
           <div>
@@ -813,13 +840,26 @@ function ScopeEventsManager() {
         <div className="mt-3 space-y-2">
           {loading && <p className="text-sm text-muted-foreground">Loading events...</p>}
           {!loading && events.map((item) => (
-            <div key={item.id} className="rounded-lg border border-border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold">{item.title}</div>
-                <Badge variant="outline">{item.color}</Badge>
+            <div key={item.id} className="relative rounded-lg border border-border p-3 group">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold">{item.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{item.type} · {item.date}</div>
+                  <div className="text-xs text-muted-foreground">{item.venue} · {item.seats} seats</div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Badge variant="outline">{item.color}</Badge>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    disabled={deletingId === item.id}
+                    onClick={() => handleDelete(item.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">{item.type} · {item.date}</div>
-              <div className="text-xs text-muted-foreground">{item.venue} · {item.seats} seats</div>
             </div>
           ))}
         </div>
@@ -834,6 +874,7 @@ function ScopeProjectsManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingApplicationId, setUpdatingApplicationId] = useState<string | null>(null);
+  const [rosterProject, setRosterProject] = useState<BackendProject | null>(null);
   const { institutions } = useStoreValue(() => crm.all());
   const [activeSubTab, setActiveSubTab] = useState("active");
   const [projectScopeFilter, setProjectScopeFilter] = useState<"global" | "campus" | "all">("global");
@@ -1172,7 +1213,14 @@ function ScopeProjectsManager() {
                     <div className="mt-6 rounded-xl bg-secondary/30 p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recent Applicants</h5>
-                        <Button variant="link" size="sm" className="h-auto p-0 text-[10px]">View Full Roster</Button>
+                        <Button 
+                          variant="link" 
+                          size="sm" 
+                          className="h-auto p-0 text-[10px] text-brand hover:text-brand/80"
+                          onClick={() => setRosterProject(item)}
+                        >
+                          View Full Roster ({applications.filter(a => a.project_id === item.id).length})
+                        </Button>
                       </div>
                       <div className="space-y-2">
                         {applications.filter(a => a.project_id === item.id).slice(0, 3).map((app) => (
@@ -1201,14 +1249,50 @@ function ScopeProjectsManager() {
                               <div className="mt-3 space-y-2 rounded-md bg-secondary/40 p-3">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Submission Review</div>
                                 <div className="flex flex-wrap gap-2">
-                                  <Button asChild size="sm" variant="outline" className="h-7 px-2 text-[10px]">
-                                    <a href={app.submission.live_url || "#"} target="_blank" rel="noreferrer">Live URL</a>
+                                  <Button 
+                                    asChild={Boolean(app.submission.live_url)} 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className={`h-7 px-2 text-[10px] ${app.submission.live_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                    disabled={!app.submission.live_url}
+                                  >
+                                    {app.submission.live_url ? (
+                                      <a href={app.submission.live_url} target="_blank" rel="noreferrer">
+                                        Live URL <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                                      </a>
+                                    ) : (
+                                      <span>Live URL <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                                    )}
                                   </Button>
-                                  <Button asChild size="sm" variant="outline" className="h-7 px-2 text-[10px]">
-                                    <a href={app.submission.github_url || "#"} target="_blank" rel="noreferrer">GitHub</a>
+                                  <Button 
+                                    asChild={Boolean(app.submission.github_url)} 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className={`h-7 px-2 text-[10px] ${app.submission.github_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                    disabled={!app.submission.github_url}
+                                  >
+                                    {app.submission.github_url ? (
+                                      <a href={app.submission.github_url} target="_blank" rel="noreferrer">
+                                        GitHub <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                                      </a>
+                                    ) : (
+                                      <span>GitHub <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                                    )}
                                   </Button>
-                                  <Button asChild size="sm" variant="outline" className="h-7 px-2 text-[10px]">
-                                    <a href={app.submission.screenshot_url || "#"} target="_blank" rel="noreferrer">Screenshot</a>
+                                  <Button 
+                                    asChild={Boolean(app.submission.screenshot_url)} 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                    disabled={!app.submission.screenshot_url}
+                                  >
+                                    {app.submission.screenshot_url ? (
+                                      <a href={app.submission.screenshot_url} target="_blank" rel="noreferrer">
+                                        Screenshot <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                                      </a>
+                                    ) : (
+                                      <span>Screenshot <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                                    )}
                                   </Button>
                                 </div>
                                 {app.submission.notes && (
@@ -1223,15 +1307,17 @@ function ScopeProjectsManager() {
                                   >
                                     Mark Passed
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-[10px]"
-                                    disabled={updatingApplicationId === app.id}
-                                    onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
-                                  >
-                                    Needs Changes
-                                  </Button>
+                                  {app.submission_review_status !== "passed" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-[10px]"
+                                      disabled={updatingApplicationId === app.id}
+                                      onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
+                                    >
+                                      Needs Changes
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -1266,14 +1352,39 @@ function ScopeProjectsManager() {
                                 </Button>
                               </div>
                             )}
+
+                            {app.status === "shortlisted" && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                                  disabled={updatingApplicationId === app.id}
+                                  onClick={() => updateApplicationStatus(app.id, "accepted")}
+                                >
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-6 px-2 text-[10px]"
+                                  disabled={updatingApplicationId === app.id}
+                                  onClick={() => updateApplicationStatus(app.id, "rejected")}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         ))}
                         {applications.filter(a => a.project_id === item.id).length === 0 && (
                           <div className="py-2 text-center text-[10px] italic text-muted-foreground">No student applications recorded yet.</div>
                         )}
                         {applications.filter(a => a.project_id === item.id).length > 3 && (
-                          <p className="mt-2 text-center text-[10px] font-medium text-brand">
-                            + {applications.filter(a => a.project_id === item.id).length - 3} more student applications
+                          <p 
+                            className="mt-2 text-center text-[10px] font-medium text-brand cursor-pointer hover:underline"
+                            onClick={() => setRosterProject(item)}
+                          >
+                            + {applications.filter(a => a.project_id === item.id).length - 3} more student applications (Click to view)
                           </p>
                         )}
                       </div>
@@ -1410,7 +1521,279 @@ function ScopeProjectsManager() {
           </Card>
         </TabsContent>
       </Tabs>
+      <ProjectRosterDialog
+        project={rosterProject}
+        applications={applications}
+        onClose={() => setRosterProject(null)}
+        updatingApplicationId={updatingApplicationId}
+        updateApplicationStatus={updateApplicationStatus}
+        updateSubmissionReviewStatus={updateSubmissionReviewStatus}
+      />
     </div>
+  );
+}
+
+function ProjectRosterDialog({
+  project,
+  applications,
+  onClose,
+  updatingApplicationId,
+  updateApplicationStatus,
+  updateSubmissionReviewStatus,
+}: {
+  project: BackendProject | null;
+  applications: BackendApplication[];
+  onClose: () => void;
+  updatingApplicationId: string | null;
+  updateApplicationStatus: (id: string, status: any) => Promise<void>;
+  updateSubmissionReviewStatus: (id: string, reviewStatus: any) => Promise<void>;
+}) {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  if (!project) return null;
+
+  const projectApps = applications.filter((a) => a.project_id === project.id);
+
+  const filteredApps = projectApps.filter((app) => {
+    const matchesStatus = statusFilter === "all" || app.status === statusFilter;
+    const matchesSearch =
+      app.user_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.user_institution?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
+  return (
+    <Dialog open={Boolean(project)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="px-1 pt-1">
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <span>Roster: {project.title}</span>
+            <Badge variant="secondary" className="text-xs bg-brand/10 text-brand">
+              {projectApps.length} Total
+            </Badge>
+          </DialogTitle>
+          <DialogDescription>
+            Manage applications, review live URL / repository submissions, and select candidates.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Filter controls */}
+        <div className="flex flex-col sm:flex-row gap-3 py-2 border-b border-border/50">
+          <Input
+            placeholder="Search by student name or institute..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 text-xs h-9"
+          />
+          <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {["all", "pending", "shortlisted", "accepted", "rejected"].map((status) => (
+              <Button
+                key={status}
+                size="sm"
+                variant={statusFilter === status ? "default" : "outline"}
+                className="h-9 px-3 text-[11px] capitalize"
+                onClick={() => setStatusFilter(status)}
+              >
+                {status}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Scrollable List */}
+        <div className="flex-1 overflow-y-auto pr-1 mt-3 space-y-3 min-h-[300px]">
+          {filteredApps.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+              No matching applications found.
+            </div>
+          ) : (
+            filteredApps.map((app) => (
+              <div
+                key={app.id}
+                className="rounded-lg border border-border/70 p-4 bg-background/50 hover:bg-background/80 transition-colors"
+              >
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-sm truncate">{app.user_name}</span>
+                      <Badge variant="outline" className="h-5 text-[9px] capitalize border-brand/30 px-1.5">
+                        {app.status}
+                      </Badge>
+                      {app.submission_review_status && app.submission_review_status !== "not_submitted" && (
+                        <Badge
+                          variant="outline"
+                          className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-1.5"
+                        >
+                          {app.submission_review_status.replace("_", " ")}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {app.user_institution} · {app.user_email || "No email"}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 min-w-[320px] md:items-end">
+                    {/* Submission block */}
+                    {app.submission ? (
+                      <div className="space-y-2 w-full rounded-md bg-secondary/40 p-3 md:text-right border border-border/40">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground md:text-right text-left">
+                          Submission Review
+                        </div>
+                        <div className="flex flex-wrap md:justify-end gap-1.5">
+                          <Button
+                            asChild={Boolean(app.submission.live_url)}
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2 text-[10px] ${
+                              app.submission.live_url
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                : "opacity-50 cursor-not-allowed bg-muted"
+                            }`}
+                            disabled={!app.submission.live_url}
+                          >
+                            {app.submission.live_url ? (
+                              <a href={app.submission.live_url} target="_blank" rel="noreferrer">
+                                Live URL <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                              </a>
+                            ) : (
+                              <span>Live URL <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                            )}
+                          </Button>
+                          <Button
+                            asChild={Boolean(app.submission.github_url)}
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2 text-[10px] ${
+                              app.submission.github_url
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                : "opacity-50 cursor-not-allowed bg-muted"
+                            }`}
+                            disabled={!app.submission.github_url}
+                          >
+                            {app.submission.github_url ? (
+                              <a href={app.submission.github_url} target="_blank" rel="noreferrer">
+                                GitHub <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                              </a>
+                            ) : (
+                              <span>GitHub <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                            )}
+                          </Button>
+                          <Button
+                            asChild={Boolean(app.submission.screenshot_url)}
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2 text-[10px] ${
+                              app.submission.screenshot_url
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                : "opacity-50 cursor-not-allowed bg-muted"
+                            }`}
+                            disabled={!app.submission.screenshot_url}
+                          >
+                            {app.submission.screenshot_url ? (
+                              <a href={app.submission.screenshot_url} target="_blank" rel="noreferrer">
+                                Screenshot <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                              </a>
+                            ) : (
+                              <span>Screenshot <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                            )}
+                          </Button>
+                        </div>
+                        {app.submission.notes && (
+                          <p className="text-[10px] text-muted-foreground italic md:text-right text-left mt-1">
+                            "{app.submission.notes}"
+                          </p>
+                        )}
+                        <div className="flex flex-wrap md:justify-end gap-1.5 pt-1">
+                          <Button
+                            size="sm"
+                            className="h-6 px-2 text-[9px] bg-success text-primary-foreground hover:bg-success/90"
+                            disabled={updatingApplicationId === app.id}
+                            onClick={() => updateSubmissionReviewStatus(app.id, "passed")}
+                          >
+                            Mark Passed
+                          </Button>
+                          {app.submission_review_status !== "passed" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[9px]"
+                              disabled={updatingApplicationId === app.id}
+                              onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
+                            >
+                              Needs Changes
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground italic">No submission uploaded yet</span>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap gap-1.5 md:justify-end">
+                      {app.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2.5 text-[10px]"
+                            disabled={updatingApplicationId === app.id}
+                            onClick={() => updateApplicationStatus(app.id, "shortlisted")}
+                          >
+                            Shortlist
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 px-2.5 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                            disabled={updatingApplicationId === app.id}
+                            onClick={() => updateApplicationStatus(app.id, "accepted")}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2.5 text-[10px]"
+                            disabled={updatingApplicationId === app.id}
+                            onClick={() => updateApplicationStatus(app.id, "rejected")}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+
+                      {app.status === "shortlisted" && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="h-7 px-2.5 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                            disabled={updatingApplicationId === app.id}
+                            onClick={() => updateApplicationStatus(app.id, "accepted")}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2.5 text-[10px]"
+                            disabled={updatingApplicationId === app.id}
+                            onClick={() => updateApplicationStatus(app.id, "rejected")}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1686,7 +2069,10 @@ function VisitPlanner({ visits, institutions, ownerId }: { visits: ReturnType<ty
                   <div className="font-semibold">{i.name}</div>
                   <div className="text-xs text-muted-foreground">{v.date} · {v.time}</div>
                 </div>
-                <Badge variant="outline">{v.status}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{v.status}</Badge>
+                  <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => { if (confirm("Delete this upcoming visit?")) { crm.deleteVisit(v.id); toast.success("Visit deleted"); } }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
               </div>
             );
           })}
@@ -2105,6 +2491,259 @@ function RecentUploadsList() {
           <CheckCircle2 className="h-3 w-3 text-brand opacity-60" />
         </div>
       ))}
+    </div>
+  );
+}
+
+function StudentIdeasManager() {
+  const [ideas, setIdeas] = useState<BackendProposal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedIdea, setSelectedIdea] = useState<BackendProposal | null>(null);
+  const [status, setStatus] = useState<BackendProposal["status"]>("reviewed");
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [filter, setFilter] = useState<string>("all");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await backendProposals.list();
+      setIdeas(res.items);
+    } catch (err) {
+      toast.error("Failed to load student proposals.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const openReview = (idea: BackendProposal) => {
+    setSelectedIdea(idea);
+    setStatus(idea.status === "pending" ? "reviewed" : idea.status);
+    setComment(idea.adminComment || "");
+  };
+
+  const submitReview = async () => {
+    if (!selectedIdea) return;
+    setSubmitting(true);
+    try {
+      await backendProposals.patch(selectedIdea.id, {
+        status,
+        admin_comment: comment.trim(),
+      });
+      toast.success("Proposal review updated successfully!");
+      setSelectedIdea(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update review.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return ideas;
+    return ideas.filter((i) => i.status === filter);
+  }, [ideas, filter]);
+
+  const stats = useMemo(() => {
+    const total = ideas.length;
+    const pending = ideas.filter((i) => i.status === "pending").length;
+    const accepted = ideas.filter((i) => i.status === "accepted").length;
+    const rejected = ideas.filter((i) => i.status === "rejected").length;
+    return { total, pending, accepted, rejected };
+  }, [ideas]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+      </div>
+    );
+  }
+
+  const STATUS_BADGES: Record<BackendProposal["status"], { label: string; className: string }> = {
+    pending: { label: "Pending", className: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 animate-pulse" },
+    reviewed: { label: "Reviewed", className: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25" },
+    accepted: { label: "Accepted", className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25" },
+    rejected: { label: "Rejected", className: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25" },
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Stats Grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="p-4 border-border bg-secondary/10">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Suggested</div>
+          <div className="mt-1 text-2xl font-bold text-foreground">{stats.total}</div>
+        </Card>
+        <Card className="p-4 border-amber-500/20 bg-amber-500/5">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Pending Review</div>
+          <div className="mt-1 text-2xl font-bold text-amber-600">{stats.pending}</div>
+        </Card>
+        <Card className="p-4 border-emerald-500/20 bg-emerald-500/5">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Accepted Ideas</div>
+          <div className="mt-1 text-2xl font-bold text-emerald-600">{stats.accepted}</div>
+        </Card>
+        <Card className="p-4 border-rose-500/20 bg-rose-500/5">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Rejected / Archived</div>
+          <div className="mt-1 text-2xl font-bold text-rose-600">{stats.rejected}</div>
+        </Card>
+      </div>
+
+      {/* Filters Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+          💡 Student Suggested Ideas
+          <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs">{filtered.length}</Badge>
+        </h2>
+        <div className="flex items-center gap-1.5 rounded-lg bg-secondary/50 p-1">
+          {["all", "pending", "reviewed", "accepted", "rejected"].map((st) => (
+            <button
+              key={st}
+              onClick={() => setFilter(st)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${
+                filter === st
+                  ? "bg-gradient-brand text-brand-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* List of proposed ideas */}
+      <div className="grid gap-5 md:grid-cols-2">
+        {filtered.map((idea) => {
+          const authorLabel = idea.anonymous ? "Anonymous Student" : idea.user?.name || "Unknown Builder";
+          const authorEmail = idea.anonymous ? null : idea.user?.email || null;
+          const statusBadge = STATUS_BADGES[idea.status];
+
+          return (
+            <Card key={idea.id} className="group flex flex-col justify-between overflow-hidden border-border bg-card p-5 hover-lift transition-all animate-fade-in">
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <Badge className={statusBadge.className}>{statusBadge.label}</Badge>
+                  <span className="text-[10px] text-muted-foreground">{new Date(idea.createdAt).toLocaleDateString()}</span>
+                </div>
+
+                <h3 className="mt-3 text-lg font-bold tracking-tight text-foreground leading-snug">{idea.title}</h3>
+                <p className="mt-1.5 text-xs font-semibold text-brand/80">Submitted by: {authorLabel} {authorEmail ? `(${authorEmail})` : ""}</p>
+
+                <div className="mt-4 space-y-3 text-sm text-foreground/90">
+                  <div className="rounded-lg bg-secondary/40 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Problem Statement</span>
+                    <p className="line-clamp-4 leading-relaxed">{idea.problem}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/40 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Why it matters</span>
+                    <p className="line-clamp-4 leading-relaxed">{idea.why}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-lg border border-border p-2">
+                    <span className="font-bold text-muted-foreground block">Team Skills</span>
+                    <span className="truncate block mt-0.5">{idea.teamSkills || "Any"}</span>
+                  </div>
+                  <div className="rounded-lg border border-border p-2">
+                    <span className="font-bold text-muted-foreground block">Campus Relevance</span>
+                    <span className="truncate block mt-0.5">{idea.campusRelevance || "Global"}</span>
+                  </div>
+                </div>
+
+                {idea.adminComment && (
+                  <div className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
+                    <span className="font-bold text-brand block mb-1">Scope Admin Feedback</span>
+                    <p className="text-muted-foreground leading-relaxed">{idea.adminComment}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 border-t border-border/40 pt-4 flex justify-end">
+                <Button size="sm" onClick={() => openReview(idea)} className="bg-gradient-brand text-brand-foreground shadow-brand">
+                  Review Proposal
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+
+        {filtered.length === 0 && (
+          <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-12 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-3xl">💡</div>
+            <h3 className="text-lg font-bold text-foreground">No ideas suggested</h3>
+            <p className="mt-2 text-sm text-muted-foreground">Student proposals in this filter will appear here once submitted.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Review Dialog */}
+      {selectedIdea && (
+        <Dialog open={true} onOpenChange={() => setSelectedIdea(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Review Idea: {selectedIdea.title}</DialogTitle>
+              <DialogDescription>
+                Provide status updates and direct feedback to the student builder.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 text-sm max-h-[400px] overflow-y-auto pr-2">
+              <div className="rounded-lg bg-secondary/50 p-4">
+                <div className="font-bold text-foreground">Idea Details</div>
+                <div className="mt-2 grid gap-2">
+                  <div>
+                    <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider font-bold">Problem Statement</span>
+                    <p className="mt-0.5 text-foreground leading-relaxed">{selectedIdea.problem}</p>
+                  </div>
+                  <div className="mt-2">
+                    <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider font-bold">Why it matters</span>
+                    <p className="mt-0.5 text-foreground leading-relaxed">{selectedIdea.why}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="review-status" className="font-bold text-xs uppercase tracking-wider text-muted-foreground block mb-2">Decision Status</Label>
+                <select
+                  id="review-status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="reviewed">Reviewed (In Review)</option>
+                  <option value="accepted">Accepted (Launch Proposal)</option>
+                  <option value="rejected">Rejected / Archive</option>
+                </select>
+              </div>
+
+              <div>
+                <Label htmlFor="admin-comment" className="font-bold text-xs uppercase tracking-wider text-muted-foreground block mb-2">Scope Team Feedback (Sent to student)</Label>
+                <Textarea
+                  id="admin-comment"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Tell the builder what we like, what needs changes, or what next steps are..."
+                  rows={4}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
+              <Button variant="outline" onClick={() => setSelectedIdea(null)} disabled={submitting}>Cancel</Button>
+              <Button onClick={submitReview} disabled={submitting} className="bg-gradient-brand text-brand-foreground shadow-brand">
+                {submitting ? "Saving..." : "Save Review Decision"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

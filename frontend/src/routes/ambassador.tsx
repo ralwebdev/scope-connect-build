@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FeatureGate } from "@/components/site/FeatureGate";
+import { backendPublic } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/ambassador")({
@@ -35,20 +36,44 @@ function AmbassadorPage() {
   const [email, setEmail] = useState("");
   const [campus, setCampus] = useState("");
   const [why, setWhy] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.includes("@") || !campus.trim() || why.trim().length < 30) {
       toast.error("Fill all fields. 'Why you' needs at least 30 characters.");
       return;
     }
+
+    setSubmitting(true);
     try {
-      const list = JSON.parse(localStorage.getItem("scope_ambassador_apps") || "[]");
-      list.unshift({ name: name.trim(), email, campus: campus.trim(), why: why.trim(), at: Date.now() });
-      localStorage.setItem("scope_ambassador_apps", JSON.stringify(list.slice(0, 200)));
-    } catch { /* noop */ }
-    toast.success("Application received. Decisions in 5–7 days.");
-    setName(""); setEmail(""); setCampus(""); setWhy("");
+      await backendPublic.submitAmbassador({
+        source: "ambassador_page",
+        name: name.trim(),
+        email,
+        campus: campus.trim(),
+        why: why.trim(),
+      });
+
+      try {
+        const list = JSON.parse(localStorage.getItem("scope_ambassador_apps") || "[]");
+        list.unshift({ name: name.trim(), email, campus: campus.trim(), why: why.trim(), at: Date.now() });
+        localStorage.setItem("scope_ambassador_apps", JSON.stringify(list.slice(0, 200)));
+      } catch {
+        // noop
+      }
+
+      toast.success("Application received. Decisions in 5-7 days.");
+      setName("");
+      setEmail("");
+      setCampus("");
+      setWhy("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not submit your application.";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -63,18 +88,18 @@ function AmbassadorPage() {
 
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2">
-          {BENEFITS.map((b) => (
-            <Card key={b.title} className="p-5 hover-lift">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-brand text-brand-foreground shadow-brand"><b.icon className="h-5 w-5" /></div>
-              <h3 className="mt-3 font-semibold text-foreground">{b.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{b.body}</p>
+          {BENEFITS.map((benefit) => (
+            <Card key={benefit.title} className="p-5 hover-lift">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-brand text-brand-foreground shadow-brand"><benefit.icon className="h-5 w-5" /></div>
+              <h3 className="mt-3 font-semibold text-foreground">{benefit.title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{benefit.body}</p>
             </Card>
           ))}
         </div>
 
         <Card className="mt-8 p-6">
           <h2 className="text-xl font-bold text-foreground">Apply now</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Takes 2 minutes. Decisions in 5–7 days.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Takes 2 minutes. Decisions in 5-7 days.</p>
           <form onSubmit={submit} className="mt-5 space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -95,7 +120,7 @@ function AmbassadorPage() {
               <Textarea id="aw" value={why} onChange={(e) => setWhy(e.target.value)} rows={4} className="mt-1.5" maxLength={1000} placeholder="What have you built? What do you want to build with Scope at your campus?" />
               <p className="mt-1 text-xs text-muted-foreground">{why.length}/1000 · min 30 chars</p>
             </div>
-            <Button type="submit" size="lg" className="bg-gradient-brand text-brand-foreground shadow-brand">Submit application</Button>
+            <Button type="submit" size="lg" disabled={submitting} className="bg-gradient-brand text-brand-foreground shadow-brand">Submit application</Button>
           </form>
         </Card>
       </section>

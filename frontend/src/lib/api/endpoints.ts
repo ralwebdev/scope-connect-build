@@ -9,7 +9,7 @@ export type AuthPayload = {
 };
 
 export const backendAuth = {
-  signup(body: { email: string; password: string; name: string; institution_id?: string }) {
+  signup(body: { email: string; password: string; name: string; institution_id?: string; interests?: string[] }) {
     return api<AuthPayload>("/api/v1/auth/signup", {
       method: "POST",
       body: JSON.stringify(body),
@@ -261,6 +261,7 @@ export type BackendApplication = {
   project_id: string;
   user_id: string;
   user_name?: string | null;
+  user_email?: string | null;
   user_institution?: string | null;
   message?: string;
   status: "pending" | "shortlisted" | "accepted" | "rejected" | "withdrawn";
@@ -716,4 +717,106 @@ export const backendOpportunityApplications = {
       body: JSON.stringify(body),
     });
   },
+};
+
+export const backendPublic = {
+  submitFeedback(body: {
+    source: "feedback_page" | "feedback_widget";
+    rating?: number;
+    score?: number;
+    type?: string;
+    message: string;
+  }) {
+    return api<{ submission_id: string }>("/api/v1/public/feedback", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  joinWaitlist(body: {
+    source: "waitlist_page";
+    name: string;
+    email: string;
+    campus: string;
+    interests: string[];
+  }) {
+    return api<{ submission_id: string; already_joined: boolean }>("/api/v1/public/waitlist", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  submitContact(body: {
+    source: "contact_page" | "footer" | "support_page";
+    name?: string;
+    email: string;
+    reason?: string;
+    message: string;
+  }) {
+    return api<{ submission_id: string }>("/api/v1/public/contact", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  submitSupportIssue(body: {
+    source: "support_page";
+    message: string;
+  }) {
+    return api<{ submission_id: string }>("/api/v1/public/support-issue", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  submitAmbassador(body: {
+    source: "ambassador_page";
+    name: string;
+    email: string;
+    campus: string;
+    why: string;
+  }) {
+    return api<{ submission_id: string; already_applied: boolean }>("/api/v1/public/ambassador", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+export type BackendProposal = {
+  id: string;
+  user: { id: string; name: string; email: string } | null;
+  title: string;
+  problem: string;
+  why: string;
+  teamSkills: string;
+  campusRelevance: string;
+  anonymous: boolean;
+  status: "pending" | "reviewed" | "accepted" | "rejected";
+  adminComment?: string;
+  createdAt: string;
+};
+
+export const backendProposals = {
+  async list(): Promise<{ items: BackendProposal[] }> {
+    return api<{ items: BackendProposal[] }>("/api/v1/proposals");
+  },
+  async create(body: {
+    title: string;
+    problem: string;
+    why: string;
+    team_skills?: string;
+    campus_relevance?: string;
+    anonymous?: boolean;
+  }): Promise<{ proposal: BackendProposal }> {
+    return api<{ proposal: BackendProposal }>("/api/v1/proposals", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  async patch(id: string, body: {
+    status: "pending" | "reviewed" | "accepted" | "rejected";
+    admin_comment?: string;
+  }): Promise<{ proposal: BackendProposal }> {
+    return api<{ proposal: BackendProposal }>(`/api/v1/proposals/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
 };

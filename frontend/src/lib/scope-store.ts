@@ -402,6 +402,7 @@ export const auth = {
       password: input.password,
       name: input.name,
       institution_id: input.institutionId,
+      interests: input.interests,
     });
     const user = persistApiSession(payload);
     const nextUser = { ...user, campus: input.campus, interests: input.interests };
@@ -606,7 +607,7 @@ export const notifications = {
     try {
       const { items } = await backendNotifications.list();
       const mapped = items.map(mapBackendNotification);
-      const localOnly = notifications.all().filter((n) => !n.dedupKey?.startsWith("backend:"));
+      const localOnly = notifications.all().filter((n) => !n.dedupKey?.startsWith("backend:") && !n.id.startsWith("seed_") && !n.dedupKey?.startsWith("seed:"));
       const next = [...mapped, ...localOnly].slice(0, 100);
       writeNow(KEYS.notifications, next);
       return next;
@@ -622,7 +623,7 @@ export const notifications = {
   /** Role-filtered, priority-sorted list. Pinned items always come first. */
   forRole(role: string): Notification[] {
     const list = notifications.all().filter((n) => {
-      // No `roles` field \u2192 legacy/global; show everywhere.
+      // No `roles` field → legacy/global; show everywhere.
       if (!n.roles || n.roles.length === 0) return true;
       return n.roles.includes(role);
     });
@@ -640,31 +641,9 @@ export const notifications = {
   ensureSeeded(role?: string) {
     if (!isBrowser) return;
     if (!auth.isLoggedIn()) return;
-    const targetRole = role ?? "viewer";
-    const lastRole = read<string | null>(KEYS.notifSeededRole, null);
-    if (lastRole === targetRole) return; // already seeded for this role
-
-    // Drop any seed-* notifications from the previous role pass; keep
-    // user-generated alerts (no `roles` field) and items not seeded by us.
-    const existing = notifications.all().filter((n) => !n.id.startsWith("seed_"));
-    const seeds = loadSeedsForRole(targetRole);
-    const seeded: Notification[] = seeds.map((s, i) => ({
-      id: `seed_${targetRole}_${s.kind}`,
-      text: s.text,
-      icon: s.icon,
-      category: s.category,
-      priority: s.priority,
-      href: s.href,
-      roles: [targetRole],
-      at: Date.now() - s.ago * 60 * 1000,
-      read: false,
-      dedupKey: `seed:${targetRole}:${s.kind}`,
-      pinned: false,
-      // i is unused but kept for stable insertion order if needed later
-      ...(i < 0 ? {} : {}),
-    }));
-    write(KEYS.notifications, [...seeded, ...existing].slice(0, 60));
-    write(KEYS.notifSeededRole, targetRole);
+    // Drop any seed-* or seed: notifications entirely
+    const existing = notifications.all().filter((n) => !n.id.startsWith("seed_") && !n.dedupKey?.startsWith("seed:"));
+    write(KEYS.notifications, existing);
   },
   /** Unread count, role-scoped. */
   unread(role?: string): number {

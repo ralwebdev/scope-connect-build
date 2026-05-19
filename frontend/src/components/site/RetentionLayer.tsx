@@ -13,6 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useProfileStrength, useStreak, useUser, useStoreValue } from "@/hooks/use-scope";
 import { retention } from "@/lib/scope-store";
+import { backendProjects } from "@/lib/api/endpoints";
+
+const getDomainEmoji = (domain: string) => {
+  const d = domain.toLowerCase();
+  if (d.includes("ai")) return "🧠";
+  if (d.includes("software") || d.includes("tech") || d.includes("web") || d.includes("dev")) return "💻";
+  if (d.includes("market") || d.includes("campaign") || d.includes("growth")) return "📣";
+  if (d.includes("design") || d.includes("art") || d.includes("ui")) return "🎨";
+  if (d.includes("media") || d.includes("news") || d.includes("journal")) return "📰";
+  if (d.includes("research") || d.includes("science")) return "🔬";
+  return "🚀";
+};
 
 const WEEKLY_MISSIONS = [
   { title: "Apply to 1 Scope Challenge", reward: "+100 XP", icon: "🚀" },
@@ -42,6 +54,7 @@ export function RetentionLayer() {
   const [returnBack, setReturnBack] = useState<number>(0);
   const [nudge, setNudge] = useState<ReturnType<typeof retention.nextNudge>>(null);
   const [confetti, setConfetti] = useState(false);
+  const [freshItems, setFreshItems] = useState<{ id: string; title: string; cover: string; category: string }[]>([]);
   const week = isoWeek();
   const mission = WEEKLY_MISSIONS[week % WEEKLY_MISSIONS.length];
   const sessionInit = useRef(false);
@@ -82,6 +95,52 @@ export function RetentionLayer() {
       setNudge(retention.nextNudge());
     } catch { /* noop */ }
   }, [user, week]);
+
+  // Fetch actual uploaded projects dynamically
+  useEffect(() => {
+    let active = true;
+    backendProjects.list().then((res) => {
+      if (!active) return;
+      
+      const dbProjects = (res.items || [])
+        .filter((p) => p.status === "open" || p.status === "live")
+        .slice(0, 3)
+        .map((p) => ({
+          id: p.id,
+          title: p.title,
+          category: p.domain || "Software",
+          cover: p.cover_url && p.cover_url.length <= 4 ? p.cover_url : getDomainEmoji(p.domain || "Software"),
+        }));
+
+      if (dbProjects.length > 0) {
+        setFreshItems(dbProjects);
+      } else {
+        setFreshItems(
+          fresh.map((item) => ({
+            id: item.id,
+            title: item.title,
+            category: item.category,
+            cover: item.cover,
+          }))
+        );
+      }
+    }).catch(() => {
+      if (active) {
+        setFreshItems(
+          fresh.map((item) => ({
+            id: item.id,
+            title: item.title,
+            category: item.category,
+            cover: item.cover,
+          }))
+        );
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [fresh]);
 
   const closeWelcome = () => {
     setWelcomeOpen(false);
@@ -135,7 +194,7 @@ export function RetentionLayer() {
       {/* Daily check-in confetti burst */}
       {confetti && <CheckinBurst streak={streak} />}
 
-      {(returnBack > 0 || streak >= 3 || showMovement || showMission || showNudge || fresh.length > 0) && (
+      {(returnBack > 0 || streak >= 3 || showMovement || showMission || showNudge || freshItems.length > 0) && (
         <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 space-y-3">
           {returnBack > 0 && (
             <div className="flex items-start gap-3 rounded-xl border border-cyan/30 bg-cyan/5 px-4 py-3 text-sm">
@@ -215,7 +274,7 @@ export function RetentionLayer() {
             </Card>
           )}
 
-          {fresh.length > 0 && <WeeklyFresh items={fresh} />}
+          {freshItems.length > 0 && <WeeklyFresh items={freshItems} />}
         </div>
       )}
     </>

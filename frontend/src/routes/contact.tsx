@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { backendPublic } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
       { title: "Contact Scope Connect" },
-      { name: "description", content: "Get in touch with the Scope team — partnerships, press, support." },
+      { name: "description", content: "Get in touch with the Scope team - partnerships, press, support." },
     ],
   }),
   component: ContactPage,
@@ -27,15 +28,35 @@ function ContactPage() {
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState<string>(REASONS[0]);
   const [msg, setMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.includes("@") || msg.trim().length < 10) {
       toast.error("Add a valid email and a real message.");
       return;
     }
-    toast.success("Message received. The Scope team replies within 24 hours.");
-    setName(""); setEmail(""); setMsg(""); setReason(REASONS[0]);
+
+    setSubmitting(true);
+    try {
+      await backendPublic.submitContact({
+        source: "contact_page",
+        name: name.trim() || undefined,
+        email,
+        reason,
+        message: msg.trim(),
+      });
+      toast.success("Message received. The Scope team replies within 24 hours.");
+      setName("");
+      setEmail("");
+      setMsg("");
+      setReason(REASONS[0]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send your message.";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -44,7 +65,7 @@ function ContactPage() {
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <Badge className="bg-cyan/15 text-cyan hover:bg-cyan/20"><Mail className="mr-1 h-3 w-3" /> Contact</Badge>
           <h1 className="mt-3 text-4xl font-bold tracking-tight">Talk to Scope.</h1>
-          <p className="mt-2 max-w-xl text-primary-foreground/70">Partnership ideas, press, hiring, or just curious — pick a reason and we'll route it to the right human.</p>
+          <p className="mt-2 max-w-xl text-primary-foreground/70">Partnership ideas, press, hiring, or just curious - pick a reason and we'll route it to the right human.</p>
         </div>
       </section>
 
@@ -70,14 +91,14 @@ function ContactPage() {
               <div>
                 <Label htmlFor="cr">Reason</Label>
                 <select id="cr" value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  {REASONS.map((r) => <option key={r}>{r}</option>)}
+                  {REASONS.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </div>
               <div>
                 <Label htmlFor="cm">Message</Label>
                 <Textarea id="cm" value={msg} onChange={(e) => setMsg(e.target.value)} rows={5} className="mt-1.5" maxLength={1500} />
               </div>
-              <Button type="submit" size="lg" className="bg-gradient-brand text-brand-foreground shadow-brand">Send message</Button>
+              <Button type="submit" size="lg" disabled={submitting} className="bg-gradient-brand text-brand-foreground shadow-brand">Send message</Button>
               <p className="text-xs text-muted-foreground">We respond within 24 hours, weekdays.</p>
             </form>
           </Card>

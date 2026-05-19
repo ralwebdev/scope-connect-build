@@ -15,7 +15,7 @@ import {
   Sparkles, IndianRupee, ShieldCheck, Wrench, Target, MapPin, Handshake,
   GraduationCap, ClipboardList, TrendingUp, LifeBuoy, Briefcase, FileText,
   Network, Lock, Trophy, Rocket, Compass, MessageSquare, Layers,
-  History, Database, ToggleRight, BadgeCheck, Send,
+  History, Database, ToggleRight, BadgeCheck, Send, Lightbulb,
 } from "lucide-react";
 import type { PermissionKey, RoleId } from "@/lib/rbac";
 
@@ -202,10 +202,10 @@ const SCOPE_ADMIN_BLUEPRINT: SidebarBlueprint = {
       ],
     },
     {
-      id: "Projects",
-      label: "Projects",
+      id: "Student Proposals",
+      label: "Student Proposals",
       items: [
-        { to: "/scope-admin?tab=projects", label: "Projects", permission: "manage_projects", icon: Briefcase },
+        { to: "/scope-admin?tab=ideas", label: "Student Ideas", permission: "manage_projects", icon: Lightbulb },
       ],
     },
   ],
