@@ -9,7 +9,7 @@ export type AuthPayload = {
 };
 
 export const backendAuth = {
-  signup(body: { email: string; password: string; name: string; institution_id?: string; interests?: string[] }) {
+  signup(body: { email: string; password: string; name: string; institution_id?: string; interests?: string[]; referral_code?: string }) {
     return api<AuthPayload>("/api/v1/auth/signup", {
       method: "POST",
       body: JSON.stringify(body),
@@ -109,6 +109,24 @@ export const backendUsers = {
   },
   tickStreak() {
     return api<{ streak: number; xp: number }>("/api/v1/users/me/streak-tick", { method: "POST" });
+  },
+  weeklyMissionStatus() {
+    return api<{ claimed: boolean; week_key: string }>("/api/v1/users/me/weekly-mission-status");
+  },
+  weeklyMissionClaim(body: { amount: number; mission_title: string }) {
+    return api<{ already_claimed: boolean; xp: number | null }>("/api/v1/users/me/weekly-mission-claim", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  getSavedProjects() {
+    return api<{ saved_projects: string[] }>("/api/v1/users/me/saved-projects");
+  },
+  toggleSavedProject(id: string, action: "save" | "unsave") {
+    return api<{ saved_projects: string[] }>("/api/v1/users/me/saved-projects", {
+      method: "POST",
+      body: JSON.stringify({ id, action }),
+    });
   },
 };
 
@@ -346,6 +364,22 @@ export const backendAdminUsers = {
       method: "DELETE",
     });
   },
+  listFeedback() {
+    return api<{ feedback: Array<{
+      id: string;
+      source: "feedback_page" | "feedback_widget";
+      rating?: number | null;
+      score?: number | null;
+      type?: string;
+      message: string;
+      createdAt: string;
+    }> }>("/api/v1/admin/users/feedback");
+  },
+  deleteFeedback(id: string) {
+    return api<{ message: string }>(`/api/v1/admin/users/feedback/${id}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 export const backendAnalytics = {
@@ -403,6 +437,7 @@ export type BackendEvent = {
   seats: number;
   color: "brand" | "cyan" | "primary";
   institution?: string | null;
+  rsvps?: string[];
 };
 
 export const backendEvents = {
@@ -417,6 +452,11 @@ export const backendEvents = {
   },
   remove(id: string) {
     return api<null>(`/api/v1/events/${id}`, { method: "DELETE" });
+  },
+  rsvp(id: string) {
+    return api<{ going: boolean; rsvpsCount: number; xp: number }>(`/api/v1/events/${id}/rsvp`, {
+      method: "POST",
+    });
   },
 };
 
@@ -775,6 +815,11 @@ export const backendPublic = {
     return api<{ submission_id: string; already_applied: boolean }>("/api/v1/public/ambassador", {
       method: "POST",
       body: JSON.stringify(body),
+    });
+  },
+  checkLink(url: string) {
+    return api<{ valid: boolean; reason?: string }>(`/api/v1/public/check-link?url=${encodeURIComponent(url)}`, {
+      method: "GET",
     });
   },
 };

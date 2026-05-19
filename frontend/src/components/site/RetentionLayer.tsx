@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useProfileStrength, useStreak, useUser, useStoreValue } from "@/hooks/use-scope";
 import { retention } from "@/lib/scope-store";
-import { backendProjects } from "@/lib/api/endpoints";
+import { backendProjects, backendApplications, backendPortfolio, backendFeed, backendUsers } from "@/lib/api/endpoints";
+import { toast } from "sonner";
 
 const getDomainEmoji = (domain: string) => {
   const d = domain.toLowerCase();
@@ -41,6 +42,17 @@ function isoWeek(d = new Date()) {
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
+const getStartOfWeek = () => {
+  const now = new Date();
+  const day = now.getDay();
+  // Do NOT mutate `now` — clone it first so the original date stays intact.
+  const monday = new Date(now);
+  const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
+  monday.setDate(diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
 export function RetentionLayer() {
   const user = useUser();
   const strength = useProfileStrength();
@@ -57,7 +69,52 @@ export function RetentionLayer() {
   const [freshItems, setFreshItems] = useState<{ id: string; title: string; cover: string; category: string }[]>([]);
   const week = isoWeek();
   const mission = WEEKLY_MISSIONS[week % WEEKLY_MISSIONS.length];
+  const [currentProgress, setCurrentProgress] = useState<number | null>(null);
+  const [goal, setGoal] = useState<number>(0);
+  // null = not yet hydrated from localStorage (prevents premature Claim Reward flash)
+  const [rewardClaimed, setRewardClaimed] = useState<boolean | null>(null);
+  const [showMissionBurst, setShowMissionBurst] = useState<boolean>(false);
   const sessionInit = useRef(false);
+
+  const getMissionLink = (idx: number) => {
+    if (idx === 0) return "/projects";
+    if (idx === 1) return "/profile";
+    if (idx === 2) return "/events";
+    return "/dashboard";
+  };
+
+  const claimWeeklyXP = async () => {
+    if (!user || rewardClaimed) return;
+    const missionIdx = week % WEEKLY_MISSIONS.length;
+    const activeMission = WEEKLY_MISSIONS[missionIdx];
+    const xpAmount = missionIdx === 0 ? 100 : missionIdx === 1 ? 60 : missionIdx === 2 ? 30 : 20;
+
+    try {
+      // Write to MongoDB first — this is the source of truth.
+      // The backend is idempotent: calling it twice in the same ISO-week is safe.
+      const result = await backendUsers.weeklyMissionClaim({
+        amount: xpAmount,
+        mission_title: activeMission.title,
+      });
+
+      if (result.already_claimed) {
+        // Race condition (e.g. two tabs open) — gracefully mark as claimed
+        toast.info("You already claimed this week's reward!");
+      } else {
+        toast.success(`♥ +${xpAmount} XP added! Mission complete.`);
+      }
+
+      // Mirror to localStorage as a fast-read cache for next mount
+      if (user) {
+        try { localStorage.setItem(`scope_mission_claimed_${user.id}_${week}`, "1"); } catch { /* noop */ }
+      }
+      setRewardClaimed(true);
+      setShowMissionBurst(true);
+      window.setTimeout(() => setShowMissionBurst(false), 2000);
+    } catch (err) {
+      toast.error("Could not claim weekly mission reward. Please try again.");
+    }
+  };
 
   // Hydrate dismissals + capture rank snapshot + daily check-in once per session.
   useEffect(() => {
@@ -69,6 +126,26 @@ export function RetentionLayer() {
 
       const dismissedWeek = localStorage.getItem("scope_mission_dismissed_week");
       setMissionDismissed(dismissedWeek === String(week));
+
+      // Check localStorage cache first (instant) — then verify against DB (authoritative)
+      const cachedClaim = localStorage.getItem(`scope_mission_claimed_${user.id}_${week}`);
+      if (cachedClaim === "1") {
+        setRewardClaimed(true); // fast path: trust cache immediately
+      } else {
+        // Fetch from DB in the background — overwrites false if DB says already claimed
+        backendUsers.weeklyMissionStatus().then((res) => {
+          if (res.claimed) {
+            setRewardClaimed(true);
+            // Back-fill the local cache so next mount is instant
+            try { localStorage.setItem(`scope_mission_claimed_${user.id}_${week}`, "1"); } catch { /* noop */ }
+          } else {
+            setRewardClaimed(false);
+          }
+        }).catch(() => {
+          // Network failure — fall back to false (let user try to claim; backend is idempotent)
+          setRewardClaimed(false);
+        });
+      }
 
       // Daily check-in confetti — first dashboard visit of the day
       const today = new Date().toDateString();
@@ -142,6 +219,58 @@ export function RetentionLayer() {
     };
   }, [fresh]);
 
+  // Load dynamic progress for weekly mission
+  useEffect(() => {
+    if (!user) return;
+
+    const startOfWeek = getStartOfWeek();
+    const missionIdx = week % WEEKLY_MISSIONS.length;
+
+    if (missionIdx === 0) {
+      setGoal(1);
+      backendApplications.listMe().then((res) => {
+        const apps = res.items || [];
+        const countThisWeek = apps.filter(
+          (app) => new Date(app.created_at) >= startOfWeek
+        ).length;
+        setCurrentProgress(countThisWeek);
+      }).catch(() => setCurrentProgress(0));
+    } else if (missionIdx === 1) {
+      setGoal(2);
+      backendPortfolio.listMe().then((res) => {
+        const items = res.items || [];
+        const countThisWeek = items.filter(
+          (item) => new Date(item.created_at) >= startOfWeek
+        ).length;
+        setCurrentProgress(countThisWeek);
+      }).catch(() => setCurrentProgress(0));
+    } else if (missionIdx === 2) {
+      setGoal(1);
+      try {
+        const rsvps = JSON.parse(localStorage.getItem("scope_event_rsvps") || "[]");
+        setCurrentProgress(rsvps.length > 0 ? 1 : 0);
+      } catch {
+        setCurrentProgress(0);
+      }
+    } else if (missionIdx === 3) {
+      setGoal(3);
+      backendFeed.list(100).then((res) => {
+        let count = 0;
+        const posts = res.items || [];
+        posts.forEach((post) => {
+          if (post.commentList) {
+            post.commentList.forEach((c) => {
+              if (new Date(c.at) >= startOfWeek) {
+                count++;
+              }
+            });
+          }
+        });
+        setCurrentProgress(count);
+      }).catch(() => setCurrentProgress(0));
+    }
+  }, [user, week]);
+
   const closeWelcome = () => {
     setWelcomeOpen(false);
     if (user) {
@@ -171,7 +300,7 @@ export function RetentionLayer() {
   return (
     <>
       {welcomeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm" onClick={closeWelcome}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm" onClick={closeWelcome}>
           <Card className="w-full max-w-md overflow-hidden animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-hero p-6 text-primary-foreground">
               <Sparkles className="h-6 w-6 text-cyan" />
@@ -193,6 +322,11 @@ export function RetentionLayer() {
 
       {/* Daily check-in confetti burst */}
       {confetti && <CheckinBurst streak={streak} />}
+
+      {/* Dynamic weekly mission completion burst */}
+      {showMissionBurst && (
+        <MissionBurst xp={week % WEEKLY_MISSIONS.length === 0 ? 100 : week % WEEKLY_MISSIONS.length === 1 ? 60 : week % WEEKLY_MISSIONS.length === 2 ? 30 : 20} />
+      )}
 
       {(returnBack > 0 || streak >= 3 || showMovement || showMission || showNudge || freshItems.length > 0) && (
         <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 space-y-3">
@@ -250,10 +384,34 @@ export function RetentionLayer() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-brand text-2xl shadow-brand">{mission.icon}</div>
                 <div className="flex-1 min-w-0">
                   <Badge className="bg-cyan text-primary"><Trophy className="mr-1 h-3 w-3" /> Weekly Scope Mission · Week {week}</Badge>
-                  <h3 className="mt-1.5 text-base font-bold text-foreground">{mission.title}</h3>
+                  <h3 className="mt-1.5 text-base font-bold text-foreground">
+                    {mission.title}
+                    {currentProgress !== null && rewardClaimed !== null && (
+                      <span className="ml-2 font-normal text-muted-foreground text-sm">
+                        ({rewardClaimed ? "Completed ✓" : `${currentProgress}/${goal}`})
+                      </span>
+                    )}
+                  </h3>
                   <p className="text-xs text-muted-foreground">Reward: {mission.reward} · Resets every Monday</p>
                 </div>
-                <Button asChild size="sm" className="bg-gradient-brand text-brand-foreground"><Link to="/projects">Take action <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
+                {rewardClaimed === null ? (
+                  // Still hydrating from localStorage — show nothing to avoid flicker
+                  null
+                ) : rewardClaimed ? (
+                  <Button disabled size="sm" className="opacity-60 bg-gradient-brand text-brand-foreground cursor-not-allowed">
+                    Completed ✓
+                  </Button>
+                ) : currentProgress !== null && currentProgress >= goal ? (
+                  <Button onClick={claimWeeklyXP} size="sm" className="bg-gradient-brand text-brand-foreground animate-pulse shadow-brand">
+                    Claim Reward <ArrowRight className="ml-1 h-3 w-3" />
+                  </Button>
+                ) : (
+                  <Button asChild size="sm" className="bg-gradient-brand text-brand-foreground">
+                    <Link to={getMissionLink(week % WEEKLY_MISSIONS.length)}>
+                      Take action <ArrowRight className="ml-1 h-3 w-3" />
+                    </Link>
+                  </Button>
+                )}
               </div>
             </Card>
           )}
@@ -351,6 +509,40 @@ function Step({ n, title, sub }: { n: number; title: string; sub: string }) {
       <div>
         <div className="text-sm font-semibold text-foreground">{title}</div>
         <div className="text-xs text-muted-foreground">{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+function MissionBurst({ xp }: { xp: number }) {
+  const pieces = useMemo(
+    () => Array.from({ length: 20 }).map((_, i) => ({
+      id: i,
+      cx: `${(Math.random() - 0.5) * 220}px`,
+      cy: `${-60 - Math.random() * 90}px`,
+      cr: `${Math.random() * 360}deg`,
+      hue: i % 3 === 0 ? "var(--brand)" : i % 3 === 1 ? "var(--cyan)" : "var(--success)",
+    })),
+    [],
+  );
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-24 z-40 -translate-x-1/2">
+      <div className="relative">
+        <div className="flex items-center gap-2 rounded-full bg-gradient-brand px-5 py-2 text-sm font-bold text-brand-foreground shadow-brand animate-scale-in">
+          <Trophy className="h-4 w-4 animate-bounce" /> Weekly Mission Completed! +{xp} XP
+        </div>
+        {pieces.map((p) => (
+          <span
+            key={p.id}
+            className="confetti-piece absolute left-1/2 top-1/2 h-2 w-2 rounded-sm"
+            style={{
+              backgroundColor: p.hue,
+              ["--cx" as string]: p.cx,
+              ["--cy" as string]: p.cy,
+              ["--cr" as string]: p.cr,
+            } as React.CSSProperties}
+          />
+        ))}
       </div>
     </div>
   );

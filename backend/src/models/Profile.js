@@ -8,6 +8,7 @@ const profileSchema = new mongoose.Schema(
     bio: String,
     skills: [{ type: String }],
     interests: [{ type: String }],
+    savedProjects: [{ type: String }],
     availability: {
       type: String,
       enum: ["Open to collab", "Building solo", "Hiring teammates", "Looking for internship"],

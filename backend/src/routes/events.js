@@ -1,21 +1,22 @@
 import express from "express";
 import { z } from "zod";
-import { Event } from "../models/index.js";
+import mongoose from "mongoose";
+import { Event, Profile, ProfileActivity, Institution } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
-import { notFound, forbidden } from "../utils/errors.js";
+import { notFound, forbidden, badRequest } from "../utils/errors.js";
 
 export const eventsRouter = express.Router();
 
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
-  type: z.string().min(1).max(80),
+  type: z.string().min(1).max(200),
   date: z.string().min(1).max(80),
   venue: z.string().min(1).max(200),
-  seats: z.number().int().min(1).max(100000),
+  seats: z.coerce.number().int().min(1).max(100000),
   color: z.enum(["brand", "cyan", "primary"]),
 });
 
@@ -23,9 +24,10 @@ eventsRouter.use(authMiddleware);
 
 eventsRouter.get("/", asyncHandler(async (req, res) => {
   const filter = {};
-  if (req.query.institutionId) {
+  const instId = req.query.institutionId;
+  if (instId && mongoose.Types.ObjectId.isValid(instId)) {
     filter.$or = [
-      { institution: req.query.institutionId },
+      { institution: instId },
       { institution: null },
     ];
   } else {
@@ -42,6 +44,7 @@ eventsRouter.get("/", asyncHandler(async (req, res) => {
     seats: event.seats,
     color: event.color,
     institution: event.institution,
+    rsvps: event.rsvps || [],
   })), next_cursor: null, has_more: false });
 }));
 
@@ -84,6 +87,66 @@ eventsRouter.delete("/:id", requirePermission("manage_events"), asyncHandler(asy
 
   await event.deleteOne();
   sendSuccess(res, null, "Event deleted");
+}));
+
+eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
+  const event = await Event.findById(req.params.id);
+  if (!event) throw notFound("Event not found");
+
+  const userId = req.user._id;
+  const isGoing = event.rsvps.some((id) => id.toString() === userId.toString());
+
+  const profile = await Profile.findOne({ user: userId });
+
+  if (isGoing) {
+    // Cancel RSVP
+    event.rsvps = event.rsvps.filter((id) => id.toString() !== userId.toString());
+    
+    if (profile) {
+      profile.xp = Math.max(0, (profile.xp || 0) - 30);
+      await profile.save();
+
+      if (req.user.institution) {
+        await Institution.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: -30 } }).catch(() => null);
+      }
+
+      await ProfileActivity.create({
+        user: userId,
+        kind: "event_rsvp_cancelled",
+        text: `Cancelled RSVP for event: ${event.title}`,
+        meta: { eventId: event.id }
+      }).catch(() => null);
+    }
+
+    await event.save();
+    sendSuccess(res, { going: false, rsvpsCount: event.rsvps.length, xp: profile ? profile.xp : 0 }, "RSVP cancelled");
+  } else {
+    // RSVP (check seats)
+    if (event.rsvps.length >= event.seats) {
+      throw badRequest("This event is fully booked!");
+    }
+
+    event.rsvps.push(userId);
+
+    if (profile) {
+      profile.xp = (profile.xp || 0) + 30;
+      await profile.save();
+
+      if (req.user.institution) {
+        await Institution.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: 30 } }).catch(() => null);
+      }
+
+      await ProfileActivity.create({
+        user: userId,
+        kind: "event_rsvp",
+        text: `Reserved a seat for event: ${event.title}`,
+        meta: { eventId: event.id }
+      }).catch(() => null);
+    }
+
+    await event.save();
+    sendSuccess(res, { going: true, rsvpsCount: event.rsvps.length, xp: profile ? profile.xp : 0 }, "Seat reserved. You're on the builders list.");
+  }
 }));
 
 

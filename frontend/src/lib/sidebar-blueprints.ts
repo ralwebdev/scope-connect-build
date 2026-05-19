@@ -202,10 +202,11 @@ const SCOPE_ADMIN_BLUEPRINT: SidebarBlueprint = {
       ],
     },
     {
-      id: "Student Proposals",
-      label: "Student Proposals",
+      id: "feedback_proposals",
+      label: "Feedback & Ideas",
       items: [
         { to: "/scope-admin?tab=ideas", label: "Student Ideas", permission: "manage_projects", icon: Lightbulb },
+        { to: "/scope-admin?tab=feedback", label: "User Feedback", permission: "manage_projects", icon: MessageSquare },
       ],
     },
   ],

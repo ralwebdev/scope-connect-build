@@ -6,6 +6,7 @@ import { ScrollText, Shield, Sparkles, FileText, Award, Users, Lock } from "luci
 import { AppShell } from "@/components/site/AppShell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FeatureGate } from "@/components/site/FeatureGate";
 
 export const Route = createFileRoute("/updates")({
   head: () => ({
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/updates")({
       { property: "og:description", content: "We publish meaningful platform changes openly." },
     ],
   }),
-  component: UpdatesPage,
+  component: () => <FeatureGate flag="platformUpdates"><UpdatesPage /></FeatureGate>,
 });
 
 type UpdateType = "Policy" | "Moderation" | "Feature" | "Security" | "Rewards" | "Community";

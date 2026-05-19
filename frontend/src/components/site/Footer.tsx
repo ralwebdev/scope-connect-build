@@ -11,6 +11,9 @@ export function Footer() {
   const portfolioOn = useFeature("portfolio");
   const campusOn = useFeature("campus");
   const ambassadorsOn = useFeature("ambassadors");
+  const waitlistOn = useFeature("waitlist");
+  const partnershipsOn = useFeature("partnerships");
+  const platformUpdatesOn = useFeature("platformUpdates");
 
   return (
     <footer className="border-t border-border/40 bg-primary text-primary-foreground">
@@ -47,7 +50,7 @@ export function Footer() {
           <div>
             <h4 className="text-sm font-semibold">Grow</h4>
             <ul className="mt-3 space-y-2 text-sm text-primary-foreground/70">
-              <li><Link to="/waitlist" className="hover:text-primary-foreground">Join waitlist</Link></li>
+              {waitlistOn && <li><Link to="/waitlist" className="hover:text-primary-foreground">Join waitlist</Link></li>}
               <li><Link to="/refer" className="hover:text-primary-foreground">Refer & earn</Link></li>
               {ambassadorsOn && <li><Link to="/ambassador" className="hover:text-primary-foreground">Ambassador</Link></li>}
               <li><Link to="/announcements" className="hover:text-primary-foreground">Announcements</Link></li>
@@ -59,9 +62,9 @@ export function Footer() {
             <ul className="mt-3 space-y-2 text-sm text-primary-foreground/70">
               <li><Link to="/about" className="hover:text-primary-foreground">About</Link></li>
               <li><Link to="/contact" className="hover:text-primary-foreground">Contact</Link></li>
-              <li><Link to="/contact" className="hover:text-primary-foreground">Partnerships</Link></li>
+              {partnershipsOn && <li><Link to="/contact" className="hover:text-primary-foreground">Partnerships</Link></li>}
               <li><Link to={brand.supportUrl as "/support"} className="hover:text-primary-foreground">Support</Link></li>
-              <li><Link to="/updates" className="hover:text-primary-foreground">Platform updates</Link></li>
+              {platformUpdatesOn && <li><Link to="/updates" className="hover:text-primary-foreground">Platform updates</Link></li>}
               <li><Link to="/feedback" className="hover:text-primary-foreground">Feedback</Link></li>
             </ul>
           </div>

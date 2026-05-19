@@ -12,6 +12,11 @@ import { roleFromEmail, landingRouteForRole, ROLE_LABELS } from "@/lib/rbac";
 import { backendInstitutions } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      ref: (search.ref as string) || undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Join Scope Connect — Sign up" },
@@ -36,6 +41,7 @@ type SignupInstitution = {
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { ref } = Route.useSearch();
   const isAuthed = useIsLoggedIn();
   const [mode, setMode] = useState<"login" | "signup">("signup");
   const [name, setName] = useState("");
@@ -114,7 +120,7 @@ function AuthPage() {
     try {
       let signedInUser;
       if (mode === "signup") {
-        signedInUser = await auth.signup({ name: name || email.split("@")[0], email, campus, institutionId, interests: selectedInterests, password });
+        signedInUser = await auth.signup({ name: name || email.split("@")[0], email, campus, institutionId, interests: selectedInterests, password, referralCode: ref });
         auth.updateProfile({ campus, interests: selectedInterests });
         analytics.track("signup_completed");
         toast.success("Welcome to Scope Connect. You're in.");

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/hooks/use-scope";
+import { useFeature } from "@/hooks/use-platform";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/refer")({
@@ -84,11 +85,13 @@ function ReferPage() {
           <Stat icon={Share2} v="∞" l="campus reach potential" />
         </div>
 
-        <Card className="mt-6 bg-gradient-to-br from-brand/5 to-cyan/5 p-5">
-          <h3 className="text-sm font-semibold text-foreground">Lead Scope on your campus</h3>
-          <p className="mt-1 text-sm text-muted-foreground">10+ verified invites? You qualify for the Campus Ambassador track.</p>
-          <Button asChild variant="outline" size="sm" className="mt-3"><a href="/ambassador">Become an Ambassador</a></Button>
-        </Card>
+        {useFeature("ambassadors") && (
+          <Card className="mt-6 bg-gradient-to-br from-brand/5 to-cyan/5 p-5">
+            <h3 className="text-sm font-semibold text-foreground">Lead Scope on your campus</h3>
+            <p className="mt-1 text-sm text-muted-foreground">10+ verified invites? You qualify for the Campus Ambassador track.</p>
+            <Button asChild variant="outline" size="sm" className="mt-3"><a href="/ambassador">Become an Ambassador</a></Button>
+          </Card>
+        )}
       </section>
     </AppShell>
   );

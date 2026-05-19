@@ -21,6 +21,7 @@ export type PlanTier = "community" | "campus-pro" | "institution" | "enterprise"
 export type FeatureFlags = {
   feed: boolean;
   projects: boolean;
+  openProjects: boolean;
   events: boolean;
   leaderboards: boolean;
   campus: boolean;
@@ -30,6 +31,9 @@ export type FeatureFlags = {
   recruiterZone: boolean;
   mentorZone: boolean;
   campusCompetition: boolean;
+  waitlist: boolean;
+  partnerships: boolean;
+  platformUpdates: boolean;
 };
 
 export type BrandConfig = {
@@ -95,6 +99,7 @@ const ROLES: RolePermissions = {
 const FEATURES_FULL: FeatureFlags = {
   feed: true,
   projects: true,
+  openProjects: true,
   events: true,
   leaderboards: true,
   campus: true,
@@ -104,6 +109,9 @@ const FEATURES_FULL: FeatureFlags = {
   recruiterZone: true,
   mentorZone: true,
   campusCompetition: true,
+  waitlist: true,
+  partnerships: true,
+  platformUpdates: true,
 };
 
 const SCOPE_INDIA_CAMPUSES: CampusEntry[] = [
@@ -205,9 +213,10 @@ const EDITIONS: Record<EditionId, PlatformConfig> = {
     },
     // Community edition: only the essentials.
     features: {
-      feed: true, projects: true, events: false, leaderboards: true, campus: true,
+      feed: true, projects: true, openProjects: true, events: false, leaderboards: true, campus: true,
       portfolio: true, ambassadors: false, ads: false, recruiterZone: false,
-      mentorZone: false, campusCompetition: false,
+      mentorZone: false, campusCompetition: false, waitlist: true,
+      partnerships: false, platformUpdates: false,
     },
     campuses: SCOPE_INDIA_CAMPUSES.slice(0, 4),
     roles: ROLES,
@@ -222,9 +231,18 @@ const EDITION: EditionId = "scope-india";
 
 // 🔧 Fine-tune any field per deployment without forking the edition pack.
 const OVERRIDES: Partial<PlatformConfig> = {
-  // Example:
-  // brand: { ...EDITIONS["scope-india"].brand, name: "Scope Connect — Kolkata Edition" },
-  // features: { ...EDITIONS["scope-india"].features, ads: false },
+  brand: {
+    ...EDITIONS["scope-india"].brand,
+    contactEmail: "scopemagazines@gmail.com",
+  },
+  features: {
+    ...EDITIONS["scope-india"].features,
+    ambassadors: false,
+    waitlist: false,
+    partnerships: false,
+    platformUpdates: false,
+    openProjects: false,
+  },
 };
 
 function resolveConfig(): PlatformConfig {

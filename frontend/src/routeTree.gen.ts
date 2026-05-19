@@ -37,6 +37,7 @@ import { Route as CommunityGuidelinesRouteImport } from './routes/community-guid
 import { Route as ChallengesRouteImport } from './routes/challenges'
 import { Route as CampusLeaderRouteImport } from './routes/campus-leader'
 import { Route as CampusRouteImport } from './routes/campus'
+import { Route as BrokenLinkRouteImport } from './routes/broken-link'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnnouncementsRouteImport } from './routes/announcements'
 import { Route as AmbassadorRouteImport } from './routes/ambassador'
@@ -200,6 +201,11 @@ const CampusRoute = CampusRouteImport.update({
   path: '/campus',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrokenLinkRoute = BrokenLinkRouteImport.update({
+  id: '/broken-link',
+  path: '/broken-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
   '/auth': typeof AuthRoute
+  '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
   '/campus-leader': typeof CampusLeaderRoute
   '/challenges': typeof ChallengesRoute
@@ -373,6 +380,7 @@ export interface FileRoutesByTo {
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
   '/auth': typeof AuthRoute
+  '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
   '/campus-leader': typeof CampusLeaderRoute
   '/challenges': typeof ChallengesRoute
@@ -426,6 +434,7 @@ export interface FileRoutesById {
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
   '/auth': typeof AuthRoute
+  '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
   '/campus-leader': typeof CampusLeaderRoute
   '/challenges': typeof ChallengesRoute
@@ -480,6 +489,7 @@ export interface FileRouteTypes {
     | '/ambassador'
     | '/announcements'
     | '/auth'
+    | '/broken-link'
     | '/campus'
     | '/campus-leader'
     | '/challenges'
@@ -532,6 +542,7 @@ export interface FileRouteTypes {
     | '/ambassador'
     | '/announcements'
     | '/auth'
+    | '/broken-link'
     | '/campus'
     | '/campus-leader'
     | '/challenges'
@@ -584,6 +595,7 @@ export interface FileRouteTypes {
     | '/ambassador'
     | '/announcements'
     | '/auth'
+    | '/broken-link'
     | '/campus'
     | '/campus-leader'
     | '/challenges'
@@ -637,6 +649,7 @@ export interface RootRouteChildren {
   AmbassadorRoute: typeof AmbassadorRoute
   AnnouncementsRoute: typeof AnnouncementsRoute
   AuthRoute: typeof AuthRoute
+  BrokenLinkRoute: typeof BrokenLinkRoute
   CampusRoute: typeof CampusRoute
   CampusLeaderRoute: typeof CampusLeaderRoute
   ChallengesRoute: typeof ChallengesRoute
@@ -869,6 +882,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/broken-link': {
+      id: '/broken-link'
+      path: '/broken-link'
+      fullPath: '/broken-link'
+      preLoaderRoute: typeof BrokenLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -1094,6 +1114,7 @@ const rootRouteChildren: RootRouteChildren = {
   AmbassadorRoute: AmbassadorRoute,
   AnnouncementsRoute: AnnouncementsRoute,
   AuthRoute: AuthRoute,
+  BrokenLinkRoute: BrokenLinkRoute,
   CampusRoute: CampusRoute,
   CampusLeaderRoute: CampusLeaderRoute,
   ChallengesRoute: ChallengesRoute,

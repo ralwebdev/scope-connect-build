@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { seedInterests } from "@/lib/scope-store";
 import { backendPublic } from "@/lib/api/endpoints";
 
+import { FeatureGate } from "@/components/site/FeatureGate";
+
 export const Route = createFileRoute("/waitlist")({
   head: () => ({
     meta: [
@@ -20,7 +22,11 @@ export const Route = createFileRoute("/waitlist")({
       { property: "og:description", content: "12,000+ verified builders. Reserve your spot." },
     ],
   }),
-  component: WaitlistPage,
+  component: () => (
+    <FeatureGate flag="waitlist">
+      <WaitlistPage />
+    </FeatureGate>
+  ),
 });
 
 function WaitlistPage() {

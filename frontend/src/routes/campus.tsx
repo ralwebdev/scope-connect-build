@@ -111,7 +111,28 @@ function CampusHub() {
     let cancelled = false;
     backendEvents.list(user.institution.id)
       .then(({ items }) => {
-        if (!cancelled) setCampusEvents(items);
+        if (cancelled) return;
+        const startsAtFromDate = (value: string) => {
+          let parsed = Date.parse(value);
+          if (!Number.isNaN(parsed)) return parsed;
+          
+          const currentYear = new Date().getFullYear();
+          parsed = Date.parse(`${value}, ${currentYear}`);
+          if (!Number.isNaN(parsed)) return parsed;
+          
+          const cleaned = value.replace(/\s*,\s*/g, ", ");
+          parsed = Date.parse(`${cleaned}, ${currentYear}`);
+          if (!Number.isNaN(parsed)) return parsed;
+
+          return Date.now() + 7 * 86400000;
+        };
+
+        const now = Date.now();
+        const activeEvents = items.filter((item) => {
+          const startsAt = startsAtFromDate(item.date);
+          return startsAt >= now;
+        });
+        setCampusEvents(activeEvents);
       })
       .catch(() => {
         if (!cancelled) setCampusEvents([]);

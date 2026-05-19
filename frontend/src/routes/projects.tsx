@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Rocket, Sparkles, ShieldCheck, MapPin, Globe2, Briefcase, Clock, Users,
-  Bookmark, BookmarkCheck, Share2, Lightbulb, Check, X, Lock, ArrowRight, Flame, Coins, Trophy
+  Bookmark, BookmarkCheck, Share2, Lightbulb, Check, X, Lock, ArrowRight, Flame, Coins, Trophy, Copy, CheckCheck
 } from "lucide-react";
 import { ChallengeCountdown } from "@/components/site/ChallengeCountdown";
 import { Card } from "@/components/ui/card";
@@ -22,9 +22,10 @@ import {
 } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
-import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, type BackendApplication } from "@/lib/api/endpoints";
+import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, backendUsers, type BackendApplication } from "@/lib/api/endpoints";
 import { xp } from "@/lib/scope-store";
 import { useRole } from "@/hooks/use-rbac";
+import { useFeature } from "@/hooks/use-platform";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({
@@ -74,6 +75,7 @@ function resolveSubmissionDeadline(project: CuratedProject): number | null {
 
 function ProjectsPage() {
   const role = useRole();
+  const openProjectsEnabled = useFeature("openProjects");
   const isAdmin = (role as string) === "scope_admin" || (role as string) === "scope_super_admin" || (role as string) === "super_admin" || role === "faculty_coordinator" || role === "institutional_admin";
   const isAuthed = useIsLoggedIn();
   const user = useUser();
@@ -88,6 +90,7 @@ function ProjectsPage() {
   const [submissionTarget, setSubmissionTarget] = useState<CuratedProject | null>(null);
   const [ideaOpen, setIdeaOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [shareTarget, setShareTarget] = useState<CuratedProject | null>(null);
   const [detailTarget, _setDetailTarget] = useState<CuratedProject | null>(null);
   const setDetailTarget = (p: CuratedProject | null) => {
     if (p) analytics.track("project_view");
@@ -95,6 +98,22 @@ function ProjectsPage() {
   };
 
   const appliedIds = useMemo(() => new Set(userApps.map((a) => a.projectId)), [userApps]);
+
+  // Load saved project IDs from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("scope_saved_projects");
+      if (stored) setSaved(JSON.parse(stored));
+    } catch { /* noop */ }
+
+    // Fetch from backend as source of truth
+    if (isAuthed) {
+      backendUsers.getSavedProjects().then((res) => {
+        setSaved(res.saved_projects);
+        try { localStorage.setItem("scope_saved_projects", JSON.stringify(res.saved_projects)); } catch { /* noop */ }
+      }).catch(() => {});
+    }
+  }, [isAuthed]);
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -187,19 +206,41 @@ function ProjectsPage() {
     return () => { cancelled = true; };
   }, [user?.institution?.id, isAuthed]);
 
-  const handleSave = (id: string, title: string) => {
+  // Auto-open project details if URL has a hash
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const targetId = window.location.hash.slice(1);
+      const allLoaded = [...scopeChallenges, ...campusProjects, ...openProjects];
+      const targetProject = allLoaded.find((p) => p.id === targetId);
+      if (targetProject) {
+        setDetailTarget(targetProject);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+  }, [scopeChallenges, campusProjects, openProjects]);
+
+  const handleSave = async (id: string, title: string) => {
     const wasSaved = saved.includes(id);
-    setSaved((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-    toast(wasSaved ? "Removed from saved" : `Saved · "${title}"`);
+    const action = wasSaved ? "unsave" : "save";
+    const next = wasSaved ? saved.filter((x) => x !== id) : [...saved, id];
+    setSaved(next);
+    try { localStorage.setItem("scope_saved_projects", JSON.stringify(next)); } catch { /* noop */ }
+    
+    if (isAuthed) {
+      try {
+        await backendUsers.toggleSavedProject(id, action);
+      } catch (e) {
+        // Revert on error
+        setSaved(wasSaved ? [...saved, id] : saved.filter((x) => x !== id));
+        toast.error(`Failed to ${action} project`);
+        return;
+      }
+    }
+    toast(wasSaved ? "Removed from saved" : `🔖 Saved · "${title}"`);
   };
 
   const handleShare = (p: CuratedProject) => {
-    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/projects#${p.id}`;
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(() => toast.success("Link copied to clipboard"));
-    } else {
-      toast(url);
-    }
+    setShareTarget(p);
   };
 
   const handleApplyClick = (p: CuratedProject) => {
@@ -207,7 +248,16 @@ function ProjectsPage() {
       toast.error("Sign in to apply.");
       return;
     }
-    if (appliedIds.has(p.id)) {
+    const app = userApps.find((a) => a.projectId === p.id);
+    if (app) {
+      if (app.status === "pending") {
+        toast.info("Your application is currently pending admin review.");
+        return;
+      }
+      if (app.status === "rejected") {
+        toast.error("Your application has been rejected.");
+        return;
+      }
       setSubmissionTarget(p);
       return;
     }
@@ -264,6 +314,44 @@ function ProjectsPage() {
       <CampusLeaderboard />
 
       <PublishedStrip entity="opportunity" title="Campus exclusive" />
+
+      {/* SAVED PROJECTS STRIP */}
+      {saved.length > 0 && (() => {
+        const allProjects = [...scopeChallenges, ...campusProjects, ...openProjects];
+        const savedProjects = allProjects.filter((p) => saved.includes(p.id));
+        if (savedProjects.length === 0) return null;
+        return (
+          <section className="border-b border-brand/20 bg-brand/5">
+            <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BookmarkCheck className="h-4 w-4 text-brand" />
+                  <span className="text-sm font-semibold text-foreground">{savedProjects.length} saved project{savedProjects.length !== 1 ? "s" : ""}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {savedProjects.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setDetailTarget(p)}
+                      className="flex items-center gap-1.5 rounded-full border border-brand/30 bg-background px-3 py-1 text-xs font-medium text-foreground hover:bg-brand/10 transition-colors"
+                    >
+                      <span>{p.cover}</span>
+                      <span className="max-w-[140px] truncate">{p.title}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleSave(p.id, p.title); }}
+                        className="ml-1 text-muted-foreground hover:text-destructive"
+                        aria-label="Unsave"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* APPLIED STRIP */}
       {userApps.length > 0 && (
@@ -347,27 +435,29 @@ function ProjectsPage() {
       </Section>
 
       {/* SECTION 3: OPEN PROJECTS */}
-      <Section
-        eyebrow="🌍 Open Projects"
-        title="Open to every verified builder"
-        subtitle="Apply from any campus. Open access opportunities curated by Scope."
-      >
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {openProjects.map((p) => (
-              <ProjectCard
-                key={p.id} project={p}
-                application={appByProjectId.get(p.id)}
-                saved={saved.includes(p.id)}
-                canParticipate={!isAdmin}
-                onApply={() => handleApplyClick(p)}
-                onSave={() => handleSave(p.id, p.title)}
-                onShare={() => handleShare(p)}
-              onView={() => setDetailTarget(p)}
-              tone="open"
-            />
-          ))}
-        </div>
-      </Section>
+      {openProjectsEnabled && (
+        <Section
+          eyebrow="🌍 Open Projects"
+          title="Open to every verified builder"
+          subtitle="Apply from any campus. Open access opportunities curated by Scope."
+        >
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {openProjects.map((p) => (
+                <ProjectCard
+                  key={p.id} project={p}
+                  application={appByProjectId.get(p.id)}
+                  saved={saved.includes(p.id)}
+                  canParticipate={!isAdmin}
+                  onApply={() => handleApplyClick(p)}
+                  onSave={() => handleSave(p.id, p.title)}
+                  onShare={() => handleShare(p)}
+                onView={() => setDetailTarget(p)}
+                tone="open"
+              />
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* SECTION 4: PORTFOLIO PROMO */}
       <Section
@@ -448,6 +538,11 @@ function ProjectsPage() {
 
       {/* IDEA SUBMISSION MODAL */}
       {ideaOpen && <IdeaModal onClose={() => setIdeaOpen(false)} />}
+
+      {/* SHARE SHEET */}
+      {shareTarget && (
+        <ShareSheet project={shareTarget} onClose={() => setShareTarget(null)} />
+      )}
     </AppShell>
   );
 }
@@ -554,13 +649,21 @@ function ProjectCard({
   const seatsFull = seatsLeft <= 0;
   const closed = project.status === "closed";
   const submissionDeadline = resolveSubmissionDeadline(project);
-  const submissionLabel = application?.submissionReviewStatus === "passed"
-    ? "Passed"
-    : application?.submissionReviewStatus === "submitted"
-      ? "Submitted"
-      : application?.submissionReviewStatus === "needs_changes"
-        ? "Needs changes"
-        : "Awaiting submission";
+
+  const isPending = application?.status === "pending";
+  const isRejected = application?.status === "rejected";
+
+  const submissionLabel = isPending
+    ? "Pending Review"
+    : isRejected
+      ? "Rejected"
+      : application?.submissionReviewStatus === "passed"
+        ? "Passed"
+        : application?.submissionReviewStatus === "submitted"
+          ? "Submitted"
+          : application?.submissionReviewStatus === "needs_changes"
+            ? "Needs changes"
+            : "Awaiting submission";
 
   const toneBadge = {
     scope: { label: "Scope Verified", className: "bg-brand text-brand-foreground" },
@@ -629,13 +732,19 @@ function ProjectCard({
         {applied && (
           <div className="mt-3 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-foreground">Project Submission</span>
+              <span className="font-semibold text-foreground">
+                {isPending ? "Application Pending" : isRejected ? "Application Rejected" : "Project Submission"}
+              </span>
               <Badge variant="outline" className="capitalize">{submissionLabel}</Badge>
             </div>
             <div className="mt-1 text-muted-foreground">
-              {submissionDeadline && !isNaN(new Date(submissionDeadline).getTime())
-                ? `Submission deadline: ${new Date(submissionDeadline).toLocaleDateString()}`
-                : submissionDeadline ? `Submission deadline: ${submissionDeadline}` : "Submit your work when the project is ready for review."}
+              {isPending
+                ? "Your application is currently pending review by the Scope Admin. You can submit your work once it is accepted."
+                : isRejected
+                  ? "Your application has been rejected by the admin."
+                  : submissionDeadline && !isNaN(new Date(submissionDeadline).getTime())
+                    ? `Submission deadline: ${new Date(submissionDeadline).toLocaleDateString()}`
+                    : submissionDeadline ? `Submission deadline: ${submissionDeadline}` : "Submit your work when the project is ready for review."}
             </div>
           </div>
         )}
@@ -643,11 +752,21 @@ function ProjectCard({
         <div className="mt-4 flex items-center gap-2">
           <Button
             onClick={onApply}
-            disabled={closed || (!applied && !canParticipate)}
+            disabled={closed || (!applied && !canParticipate) || (applied && (isPending || isRejected))}
             size="sm"
-            className={`flex-1 ${applied ? "bg-success text-primary-foreground hover:bg-success/90" : "bg-gradient-brand text-brand-foreground"}`}
+            className={`flex-1 ${
+              applied && !isPending && !isRejected
+                ? "bg-success text-primary-foreground hover:bg-success/90"
+                : applied && isPending
+                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 cursor-not-allowed hover:bg-amber-500/20"
+                  : applied && isRejected
+                    ? "bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 cursor-not-allowed hover:bg-red-500/20"
+                    : "bg-gradient-brand text-brand-foreground"
+            }`}
           >
             {!canParticipate && !applied ? "Restricted" :
+             applied && isPending ? "Pending Review" :
+             applied && isRejected ? "Rejected" :
              applied ? (<><Check className="mr-1.5 h-4 w-4" /> Submit Work</>) :
              closed ? "Closed" :
              seatsFull ? "Join Waitlist" : "Apply Now"}
@@ -672,8 +791,14 @@ function ProjectCard({
 function ModalShell({ children, onClose, title, subtitle }: {
   children: React.ReactNode; onClose: () => void; title: string; subtitle?: string;
 }) {
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (window.confirm("Discard changes and close?")) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
       <Card className="w-full max-w-lg p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
@@ -1155,6 +1280,122 @@ function EmptyState({ title, body, cta }: {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ----------- ShareSheet ----------- */
+function ShareSheet({ project, onClose }: { project: CuratedProject; onClose: () => void }) {
+  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/projects#${project.id}`;
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      toast.success("Link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => toast.error("Could not copy link"));
+  };
+
+  const tryNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: project.title, text: `Check out this opportunity on Scope Connect: ${project.title}`, url });
+      } catch { /* user cancelled */ }
+    }
+  };
+
+  const encodedUrl = encodeURIComponent(url);
+  const encodedText = encodeURIComponent(`Check out this opportunity on Scope Connect: ${project.title}`);
+
+  const socials = [
+    {
+      label: "WhatsApp",
+      icon: "📱",
+      href: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
+      color: "bg-green-500 hover:bg-green-600",
+    },
+    {
+      label: "Twitter / X",
+      icon: "🐦",
+      href: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+      color: "bg-sky-500 hover:bg-sky-600",
+    },
+    {
+      label: "LinkedIn",
+      icon: "💼",
+      href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+      color: "bg-blue-600 hover:bg-blue-700",
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-foreground/50 p-4 backdrop-blur-sm sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-2xl animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-hero text-xl">{project.cover}</div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Share</div>
+              <div className="mt-0.5 text-sm font-semibold text-foreground line-clamp-1">{project.title}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Copy Link */}
+        <div className="mt-5">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Project Link</div>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-2.5">
+            <span className="flex-1 truncate text-xs font-mono text-foreground/80">{url}</span>
+            <button
+              onClick={copyLink}
+              className="flex shrink-0 items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground transition-colors hover:bg-brand/80"
+            >
+              {copied ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+
+        {/* Social Share */}
+        <div className="mt-5">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Share via</div>
+          <div className="grid grid-cols-3 gap-3">
+            {socials.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex flex-col items-center gap-1.5 rounded-xl p-3 text-white transition-transform hover:scale-105 ${s.color}`}
+              >
+                <span className="text-xl">{s.icon}</span>
+                <span className="text-[10px] font-semibold">{s.label}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* Native share button (mobile) */}
+        {typeof navigator !== "undefined" && "share" in navigator && (
+          <button
+            onClick={tryNativeShare}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-medium text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <Share2 className="h-4 w-4" /> More sharing options
+          </button>
+        )}
+      </div>
     </div>
   );
 }

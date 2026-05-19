@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, X, Pencil, Trash2, ExternalLink, Trophy, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { useUser } from "@/hooks/use-scope";
 import { type PortfolioItem } from "@/lib/scope-store";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
-import { backendPortfolio } from "@/lib/api/endpoints";
+import { backendPortfolio, backendPublic } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
@@ -162,6 +162,32 @@ function PortfolioPage() {
 }
 
 function PortfolioCard({ item, onEdit, onDelete }: { item: PortfolioItem; onEdit: () => void; onDelete: () => void }) {
+  const [checking, setChecking] = useState(false);
+  const navigate = useNavigate();
+
+  const handleView = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!item.link) return;
+
+    setChecking(true);
+    const toastId = toast.loading("Checking link reachability...");
+    try {
+      const res = await backendPublic.checkLink(item.link);
+      toast.dismiss(toastId);
+      if (res.valid) {
+        window.open(item.link, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Broken link detected — displaying diagnostics page.");
+        navigate({ to: "/broken-link", search: { url: item.link } });
+      }
+    } catch (err) {
+      toast.dismiss(toastId);
+      navigate({ to: "/broken-link", search: { url: item.link } });
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <Card className="group flex flex-col overflow-hidden hover-lift animate-fade-in">
       <div className="flex h-28 items-center justify-center bg-gradient-hero text-4xl">
@@ -178,9 +204,13 @@ function PortfolioCard({ item, onEdit, onDelete }: { item: PortfolioItem; onEdit
         )}
         <div className="mt-4 flex items-center justify-between gap-2">
           {item.link ? (
-            <a href={item.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
-              View <ExternalLink className="h-3 w-3" />
-            </a>
+            <button 
+              onClick={handleView}
+              disabled={checking}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline disabled:opacity-50"
+            >
+              {checking ? "Verifying..." : "View"} <ExternalLink className="h-3 w-3" />
+            </button>
           ) : <span className="text-xs text-muted-foreground">No link</span>}
           <div className="flex gap-1">
             <Button size="sm" variant="ghost" onClick={onEdit} aria-label="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
@@ -247,8 +277,14 @@ function ItemModal({ existing, onClose, onSaved }: { existing: PortfolioItem | n
     }
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (window.confirm("Discard changes and close?")) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
       <Card className="w-full max-w-lg p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>

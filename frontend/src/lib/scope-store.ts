@@ -396,19 +396,23 @@ export const auth = {
   getUser(): ScopeUser | null {
     return read<ScopeUser | null>(KEYS.user, null);
   },
-  async signup(input: { name: string; email: string; campus: string; interests: string[]; password: string; institutionId?: string }) {
+  async signup(input: { name: string; email: string; campus: string; interests: string[]; password: string; institutionId?: string; referralCode?: string }) {
     const payload = await backendAuth.signup({
       email: input.email,
       password: input.password,
       name: input.name,
       institution_id: input.institutionId,
       interests: input.interests,
+      referral_code: input.referralCode,
     });
     const user = persistApiSession(payload);
     const nextUser = { ...user, campus: input.campus, interests: input.interests };
     writeNow(KEYS.user, nextUser);
     writeNow(KEYS.visits, 1);
     notifications.push({ icon: "spark", text: "Welcome to Scope Connect! +120 XP signup bonus.", dedupKey: `welcome_bonus:${user.id}` });
+    if (input.referralCode) {
+      notifications.push({ icon: "spark", text: "Joined via referral! +50 XP referral bonus.", dedupKey: `referral_welcome_bonus:${user.id}` });
+    }
     notifications.push({ icon: "trophy", text: "You're ranked #142 nationally. Climb today.", dedupKey: `welcome_rank:${user.id}` });
     return nextUser;
   },

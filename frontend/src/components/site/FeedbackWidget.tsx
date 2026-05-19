@@ -99,7 +99,7 @@ export function FeedbackWidget() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-end bg-foreground/30 p-4 backdrop-blur-sm sm:items-end sm:p-6"
+          className="fixed inset-0 z-[200] flex items-end justify-end bg-foreground/30 p-4 backdrop-blur-sm sm:items-end sm:p-6"
           onClick={() => setOpen(false)}
         >
           <Card

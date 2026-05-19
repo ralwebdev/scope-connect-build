@@ -69,7 +69,7 @@ const FAQS: FAQ[] = [
   { cat: "Account & Security", q: "Is my data safe?", a: "All your activity, profile data, and submissions are stored securely. We never sell your data, and your private submissions stay private to the Scope team." },
   { cat: "Account & Security", q: "How do I delete my account?", a: "Email privacy@scope.in with your registered email. We process deletions within 7 days and send a confirmation when complete." },
   { cat: "Account & Security", q: "Can I have multiple accounts?", a: "One account per builder, please. Multiple accounts dilute your XP, portfolio, and chapter standing." },
-  { cat: "Support & Policies", q: "How do I contact the Scope team?", a: "Use the contact form below - we reply to every message within 24 hours. For urgent issues, email hello@scope.in. Partnerships: partners@scope.in. Privacy requests: privacy@scope.in." },
+  { cat: "Support & Policies", q: "How do I contact the Scope team?", a: "Use the contact form below - we reply to every message within 24 hours. For urgent issues, email scopemagazines@gmail.com. Partnerships: partners@scope.in. Privacy requests: privacy@scope.in." },
   { cat: "Support & Policies", q: "What's the community code of conduct?", a: "Be useful, ship honestly, lift others. Full guidelines live at /community-guidelines." },
 ];
 

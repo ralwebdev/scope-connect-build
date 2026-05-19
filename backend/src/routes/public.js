@@ -62,33 +62,7 @@ publicRouter.post("/feedback", validate(feedbackSchema), asyncHandler(async (req
 }));
 
 publicRouter.post("/waitlist", validate(waitlistSchema), asyncHandler(async (req, res) => {
-  const payload = req.body;
-  const existing = await PublicSubmission.findOne({
-    kind: "waitlist",
-    email: payload.email.toLowerCase(),
-  });
-
-  if (existing) {
-    existing.name = payload.name;
-    existing.campus = payload.campus;
-    existing.interests = payload.interests;
-    existing.source = payload.source;
-    await existing.save();
-
-    sendSuccess(res, { submission_id: existing.id, already_joined: true }, "Waitlist updated");
-    return;
-  }
-
-  const submission = await PublicSubmission.create({
-    kind: "waitlist",
-    source: payload.source,
-    name: payload.name,
-    email: payload.email,
-    campus: payload.campus,
-    interests: payload.interests,
-  });
-
-  sendSuccess(res, { submission_id: submission.id, already_joined: false }, "Added to waitlist", 201);
+  return res.status(403).json({ success: false, error: "Waitlist registration is currently closed." });
 }));
 
 publicRouter.post("/contact", validate(contactSchema), asyncHandler(async (req, res) => {
@@ -117,32 +91,44 @@ publicRouter.post("/support-issue", validate(supportIssueSchema), asyncHandler(a
 }));
 
 publicRouter.post("/ambassador", validate(ambassadorSchema), asyncHandler(async (req, res) => {
-  const payload = req.body;
-  const existing = await PublicSubmission.findOne({
-    kind: "ambassador_application",
-    email: payload.email.toLowerCase(),
-    campus: payload.campus,
-    status: { $ne: "closed" },
-  });
+  return res.status(403).json({ success: false, error: "Ambassador registration is currently closed." });
+}));
 
-  if (existing) {
-    existing.name = payload.name;
-    existing.why = payload.why;
-    existing.source = payload.source;
-    await existing.save();
-
-    sendSuccess(res, { submission_id: existing.id, already_applied: true }, "Application updated");
-    return;
+publicRouter.get("/check-link", asyncHandler(async (req, res) => {
+  const urlString = req.query.url;
+  if (!urlString) {
+    return res.status(400).json({ error: "URL parameter required" });
   }
 
-  const submission = await PublicSubmission.create({
-    kind: "ambassador_application",
-    source: payload.source,
-    name: payload.name,
-    email: payload.email,
-    campus: payload.campus,
-    why: payload.why,
-  });
+  // 1. Syntactic validation
+  try {
+    new URL(urlString);
+  } catch (err) {
+    return sendSuccess(res, { valid: false, reason: "malformed" });
+  }
 
-  sendSuccess(res, { submission_id: submission.id, already_applied: false }, "Application received", 201);
+  // 2. Reachability validation
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(urlString, {
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    // If it's a standard error state, mark as broken
+    if (response.status >= 400) {
+      return sendSuccess(res, { valid: false, reason: `status_${response.status}` });
+    }
+
+    return sendSuccess(res, { valid: true });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return sendSuccess(res, { valid: false, reason: "unreachable" });
+  }
 }));

@@ -27,6 +27,7 @@ import { AppShell } from "@/components/site/AppShell";
 import { AdSlot } from "@/components/site/AdSlot";
 import { analytics } from "@/lib/analytics";
 import { useIsLoggedIn } from "@/hooks/use-scope";
+import { useFeature } from "@/hooks/use-platform";
 import {
   campusPartners,
   liveMetrics,
@@ -504,6 +505,7 @@ function FinalCTA() {
 
 function ExitCapture() {
   const isLoggedIn = useIsLoggedIn();
+  const waitlistOn = useFeature("waitlist");
   if (isLoggedIn) return null;
   return (
     <section className="bg-secondary/40 py-16">
@@ -512,12 +514,16 @@ function ExitCapture() {
           <Badge variant="outline" className="mb-3">Not ready yet?</Badge>
           <h3 className="text-2xl font-bold text-foreground">Stay in the loop</h3>
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-            Join the waitlist for launch updates, browse projects in read-only mode, or refer your campus.
+            {waitlistOn
+              ? "Join the waitlist for launch updates, browse projects in read-only mode, or refer your campus."
+              : "Browse projects in read-only mode, or refer your campus."}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <Button asChild size="sm" className="bg-gradient-brand text-brand-foreground" onClick={() => analytics.track("waitlist_joined")}>
-              <Link to="/waitlist">Join waitlist</Link>
-            </Button>
+            {waitlistOn && (
+              <Button asChild size="sm" className="bg-gradient-brand text-brand-foreground" onClick={() => analytics.track("waitlist_joined")}>
+                <Link to="/waitlist">Join waitlist</Link>
+              </Button>
+            )}
             <Button asChild size="sm" variant="outline">
               <Link to="/projects">Browse projects</Link>
             </Button>

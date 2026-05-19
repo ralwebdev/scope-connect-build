@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink, BarChart2, TrendingUp, Globe2, ArrowUpRight } from "lucide-react";
+import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink, BarChart2, TrendingUp, Globe2, ArrowUpRight, MessageSquare } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { AccessDenied } from "@/components/site/AccessDenied";
@@ -149,6 +149,7 @@ function ScopeAdminPortal() {
           <TabsContent value="projects" className="mt-6"><ScopeProjectsManager /></TabsContent>
           <TabsContent value="opportunities" className="mt-6"><ScopeOpportunitiesManager /></TabsContent>
           <TabsContent value="ideas" className="mt-6"><StudentIdeasManager /></TabsContent>
+          <TabsContent value="feedback" className="mt-6"><FeedbackManager /></TabsContent>
           <TabsContent value="analytics" className="mt-6"><ScopeAnalyticsDashboard institutions={institutions} /></TabsContent>
         </Tabs>
       </section>
@@ -792,8 +793,13 @@ function ScopeEventsManager() {
       setEvents((current) => [created, ...current]);
       setForm({ title: "", type: "", date: "", venue: "", seats: 100, color: "brand" });
       toast.success("Upcoming event added.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create event.");
+    } catch (error: any) {
+      if (error.details?.issues) {
+        const msg = error.details.issues.map((i: any) => `${i.path?.join(".") || "field"}: ${i.message}`).join(", ");
+        toast.error(`Validation failed: ${msg}`);
+      } else {
+        toast.error(error instanceof Error ? error.message : "Could not create event.");
+      }
     } finally {
       setSaving(false);
     }
@@ -840,14 +846,14 @@ function ScopeEventsManager() {
         <div className="mt-3 space-y-2">
           {loading && <p className="text-sm text-muted-foreground">Loading events...</p>}
           {!loading && events.map((item) => (
-            <div key={item.id} className="relative rounded-lg border border-border p-3 group">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold">{item.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{item.type} · {item.date}</div>
-                  <div className="text-xs text-muted-foreground">{item.venue} · {item.seats} seats</div>
+            <div key={item.id} className="relative rounded-lg border border-border p-3 group overflow-hidden">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold truncate break-all" title={item.title}>{item.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground truncate break-all" title={item.type}>{item.type} · {item.date}</div>
+                  <div className="text-xs text-muted-foreground truncate break-all" title={item.venue}>{item.venue} · {item.seats} seats</div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-2 shrink-0">
                   <Badge variant="outline">{item.color}</Badge>
                   <Button
                     size="icon"
@@ -2747,5 +2753,252 @@ function StudentIdeasManager() {
     </div>
   );
 }
+
+// ─── Feedback Manager Component ──────────────────────────────────────────────
+function FeedbackManager() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterRating, setFilterRating] = useState<number | "all">("all");
+  const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await backendAdminUsers.listFeedback();
+      setItems(res.feedback || []);
+    } catch (err) {
+      toast.error("Failed to load user feedback.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await backendAdminUsers.deleteFeedback(id);
+      toast.success("Feedback entry archived/deleted.");
+      await load();
+    } catch (err) {
+      toast.error("Failed to delete feedback entry.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    return items.filter((item) => {
+      const matchesType = filterType === "all" || item.type === filterType;
+      const matchesRating = filterRating === "all" || item.rating === filterRating;
+      const matchesSearch =
+        !search ||
+        item.message.toLowerCase().includes(search.toLowerCase()) ||
+        (item.type && item.type.toLowerCase().includes(search.toLowerCase()));
+      return matchesType && matchesRating && matchesSearch;
+    });
+  }, [items, filterType, filterRating, search]);
+
+  const stats = useMemo(() => {
+    const total = items.length;
+    const ratings = items.filter((i) => i.rating != null).map((i) => i.rating);
+    const avgRating = ratings.length
+      ? (ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(1)
+      : "0.0";
+    const bugs = items.filter((i) => i.type === "Bug report").length;
+    const features = items.filter((i) => i.type === "Feature request").length;
+    return { total, avgRating, bugs, features };
+  }, [items]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* KPI Stats Grid */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card className="p-4 border-border bg-secondary/5 relative overflow-hidden group hover:border-border/80 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Feedbacks</div>
+          <div className="mt-2 text-3xl font-extrabold text-foreground">{stats.total}</div>
+          <div className="absolute right-3 bottom-3 text-muted-foreground/10 group-hover:scale-110 transition-transform">
+            <MessageSquare className="h-12 w-12" />
+          </div>
+        </Card>
+        <Card className="p-4 border-cyan-500/20 bg-cyan-500/5 relative overflow-hidden group hover:border-cyan-500/30 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 dark:text-cyan-400">Average Rating</div>
+          <div className="mt-2 text-3xl font-extrabold text-cyan-500 dark:text-cyan-400 flex items-baseline gap-1">
+            {stats.avgRating} <span className="text-xs text-muted-foreground font-normal">/ 5</span>
+          </div>
+          <div className="absolute right-3 bottom-3 text-cyan-500/10 group-hover:scale-110 transition-transform">
+            <Star className="h-12 w-12 fill-cyan-500/10" />
+          </div>
+        </Card>
+        <Card className="p-4 border-rose-500/20 bg-rose-500/5 relative overflow-hidden group hover:border-rose-500/30 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">Bug Reports</div>
+          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">{stats.bugs}</div>
+          <div className="absolute right-3 bottom-3 text-rose-500/10 group-hover:scale-110 transition-transform">
+            <ShieldAlert className="h-12 w-12" />
+          </div>
+        </Card>
+        <Card className="p-4 border-amber-500/20 bg-amber-500/5 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">Feature Requests</div>
+          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">{stats.features}</div>
+          <div className="absolute right-3 bottom-3 text-amber-500/10 group-hover:scale-110 transition-transform">
+            <Zap className="h-12 w-12" />
+          </div>
+        </Card>
+      </div>
+
+      {/* Filters Toolbar */}
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            💬 Platform User Feedback
+            <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs px-2.5 py-0.5 rounded-full">{filtered.length}</Badge>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Read what students, faculty and guest builders suggest for improvement.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Search Input */}
+          <Input
+            placeholder="Search messages..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 w-full sm:w-48 bg-secondary/15 border-border/50 text-xs"
+          />
+
+          {/* Type Filter */}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-brand/40"
+          >
+            <option value="all">All Categories</option>
+            <option value="Feature request">Feature Requests</option>
+            <option value="Bug report">Bug Reports</option>
+            <option value="General suggestion">Suggestions</option>
+            <option value="Other">Other</option>
+          </select>
+
+          {/* Rating Filter */}
+          <select
+            value={filterRating}
+            onChange={(e) =>
+              setFilterRating(e.target.value === "all" ? "all" : Number(e.target.value))
+            }
+            className="h-9 rounded-md border border-input bg-background px-3 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-brand/40"
+          >
+            <option value="all">All Ratings</option>
+            <option value="5">⭐⭐⭐⭐⭐ (5/5)</option>
+            <option value="4">⭐⭐⭐⭐ (4/5)</option>
+            <option value="3">⭐⭐⭐ (3/5)</option>
+            <option value="2">⭐⭐ (2/5)</option>
+            <option value="1">⭐ (1/5)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Grid List */}
+      {filtered.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center p-16 text-center border-dashed border-muted-foreground/20 bg-secondary/5 rounded-xl">
+          <div className="text-5xl mb-4 grayscale">💬</div>
+          <h3 className="text-base font-bold text-foreground">No feedback entries found</h3>
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">
+            There are no feedback submissions matching your current search terms or category/rating filters.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((item) => (
+            <Card
+              key={item.id}
+              className="group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl"
+            >
+              <div className="space-y-4">
+                {/* Header details */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {new Date(item.createdAt).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {item.type && (
+                      <Badge
+                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${
+                          item.type === "Bug report"
+                            ? "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20"
+                            : item.type === "Feature request"
+                            ? "bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20"
+                            : "bg-secondary text-foreground border border-border/40"
+                        }`}
+                      >
+                        {item.type}
+                      </Badge>
+                    )}
+                    <Badge className="text-[9px] px-2 py-0.5 bg-secondary/80 text-muted-foreground border border-border/40 rounded-full">
+                      {item.source === "feedback_widget" ? "Widget" : "Page"}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Rating stars rendering */}
+                {item.rating != null && (
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-3.5 w-3.5 transition-colors ${
+                          star <= item.rating
+                            ? "fill-brand text-brand"
+                            : "text-muted-foreground/20 dark:text-muted-foreground/10"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Message body */}
+                <p className="text-sm text-foreground/80 leading-relaxed font-normal italic whitespace-pre-wrap select-text">
+                  "{item.message}"
+                </p>
+              </div>
+
+              {/* Action/Delete footer bar */}
+              <div className="mt-5 flex items-center justify-end border-t border-border/40 pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={deletingId === item.id}
+                  onClick={() => handleDelete(item.id)}
+                  className="h-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 text-xs px-2.5 rounded-lg transition-colors"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  {deletingId === item.id ? "Archiving..." : "Archive Feedback"}
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 

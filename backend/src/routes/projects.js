@@ -56,11 +56,11 @@ projectsRouter.get("/", optionalAuthMiddleware, asyncHandler(async (req, res) =>
   const filter = { ...cursorFilter(cursor, sort) };
 
   // Visibility and Role-based filtering
-  if (!hasPermission(req.user, "manage_projects")) {
+  if (!req.user || !hasPermission(req.user, "manage_projects")) {
     filter.$or = [
       { visibility: "public" },
-      ...(req.user.institution ? [{ institution: req.user.institution, visibility: "institution" }] : []),
-      { createdBy: req.user._id },
+      ...((req.user && req.user.institution) ? [{ institution: req.user.institution, visibility: "institution" }] : []),
+      ...((req.user) ? [{ createdBy: req.user._id }] : []),
     ];
   }
 

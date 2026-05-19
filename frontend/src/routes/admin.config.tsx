@@ -295,6 +295,7 @@ function FeaturesTab({ cfg }: { cfg: RuntimeConfig }) {
     { key: "events", label: "Events", desc: "Hackathons, sprints & meetups." },
     { key: "portfolio", label: "Portfolio", desc: "Per-builder portfolio pages." },
     { key: "ambassadors", label: "Ambassador program", desc: "Campus ambassador applications." },
+    { key: "waitlist", label: "Waitlist program", desc: "Waitlist registrations." },
     { key: "leaderboards", label: "Leaderboards", desc: "Builder + chapter rankings." },
     { key: "projects", label: "Projects", desc: "Curated challenges & opportunities." },
     { key: "campus", label: "Campus directory", desc: "Campus-by-campus exploration." },
@@ -302,6 +303,8 @@ function FeaturesTab({ cfg }: { cfg: RuntimeConfig }) {
     { key: "recruiterZone", label: "Recruiter Zone", desc: "Recruiter-only views." },
     { key: "mentorZone", label: "Mentor Zone", desc: "Mentor matching & office hours." },
     { key: "campusCompetition", label: "Campus competition", desc: "Inter-campus rankings & wars." },
+    { key: "partnerships", label: "Brand partnerships", desc: "Partnership inquiries & slots." },
+    { key: "platformUpdates", label: "Platform updates", desc: "Changelog and transparency updates." },
   ];
 
   return (

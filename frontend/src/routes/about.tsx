@@ -69,7 +69,7 @@ function AboutPage() {
           </p>
           <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span className="rounded-full bg-secondary px-3 py-1">📍 Bengaluru, India</span>
-            <span className="rounded-full bg-secondary px-3 py-1">✉️ hello@scope.in</span>
+            <span className="rounded-full bg-secondary px-3 py-1">✉️ scopemagazines@gmail.com</span>
             <span className="rounded-full bg-secondary px-3 py-1">🤝 partners@scope.in</span>
           </div>
         </Card>

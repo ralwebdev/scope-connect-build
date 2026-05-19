@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { User, Profile, Session, Institution } from "../models/index.js";
+import { User, Profile, Session, Institution, ProfileActivity } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { authRateLimit } from "../middleware/rate-limit.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -22,6 +22,7 @@ const signupSchema = z.object({
   institution_id: z.string().optional(),
   role: z.enum(["student", "scope_admin", "super_admin"]).optional(),
   interests: z.array(z.string().max(80)).optional(),
+  referral_code: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -41,6 +42,17 @@ const logoutSchema = z.object({
 function handleBaseFromEmail(email) {
   const base = email.split("@")[0].toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   return base || `user-${Date.now().toString(36)}`;
+}
+
+async function findUserByReferralCode(code) {
+  if (!code || typeof code !== "string" || !code.toUpperCase().startsWith("SCOPE-")) return null;
+  const targetPrefix = code.replace(/scope-/i, "").toLowerCase();
+  if (targetPrefix.length !== 6) return null;
+
+  const users = await User.find({}, "_id");
+  const matchingUser = users.find((u) => u._id.toString().slice(2, 8).toLowerCase() === targetPrefix);
+  if (!matchingUser) return null;
+  return User.findById(matchingUser._id);
 }
 
 async function createUniqueHandle(email) {
@@ -89,6 +101,16 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
   });
 
   try {
+    let initialXp = 120;
+    let referredByUser = null;
+
+    if (req.body.referral_code) {
+      referredByUser = await findUserByReferralCode(req.body.referral_code);
+      if (referredByUser && String(referredByUser._id) !== String(user._id)) {
+        initialXp += 50;
+      }
+    }
+
     await Profile.create({
       user: user._id,
       handle: await createUniqueHandle(email),
@@ -97,11 +119,41 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
       interests: req.body.interests || [],
       availability: "Open to collab",
       avatarColor: "#00D1FF",
-      xp: 120,
+      xp: initialXp,
       level: 1,
       streakDays: 1,
       institutionVerified: false,
     });
+
+    if (referredByUser && String(referredByUser._id) !== String(user._id)) {
+      // 1. Log activity for the receiver
+      await ProfileActivity.create({
+        user: user._id,
+        kind: "referral_welcome_bonus",
+        text: `Joined via referral · +50 XP`,
+        meta: { referredBy: referredByUser._id, amount: 50 },
+      }).catch(() => null);
+
+      // 2. Award 100 XP to the sender
+      const senderProfile = await Profile.findOne({ user: referredByUser._id });
+      if (senderProfile) {
+        senderProfile.xp = (senderProfile.xp || 0) + 100;
+        await senderProfile.save();
+
+        if (referredByUser.institution) {
+          const { Institution: InstitutionModel } = await import("../models/Institution.js");
+          await InstitutionModel.findByIdAndUpdate(referredByUser.institution, { $inc: { totalStudentXp: 100 } }).catch(() => null);
+        }
+
+        // Log activity for the sender
+        await ProfileActivity.create({
+          user: referredByUser._id,
+          kind: "referral_bonus",
+          text: `Referral accepted · +100 XP`,
+          meta: { referredUser: user._id, amount: 100 },
+        }).catch(() => null);
+      }
+    }
   } catch (error) {
     await User.deleteOne({ _id: user._id });
     throw error;

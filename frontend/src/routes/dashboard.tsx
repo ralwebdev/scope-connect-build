@@ -176,8 +176,29 @@ function DashboardPage() {
           );
         }
         if (eventsData.status === "fulfilled") {
+          const startsAtFromDate = (value: string) => {
+            let parsed = Date.parse(value);
+            if (!Number.isNaN(parsed)) return parsed;
+            
+            const currentYear = new Date().getFullYear();
+            parsed = Date.parse(`${value}, ${currentYear}`);
+            if (!Number.isNaN(parsed)) return parsed;
+            
+            const cleaned = value.replace(/\s*,\s*/g, ", ");
+            parsed = Date.parse(`${cleaned}, ${currentYear}`);
+            if (!Number.isNaN(parsed)) return parsed;
+
+            return Date.now() + 7 * 86400000;
+          };
+
+          const now = Date.now();
+          const activeEvents = eventsData.value.items.filter((eventItem) => {
+            const startsAt = startsAtFromDate(eventItem.date);
+            return startsAt >= now;
+          });
+
           setUpcomingHydrated(
-            eventsData.value.items.slice(0, 3).map((eventItem) => {
+            activeEvents.slice(0, 3).map((eventItem) => {
               const parts = getEventDateParts(eventItem.date);
               return {
                 id: eventItem.id,

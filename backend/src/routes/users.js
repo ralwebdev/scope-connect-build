@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, Notification } from "../models/index.js";
+import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, Notification, PublicSubmission } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -461,6 +461,96 @@ usersRouter.post(
   }),
 );
 
+// ── Weekly Mission ────────────────────────────────────────────────────────────
+// Uses ProfileActivity as a zero-schema-change deduplication ledger.
+// The week key format is "YYYY-Www" (ISO week) so it resets automatically.
+
+function isoWeekKey() {
+  const d = new Date();
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+usersRouter.get("/me/weekly-mission-status", asyncHandler(async (req, res) => {
+  const weekKey = isoWeekKey();
+  const alreadyClaimed = await ProfileActivity.exists({
+    user: req.user._id,
+    kind: "weekly_mission_claimed",
+    "meta.weekKey": weekKey,
+  });
+  sendSuccess(res, { claimed: Boolean(alreadyClaimed), week_key: weekKey });
+}));
+
+usersRouter.post("/me/weekly-mission-claim", asyncHandler(async (req, res) => {
+  const weekKey = isoWeekKey();
+
+  // Idempotent — silently return ok if already claimed this week
+  const alreadyClaimed = await ProfileActivity.exists({
+    user: req.user._id,
+    kind: "weekly_mission_claimed",
+    "meta.weekKey": weekKey,
+  });
+  if (alreadyClaimed) {
+    return sendSuccess(res, { already_claimed: true, xp: null });
+  }
+
+  const { amount = 60, mission_title = "Weekly Mission" } = req.body;
+  const safeAmount = Math.min(Math.max(Number(amount) || 60, 1), 500);
+
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+
+  profile.xp = (profile.xp || 0) + safeAmount;
+  await profile.save();
+
+  if (req.user.institution) {
+    await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: safeAmount } });
+  }
+
+  await ProfileActivity.create({
+    user: req.user._id,
+    kind: "weekly_mission_claimed",
+    text: `Completed Weekly Mission: ${mission_title} · +${safeAmount} XP`,
+    meta: { weekKey, amount: safeAmount, mission_title },
+  });
+
+  sendSuccess(res, { already_claimed: false, xp: profile.xp }, "Weekly mission reward claimed");
+}));
+
+// ── Saved Projects ────────────────────────────────────────────────────────────
+
+usersRouter.get("/me/saved-projects", asyncHandler(async (req, res) => {
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+  sendSuccess(res, { saved_projects: profile.savedProjects || [] });
+}));
+
+usersRouter.post("/me/saved-projects", asyncHandler(async (req, res) => {
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+  
+  const { id, action } = req.body;
+  if (!id) throw new AppError(400, "BAD_REQUEST", "Project ID is required");
+  
+  const saved = profile.savedProjects || [];
+  const idx = saved.indexOf(id);
+  
+  if (action === "save" && idx === -1) {
+    saved.push(id);
+  } else if (action === "unsave" && idx !== -1) {
+    saved.splice(idx, 1);
+  }
+  
+  profile.savedProjects = saved;
+  await profile.save();
+  
+  sendSuccess(res, { saved_projects: profile.savedProjects }, `Project ${action}d`);
+}));
+
 usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, res) => {
   if (String(req.user.id) !== String(req.params.id) && req.user.role !== "super_admin") throw forbidden();
   const user = await User.findById(req.params.id);
@@ -640,3 +730,54 @@ adminUsersRouter.delete("/:id", asyncHandler(async (req, res) => {
   
   sendSuccess(res, { message: "User deleted successfully" });
 }));
+
+// ── Admin Feedback & Support Management ──────────────────────────────────────────
+
+adminUsersRouter.get("/feedback", asyncHandler(async (req, res) => {
+  const isAllowed = req.user.role === "scope_admin" || req.user.role === "scope_super_admin" || req.user.role === "super_admin";
+  if (!isAllowed) throw forbidden();
+
+  const submissions = await PublicSubmission.find({
+    kind: { $in: ["feedback", "contact", "support_issue"] }
+  }).sort({ createdAt: -1 });
+
+  const normalizedFeedback = submissions.map(item => {
+    let type = item.type;
+    let message = item.message;
+
+    if (item.kind === "contact") {
+      type = "Contact Inquiry";
+      message = `[Contact Form - From: ${item.name || "Anonymous"} (${item.email || "No Email"})]\n\n${item.message}`;
+    } else if (item.kind === "support_issue") {
+      type = "Bug report";
+      message = `[Support Ticket]\n\n${item.message}`;
+    }
+
+    return {
+      id: item._id.toString(),
+      kind: item.kind,
+      source: item.source,
+      status: item.status,
+      name: item.name,
+      email: item.email,
+      type: type || "General suggestion",
+      message: message || "",
+      rating: item.rating,
+      createdAt: item.createdAt,
+    };
+  });
+
+  sendSuccess(res, { feedback: normalizedFeedback });
+}));
+
+adminUsersRouter.delete("/feedback/:id", asyncHandler(async (req, res) => {
+  const isAllowed = req.user.role === "scope_admin" || req.user.role === "scope_super_admin" || req.user.role === "super_admin";
+  if (!isAllowed) throw forbidden();
+
+  const submission = await PublicSubmission.findOne({ _id: req.params.id, kind: { $in: ["feedback", "contact", "support_issue"] } });
+  if (!submission) throw notFound("Submission not found");
+
+  await PublicSubmission.findByIdAndDelete(req.params.id);
+  sendSuccess(res, null, "Submission deleted successfully");
+}));
+
