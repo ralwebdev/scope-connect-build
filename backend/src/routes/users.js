@@ -597,6 +597,56 @@ usersRouter.post("/me/saved-projects", asyncHandler(async (req, res) => {
   sendSuccess(res, { saved_projects: profile.savedProjects }, `Project ${action}d`);
 }));
 
+usersRouter.post("/me/tick", asyncHandler(async (req, res) => {
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+  const lastActive = profile.lastActiveDate;
+  const lastStr = lastActive ? `${lastActive.getFullYear()}-${lastActive.getMonth() + 1}-${lastActive.getDate()}` : "";
+  
+  if (lastStr === todayStr) {
+    return sendSuccess(res, { streak: profile.streakDays || 0, user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
+  }
+
+  const yesterday = new Date(Date.now() - 86400000);
+  const ystamp = `${yesterday.getFullYear()}-${yesterday.getMonth() + 1}-${yesterday.getDate()}`;
+  
+  profile.streakDays = lastStr === ystamp ? (profile.streakDays || 0) + 1 : 1;
+  profile.lastActiveDate = today;
+  
+  if (profile.streakDays > 1) {
+    await ProfileActivity.create({
+      user: req.user._id,
+      kind: "streak_reward",
+      text: `Day ${profile.streakDays} login streak`,
+    });
+  }
+  await profile.save();
+  sendSuccess(res, { streak: profile.streakDays, user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
+}));
+
+usersRouter.post("/me/xp", asyncHandler(async (req, res) => {
+  const amount = Number(req.body.amount) || 0;
+  const reason = req.body.reason || "Activity reward";
+  if (amount <= 0) return sendSuccess(res, { message: "Invalid amount" });
+
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+
+  profile.xp = (profile.xp || 0) + amount;
+  await profile.save();
+
+  await ProfileActivity.create({
+    user: req.user._id,
+    kind: "activity_reward",
+    text: `${reason} · +${amount} XP`,
+  });
+
+  sendSuccess(res, { xp: profile.xp, user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
+}));
+
 usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, res) => {
   if (String(req.user.id) !== String(req.params.id) && req.user.role !== "super_admin") throw forbidden();
   const user = await User.findById(req.params.id);
