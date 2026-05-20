@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { Notification, Opportunity, OpportunityApplication, User } from "../models/index.js";
+import { Notification, Opportunity, OpportunityApplication, Profile, User } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -9,6 +9,7 @@ import { validate } from "../utils/validate.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { hasPermission } from "../utils/roles.js";
 import { serializeOpportunityApplication } from "../utils/serializers.js";
+import { awardXp } from "../utils/xp-engine.js";
 
 export const opportunitiesRouter = express.Router();
 
@@ -19,6 +20,7 @@ const opportunitySchema = z.object({
   category: z.string().min(1).max(80),
   description: z.string().min(1).max(5000),
   requiredSkills: z.array(z.string().min(1).max(80)).max(20).optional().default([]),
+  min_xp_required: z.number().int().min(0).max(1000000).optional().default(0),
 });
 
 const opportunityApplySchema = z.object({
@@ -40,6 +42,16 @@ function profileTypeFor(category) {
   if (category === "Engineering") return "developer";
   if (category === "Design") return "designer";
   return "general";
+}
+
+function serializeOpportunityForViewer(opportunity, currentXp = 0) {
+  const minXpRequired = opportunity.minXpRequired || 0;
+  return {
+    ...opportunity.toJSON(),
+    min_xp_required: minXpRequired,
+    unlocked: currentXp >= minXpRequired,
+    xp_shortfall: Math.max(0, minXpRequired - currentXp),
+  };
 }
 
 async function migrateLegacyInterestedUsers() {
@@ -78,8 +90,12 @@ opportunitiesRouter.use(authMiddleware);
 
 opportunitiesRouter.get("/", asyncHandler(async (req, res) => {
   await migrateLegacyInterestedUsers();
+  const profile = await Profile.findOne({ user: req.user._id }).select("xp");
+  const currentXp = profile?.xp || 0;
   const items = await Opportunity.find().sort({ createdAt: -1 }).limit(200);
-  sendSuccess(res, { items });
+  sendSuccess(res, {
+    items: items.map((item) => serializeOpportunityForViewer(item, currentXp)),
+  });
 }));
 
 opportunitiesRouter.get("/applications", asyncHandler(async (req, res) => {
@@ -105,7 +121,15 @@ opportunitiesRouter.get("/applications", asyncHandler(async (req, res) => {
 }));
 
 opportunitiesRouter.post("/", requirePermission("manage_projects"), validate(opportunitySchema), asyncHandler(async (req, res) => {
-  const opportunity = await Opportunity.create(req.body);
+  const opportunity = await Opportunity.create({
+    title: req.body.title,
+    by: req.body.by,
+    company: req.body.company,
+    category: req.body.category,
+    description: req.body.description,
+    requiredSkills: req.body.requiredSkills,
+    minXpRequired: req.body.min_xp_required || 0,
+  });
 
   // Notify all student users that a new opportunity is published
   try {
@@ -128,12 +152,22 @@ opportunitiesRouter.post("/", requirePermission("manage_projects"), validate(opp
     console.error("Failed to push opportunity notifications:", err);
   }
 
-  sendSuccess(res, { opportunity }, "Opportunity created", 201);
+  sendSuccess(res, { opportunity: serializeOpportunityForViewer(opportunity, 0) }, "Opportunity created", 201);
 }));
 
 opportunitiesRouter.post("/:id/apply", validate(opportunityApplySchema), asyncHandler(async (req, res) => {
   const opportunity = await Opportunity.findById(req.params.id);
   if (!opportunity) throw notFound("Opportunity not found");
+  const profile = await Profile.findOne({ user: req.user._id }).select("xp");
+  const currentXp = profile?.xp || 0;
+  const minXpRequired = opportunity.minXpRequired || 0;
+  if (currentXp < minXpRequired) {
+    throw new AppError(403, "XP_LOCKED", "You need more XP to unlock this opportunity", {
+      current_xp: currentXp,
+      min_xp_required: minXpRequired,
+      xp_shortfall: minXpRequired - currentXp,
+    });
+  }
 
   const existing = await OpportunityApplication.findOne({
     opportunity: opportunity._id,
@@ -175,10 +209,23 @@ opportunitiesRouter.post("/:id/apply", validate(opportunityApplySchema), asyncHa
     dedupeKey: `opp-app:${application.id}:submitted`,
   }).catch(() => null);
 
+  const xpResult = await awardXp({
+    userId: req.user._id,
+    institutionId: req.user.institution || null,
+    rule: "opportunity_application_submitted",
+    dedupeKey: `opportunity_application:${application.id}`,
+    meta: { opportunity_id: opportunity.id, application_id: application.id },
+    text: `Applied to opportunity: ${opportunity.title} · +20 XP`,
+  });
+
   const hydrated = await OpportunityApplication.findById(application._id)
     .populate("opportunity")
     .populate({ path: "user", select: "name email profile", populate: { path: "profile", populate: { path: "institution" } } });
-  sendSuccess(res, { application: serializeOpportunityApplication(hydrated) }, "Application submitted", 201);
+  sendSuccess(res, {
+    application: serializeOpportunityApplication(hydrated),
+    xp_awarded: xpResult.awarded,
+    current_xp: xpResult.xp,
+  }, "Application submitted", 201);
 }));
 
 opportunitiesRouter.patch("/applications/:id", validate(opportunityApplicationPatchSchema), asyncHandler(async (req, res) => {

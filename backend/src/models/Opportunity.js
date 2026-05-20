@@ -8,6 +8,7 @@ const opportunitySchema = new mongoose.Schema(
     category: { type: String, required: true, maxlength: 80 },
     description: { type: String, required: true, maxlength: 5000 },
     requiredSkills: [{ type: String, trim: true, maxlength: 80 }],
+    minXpRequired: { type: Number, min: 0, max: 1000000, default: 0, index: true },
     interestedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },

@@ -177,6 +177,10 @@
     text-rendering: optimizeLegibility;
     transition: background-color 250ms ease, color 250ms ease;
   }
+
+  input, textarea, [contenteditable="true"] {
+    caret-color: #000000 !important;
+  }
 }
 
 @layer utilities {

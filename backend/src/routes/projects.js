@@ -10,6 +10,7 @@ import { validate } from "../utils/validate.js";
 import { hasPermission } from "../utils/roles.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { serializeProject, serializeApplication } from "../utils/serializers.js";
+import { awardXp } from "../utils/xp-engine.js";
 
 export const projectsRouter = express.Router();
 export const applicationsRouter = express.Router();
@@ -198,7 +199,19 @@ projectsRouter.post("/:id/apply", authMiddleware, requirePermission("apply_to_pr
     link: `/projects/${project.id}`,
     dedupeKey: `app:${application.id}:received`,
   }).catch(() => null);
-  sendSuccess(res, { application: serializeApplication(application) }, "Application submitted", 201);
+  const xpResult = await awardXp({
+    userId: req.user._id,
+    institutionId: req.user.institution || null,
+    rule: "project_application_submitted",
+    dedupeKey: `project_application:${application.id}`,
+    meta: { project_id: project.id, application_id: application.id },
+    text: `Applied to project: ${project.title} · +100 XP`,
+  });
+  sendSuccess(res, {
+    application: serializeApplication(application),
+    xp_awarded: xpResult.awarded,
+    current_xp: xpResult.xp,
+  }, "Application submitted", 201);
 }));
 
 applicationsRouter.use(authMiddleware);

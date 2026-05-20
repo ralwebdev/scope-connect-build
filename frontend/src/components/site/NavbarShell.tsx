@@ -11,7 +11,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Bell, LogOut, Settings as SettingsIcon, Sparkles, User as UserIcon, Menu,
+  Bell, LogOut, Settings as SettingsIcon, User as UserIcon, Menu,
   Sun, Moon, Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -209,10 +209,10 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                   className="flex items-center gap-2 rounded-full py-0.5 transition-transform hover:scale-[1.01]"
                 >
                   <span
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-brand shadow-sm"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm overflow-hidden"
                     style={{ boxShadow: `0 0 10px -2px ${roleTheme.glow}33` }}
                   >
-                    <Sparkles className="h-4 w-4 text-brand-foreground" />
+                    <img src="/favicon.png" alt="Logo" className="h-5 w-5 object-contain" />
                   </span>
                   <div
                     className={cn(

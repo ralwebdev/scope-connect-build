@@ -72,6 +72,9 @@ export type ScopeUser = {
   verification?: { email_verified: boolean; institution_verified: boolean; trust_score: number };
   portfolio_links?: { id: string; key: string; label: string; url: string; category?: string }[];
   department_name?: string | null;
+  disabled_at?: string | null;
+  phone?: string | null;
+  location?: string | null;
 };
 
 export type FeedPost = {
@@ -143,6 +146,8 @@ export type Opportunity = {
   category: "Design" | "Engineering" | "Founder" | "Marketing" | "Pitch";
   description: string;
   requiredSkills: string[];
+  minXpRequired?: number;
+  min_xp_required?: number;
 };
 
 export type Notification = {
@@ -890,6 +895,8 @@ export const opportunities = {
         category: item.category as any,
         description: item.description,
         requiredSkills: (item as any).requiredSkills ?? [],
+        minXpRequired: item.min_xp_required ?? 0,
+        min_xp_required: item.min_xp_required ?? 0,
       }));
       writeNow("scope_opportunities_backend", mapped);
       return [...mapped, ...SEED_OPPS];
@@ -913,7 +920,15 @@ export const opportunities = {
   },
   async create(input: Omit<Opportunity, "id">) {
     try {
-      const { opportunity: backendOpp } = await backendOpportunities.create(input);
+      const { opportunity: backendOpp } = await backendOpportunities.create({
+        title: input.title,
+        by: input.by,
+        company: input.company,
+        category: input.category,
+        description: input.description,
+        requiredSkills: input.requiredSkills,
+        min_xp_required: input.min_xp_required ?? input.minXpRequired ?? 0,
+      });
       const mapped: Opportunity = {
         id: backendOpp.id,
         title: backendOpp.title,
@@ -922,6 +937,8 @@ export const opportunities = {
         category: backendOpp.category as any,
         description: backendOpp.description,
         requiredSkills: (backendOpp as any).requiredSkills ?? [],
+        minXpRequired: backendOpp.min_xp_required ?? 0,
+        min_xp_required: backendOpp.min_xp_required ?? 0,
       };
       const cur = read<Opportunity[]>("scope_opportunities_backend", []);
       write("scope_opportunities_backend", [mapped, ...cur]);

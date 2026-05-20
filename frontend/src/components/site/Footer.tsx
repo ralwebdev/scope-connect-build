@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles, Mail, ShieldCheck, MessageSquarePlus } from "lucide-react";
+import { Mail, ShieldCheck, MessageSquarePlus } from "lucide-react";
 import { useBrand, useFeature } from "@/hooks/use-platform";
 
 export function Footer() {
@@ -21,8 +21,8 @@ export function Footer() {
         <div className="grid gap-10 md:grid-cols-5">
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 font-bold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand">
-                <Sparkles className="h-4 w-4" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white overflow-hidden shadow-sm">
+                <img src="/favicon.png" alt="Logo" className="h-5 w-5 object-contain" />
               </span>
               <span className="text-lg tracking-tight">{brand.name}</span>
             </Link>

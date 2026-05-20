@@ -1,13 +1,14 @@
 import express from "express";
 import { z } from "zod";
 import mongoose from "mongoose";
-import { Event, Profile, ProfileActivity, Institution } from "../models/index.js";
+import { Event, ProfileActivity } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { notFound, forbidden, badRequest } from "../utils/errors.js";
+import { awardXp, revokeXp } from "../utils/xp-engine.js";
 
 export const eventsRouter = express.Router();
 
@@ -96,30 +97,27 @@ eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const isGoing = event.rsvps.some((id) => id.toString() === userId.toString());
 
-  const profile = await Profile.findOne({ user: userId });
-
   if (isGoing) {
     // Cancel RSVP
     event.rsvps = event.rsvps.filter((id) => id.toString() !== userId.toString());
     
-    if (profile) {
-      profile.xp = Math.max(0, (profile.xp || 0) - 30);
-      await profile.save();
+    const xpResult = await revokeXp({
+      userId,
+      institutionId: req.user.institution || null,
+      rule: "event_rsvp",
+      meta: { event_id: event.id },
+      text: `Cancelled RSVP for event: ${event.title} · -30 XP`,
+    }).catch(() => ({ xp: 0 }));
 
-      if (req.user.institution) {
-        await Institution.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: -30 } }).catch(() => null);
-      }
-
-      await ProfileActivity.create({
-        user: userId,
-        kind: "event_rsvp_cancelled",
-        text: `Cancelled RSVP for event: ${event.title}`,
-        meta: { eventId: event.id }
-      }).catch(() => null);
-    }
+    await ProfileActivity.create({
+      user: userId,
+      kind: "event_rsvp_cancelled",
+      text: `Cancelled RSVP for event: ${event.title}`,
+      meta: { eventId: event.id }
+    }).catch(() => null);
 
     await event.save();
-    sendSuccess(res, { going: false, rsvpsCount: event.rsvps.length, xp: profile ? profile.xp : 0 }, "RSVP cancelled");
+    sendSuccess(res, { going: false, rsvpsCount: event.rsvps.length, xp: xpResult.xp || 0 }, "RSVP cancelled");
   } else {
     // RSVP (check seats)
     if (event.rsvps.length >= event.seats) {
@@ -128,25 +126,24 @@ eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
 
     event.rsvps.push(userId);
 
-    if (profile) {
-      profile.xp = (profile.xp || 0) + 30;
-      await profile.save();
+    const xpResult = await awardXp({
+      userId,
+      institutionId: req.user.institution || null,
+      rule: "event_rsvp",
+      dedupeKey: `event_rsvp:${event.id}:${userId}`,
+      meta: { event_id: event.id },
+      text: `Reserved a seat for event: ${event.title} · +30 XP`,
+    }).catch(() => ({ xp: 0 }));
 
-      if (req.user.institution) {
-        await Institution.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: 30 } }).catch(() => null);
-      }
-
-      await ProfileActivity.create({
-        user: userId,
-        kind: "event_rsvp",
-        text: `Reserved a seat for event: ${event.title}`,
-        meta: { eventId: event.id }
-      }).catch(() => null);
-    }
+    await ProfileActivity.create({
+      user: userId,
+      kind: "event_rsvp",
+      text: `Reserved a seat for event: ${event.title}`,
+      meta: { eventId: event.id }
+    }).catch(() => null);
 
     await event.save();
-    sendSuccess(res, { going: true, rsvpsCount: event.rsvps.length, xp: profile ? profile.xp : 0 }, "Seat reserved. You're on the builders list.");
+    sendSuccess(res, { going: true, rsvpsCount: event.rsvps.length, xp: xpResult.xp || 0 }, "Seat reserved. You're on the builders list.");
   }
 }));
-
 

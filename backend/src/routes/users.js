@@ -218,7 +218,8 @@ usersRouter.get("/", asyncHandler(async (req, res) => {
   const institutionId = req.query.institution_id;
   if (!hasPermission(req.user, "manage_users")) {
     const canViewInstitutionMembers = hasPermission(req.user, "manage_members") && institutionId && req.user.institution?.toString() === String(institutionId);
-    if (!canViewInstitutionMembers) throw forbidden();
+    const isScopeAdmin = req.user.role === "scope_admin";
+    if (!canViewInstitutionMembers && !isScopeAdmin) throw forbidden();
   }
   const { limit, cursor, sort } = parsePagination(req.query, ["createdAt"]);
   const filter = { ...cursorFilter(cursor, sort) };
@@ -686,12 +687,70 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
 
-  // Permission Check: Super Admin OR Institutional Admin for their own campus members
+  // Permission Check: Super Admin OR Scope Admin OR Institutional Admin for their own campus members
   const isSuperAdmin = hasPermission(req.user, "manage_users");
+  const isScopeAdmin = req.user.role === "scope_admin";
   const isInstAdmin = (req.user.role === "institutional_admin" || req.user.role === "institution_admin") && 
                      user.institution?.toString() === req.user.institution?.toString();
 
-  if (!isSuperAdmin && !isInstAdmin) throw forbidden();
+  if (!isSuperAdmin && !isScopeAdmin && !isInstAdmin) throw forbidden();
+
+  if (req.body.student_status !== undefined) {
+    const status = req.body.student_status;
+    if (status === "active") {
+      user.studentStatus = "active";
+      user.disabledAt = null;
+      await user.save();
+      await Profile.findOneAndUpdate(
+        { user: user._id },
+        { institutionVerified: true }
+      );
+    } else if (status === "rejected" || status === "deactivated") {
+      user.studentStatus = "rejected";
+      if (status === "deactivated") {
+        user.disabledAt = new Date();
+      }
+      await user.save();
+      await Profile.findOneAndUpdate(
+        { user: user._id },
+        { institutionVerified: false }
+      );
+    } else if (status === "pending_verification") {
+      user.studentStatus = "pending_verification";
+      user.disabledAt = null;
+      await user.save();
+      await Profile.findOneAndUpdate(
+        { user: user._id },
+        { institutionVerified: false }
+      );
+    }
+    
+    // Trigger notification
+    try {
+      if (status === "active") {
+        await Notification.create({
+          user: user._id,
+          kind: "achievement",
+          title: "Account Verified!",
+          body: `An administrator has approved your account. Welcome to Scope Connect!`,
+          link: "/",
+          dedupeKey: `user:${user._id}:verified:${Date.now()}`,
+        }).catch(() => null);
+      } else if (status === "rejected" || status === "deactivated") {
+        await Notification.create({
+          user: user._id,
+          kind: "system",
+          title: "Account Verification Rejected",
+          body: `Your account verification has been rejected or deactivated by an administrator.`,
+          link: "/",
+          dedupeKey: `user:${user._id}:rejected:${Date.now()}`,
+        }).catch(() => null);
+      }
+    } catch (err) {
+      console.error("Failed to push verification status notification:", err);
+    }
+  }
+
   if (req.body.role !== undefined) user.role = req.body.role;
   if (req.body.role_variant !== undefined || req.body.role !== undefined) {
     user.roleVariant = roleVariantFor(req.body.role || user.role, req.body.role_variant);

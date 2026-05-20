@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { roleFromEmail, landingRouteForRole, ROLE_LABELS } from "@/lib/rbac";
 import { backendInstitutions } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => {
+  validateSearch: (search: Record<string, unknown>): { ref?: string } => {
     return {
       ref: (search.ref as string) || undefined,
     };
@@ -148,8 +148,8 @@ function AuthPage() {
         <div className="pointer-events-none absolute -right-10 bottom-10 h-72 w-72 rounded-full bg-cyan/20 blur-3xl animate-pulse-glow" />
         <div className="relative flex h-full flex-col justify-between p-12">
           <Link to="/" className="flex items-center gap-2 font-bold">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand">
-              <Sparkles className="h-4 w-4" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white overflow-hidden shadow-sm">
+              <img src="/favicon.png" alt="Logo" className="h-5 w-5 object-contain" />
             </span>
             <span className="text-lg tracking-tight">Scope Connect</span>
           </Link>
@@ -185,8 +185,8 @@ function AuthPage() {
       <div className="flex items-center justify-center bg-background px-4 py-12 sm:px-8">
         <div className="w-full max-w-md">
           <Link to="/" className="mb-8 flex items-center gap-2 font-bold lg:hidden">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand text-brand-foreground">
-              <Sparkles className="h-4 w-4" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white overflow-hidden shadow-sm">
+              <img src="/favicon.png" alt="Logo" className="h-5 w-5 object-contain" />
             </span>
             <span>Scope Connect</span>
           </Link>

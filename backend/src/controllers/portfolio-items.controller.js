@@ -1,7 +1,8 @@
-import { PortfolioItem, Profile, ProfileActivity } from "../models/index.js";
+import { PortfolioItem, ProfileActivity } from "../models/index.js";
 import { notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { serializePortfolioItem } from "../utils/serializers.js";
+import { awardXp } from "../utils/xp-engine.js";
 
 async function logProfileActivity(userId, kind, text, meta = {}) {
   await ProfileActivity.create({ user: userId, kind, text, meta }).catch(() => null);
@@ -38,11 +39,17 @@ export async function createPortfolioItem(req, res) {
     cover: req.body.cover,
   });
 
-  await Profile.findOneAndUpdate(
-    { user: req.user._id },
-    { $inc: { xp: 30 } },
-    { upsert: true, new: false, setDefaultsOnInsert: true },
-  ).catch(() => null);
+  await awardXp({
+    userId: req.user._id,
+    institutionId: req.user.institution || null,
+    rule: "portfolio_item_created",
+    dedupeKey: `portfolio_item:${item.id}`,
+    meta: {
+      portfolio_item_id: item.id,
+      portfolio_item_type: item.type,
+    },
+    text: `Added portfolio item: ${item.title} · +30 XP`,
+  }).catch(() => null);
   await logProfileActivity(req.user._id, "portfolio_item_created", `Added portfolio item: ${item.title}`, {
     portfolio_item_id: item.id,
     portfolio_item_type: item.type,

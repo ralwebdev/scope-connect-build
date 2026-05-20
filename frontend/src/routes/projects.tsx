@@ -23,7 +23,7 @@ import {
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
 import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, backendUsers, type BackendApplication } from "@/lib/api/endpoints";
-import { xp } from "@/lib/scope-store";
+import { auth } from "@/lib/scope-store";
 import { useRole } from "@/hooks/use-rbac";
 import { useFeature } from "@/hooks/use-platform";
 
@@ -825,11 +825,11 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
   const submit = () => {
     if (submitting) return;
     if (!fit.trim()) { toast.error("Tell us why you're a fit."); return; }
-    if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
-    setSubmitting(true);
-    backendProjects.apply(project.id, fit.trim())
-      .then(({ application }) => {
-        xp.add(100, "Project applied");
+      if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
+      setSubmitting(true);
+      backendProjects.apply(project.id, fit.trim())
+      .then(async ({ application }) => {
+        await auth.refreshCurrentUser().catch(() => null);
         onApplied({
           id: application.id,
           projectId: application.project_id,

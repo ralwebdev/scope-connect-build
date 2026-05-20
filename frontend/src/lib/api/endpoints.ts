@@ -686,6 +686,9 @@ export type BackendOpportunity = {
   category: string;
   description: string;
   requiredSkills: string[];
+  min_xp_required?: number;
+  unlocked?: boolean;
+  xp_shortfall?: number;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -694,7 +697,7 @@ export const backendOpportunities = {
   list() {
     return api<{ items: BackendOpportunity[] }>("/api/v1/opportunities");
   },
-  create(opportunity: Omit<BackendOpportunity, "id">) {
+  create(opportunity: Omit<BackendOpportunity, "id" | "unlocked" | "xp_shortfall">) {
     return api<{ opportunity: BackendOpportunity }>("/api/v1/opportunities", {
       method: "POST",
       body: JSON.stringify(opportunity),
@@ -743,7 +746,7 @@ export const backendOpportunityApplications = {
     resume_file_id?: string | null;
     resume_url?: string | null;
   }) {
-    return api<{ application: BackendOpportunityApplication }>(`/api/v1/opportunities/${id}/apply`, {
+    return api<{ application: BackendOpportunityApplication; xp_awarded?: number; current_xp?: number }>(`/api/v1/opportunities/${id}/apply`, {
       method: "POST",
       body: JSON.stringify(body),
     });

@@ -12,6 +12,7 @@ import { deriveRoleFromEmail } from "../utils/roles.js";
 import { createRefreshToken, hashRefreshToken, signAccessToken } from "../utils/tokens.js";
 import { serializeUser } from "../utils/serializers.js";
 import { env } from "../config/env.js";
+import { awardXp } from "../utils/xp-engine.js";
 
 export const authRouter = express.Router();
 
@@ -101,14 +102,10 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
   });
 
   try {
-    let initialXp = 120;
     let referredByUser = null;
 
     if (req.body.referral_code) {
       referredByUser = await findUserByReferralCode(req.body.referral_code);
-      if (referredByUser && String(referredByUser._id) !== String(user._id)) {
-        initialXp += 50;
-      }
     }
 
     await Profile.create({
@@ -119,40 +116,39 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
       interests: req.body.interests || [],
       availability: "Open to collab",
       avatarColor: "#00D1FF",
-      xp: initialXp,
+      xp: 0,
       level: 1,
       streakDays: 1,
       institutionVerified: false,
     });
 
+    await awardXp({
+      userId: user._id,
+      institutionId: institution?._id ?? null,
+      rule: "signup_bonus",
+      dedupeKey: `signup_bonus:${user._id}`,
+      meta: { source: "signup" },
+      text: "Welcome bonus · +120 XP",
+    });
+
     if (referredByUser && String(referredByUser._id) !== String(user._id)) {
-      // 1. Log activity for the receiver
-      await ProfileActivity.create({
-        user: user._id,
-        kind: "referral_welcome_bonus",
-        text: `Joined via referral · +50 XP`,
-        meta: { referredBy: referredByUser._id, amount: 50 },
-      }).catch(() => null);
+      await awardXp({
+        userId: user._id,
+        institutionId: institution?._id ?? null,
+        rule: "referral_receiver_bonus",
+        dedupeKey: `referral_receiver:${user._id}`,
+        meta: { referredBy: referredByUser._id },
+        text: "Joined via referral · +50 XP",
+      });
 
-      // 2. Award 100 XP to the sender
-      const senderProfile = await Profile.findOne({ user: referredByUser._id });
-      if (senderProfile) {
-        senderProfile.xp = (senderProfile.xp || 0) + 100;
-        await senderProfile.save();
-
-        if (referredByUser.institution) {
-          const { Institution: InstitutionModel } = await import("../models/Institution.js");
-          await InstitutionModel.findByIdAndUpdate(referredByUser.institution, { $inc: { totalStudentXp: 100 } }).catch(() => null);
-        }
-
-        // Log activity for the sender
-        await ProfileActivity.create({
-          user: referredByUser._id,
-          kind: "referral_bonus",
-          text: `Referral accepted · +100 XP`,
-          meta: { referredUser: user._id, amount: 100 },
-        }).catch(() => null);
-      }
+      await awardXp({
+        userId: referredByUser._id,
+        institutionId: referredByUser.institution || null,
+        rule: "referral_sender_bonus",
+        dedupeKey: `referral_sender:${referredByUser._id}:${user._id}`,
+        meta: { referredUser: user._id },
+        text: "Referral accepted · +100 XP",
+      });
     }
   } catch (error) {
     await User.deleteOne({ _id: user._id });

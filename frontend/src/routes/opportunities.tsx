@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AppShell } from "@/components/site/AppShell";
 import { AuthGate } from "@/components/site/AuthGate";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
-import { opportunities, portfolio, type Opportunity } from "@/lib/scope-store";
+import { auth, opportunities, portfolio, type Opportunity } from "@/lib/scope-store";
 import { backendOpportunityApplications, backendUpload, type BackendOpportunityApplication } from "@/lib/api/endpoints";
 import { calculateOpportunityMatch } from "@/lib/skill-matching";
 import { toast } from "sonner";
@@ -46,6 +46,7 @@ function OpportunitiesPage() {
     () => new Map(applications.map((application) => [application.opportunity_id, application])),
     [applications],
   );
+  const currentXp = user?.stats?.xp ?? 0;
 
   return (
     <AppShell>
@@ -63,6 +64,9 @@ function OpportunitiesPage() {
             const isSaved = saved.includes(opportunity.id);
             const application = appliedMap.get(opportunity.id);
             const match = calculateOpportunityMatch(opportunity, user, portfolioItems);
+            const minXpRequired = opportunity.minXpRequired ?? 0;
+            const isLocked = minXpRequired > currentXp;
+            const xpShortfall = Math.max(0, minXpRequired - currentXp);
 
             return (
               <Card key={opportunity.id} className="flex flex-col p-5 hover-lift animate-fade-in">
@@ -70,6 +74,12 @@ function OpportunitiesPage() {
                   <Badge className="bg-gradient-brand text-brand-foreground">{match.score}% match</Badge>
                   <Badge variant="outline">{opportunity.category}</Badge>
                 </div>
+                {minXpRequired > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Badge variant={isLocked ? "secondary" : "outline"}>{minXpRequired} XP unlock</Badge>
+                    {isLocked && <span className="text-xs text-muted-foreground">{xpShortfall} XP to go</span>}
+                  </div>
+                )}
                 <h3 className="mt-4 text-lg font-semibold text-foreground">{opportunity.title}</h3>
                 <p className="mt-2 flex-1 text-sm text-muted-foreground">{opportunity.description}</p>
                 {!!opportunity.requiredSkills.length && (
@@ -85,14 +95,19 @@ function OpportunitiesPage() {
                     Add {match.missingSkills.slice(0, 2).join(", ")} to your profile or portfolio to improve this match.
                   </p>
                 )}
+                {isLocked && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Build more XP before this opportunity unlocks for you.
+                  </p>
+                )}
                 <div className="mt-4 flex gap-2">
                   <Button
                     onClick={() => setSelected(opportunity)}
-                    disabled={Boolean(application)}
+                    disabled={Boolean(application) || isLocked}
                     size="sm"
                     className={`flex-1 ${application ? "bg-success text-primary-foreground" : "bg-gradient-brand text-brand-foreground"}`}
                   >
-                    {application ? (<><Check className="mr-1.5 h-4 w-4" /> {application.status}</>) : "Apply now"}
+                    {application ? (<><Check className="mr-1.5 h-4 w-4" /> {application.status}</>) : isLocked ? `Unlock at ${minXpRequired} XP` : "Apply now"}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => { opportunities.toggleSave(opportunity.id); toast(isSaved ? "Removed from saved" : "Saved for later"); }}>
                     {isSaved ? <BookmarkCheck className="h-4 w-4 text-brand" /> : <Bookmark className="h-4 w-4" />}
@@ -185,7 +200,7 @@ function ApplyOpportunityDialog({
         return;
       }
 
-      const { application } = await backendOpportunityApplications.apply(opportunity.id, {
+      const response = await backendOpportunityApplications.apply(opportunity.id, {
         fit_note: fitNote.trim(),
         portfolio_url: portfolioUrl.trim() || null,
         github_url: githubUrl.trim() || null,
@@ -194,7 +209,8 @@ function ApplyOpportunityDialog({
         resume_file_id: uploadedResumeFileId,
         resume_url: uploadedResumeUrl || null,
       });
-      onApplied(application);
+      await auth.refreshCurrentUser().catch(() => null);
+      onApplied(response.application);
       toast.success("Application submitted.");
       onClose();
     } catch (error) {

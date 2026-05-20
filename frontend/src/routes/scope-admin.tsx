@@ -20,7 +20,7 @@ import { backendAdminUsers, backendEvents, type BackendEvent, backendProjects, t
 import { toast } from "sonner";
 import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
 import { FeedComposer } from "@/components/site/FeedComposer";
-import { opportunities } from "@/lib/scope-store";
+import { opportunities, type ScopeUser } from "@/lib/scope-store";
 import { normalizeSkills } from "@/lib/skill-matching";
 
 export const Route = createFileRoute("/scope-admin")({
@@ -217,6 +217,12 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
   const [instStats, setInstStats] = useState({ dau: 0, wau: 0, memberCount: 0, engagementCount: 0, activityRatePct: 0, topEvents: [] as Array<{ event: string; count: number }> });
   const [instLoading, setInstLoading] = useState(false);
 
+  // ── Members roster data ──
+  const [instMembers, setInstMembers] = useState<ScopeUser[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersFilter, setMembersFilter] = useState<"all" | "pending" | "active" | "deactivated">("all");
+  const [membersSearch, setMembersSearch] = useState("");
+
   const liveInstitutions = useMemo(
     () => institutions.filter((i) => ["Live Chapter", "Launch Pending", "MoU Signed"].includes(i.stage)),
     [institutions],
@@ -272,6 +278,74 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
       setInstLoading(false);
     });
   }, [selectedInstId]);
+
+  // Fetch members roster
+  const fetchMembers = async () => {
+    if (!selectedInstId) return;
+    setMembersLoading(true);
+    try {
+      const res = await backendUsers.list({ institutionId: selectedInstId });
+      setInstMembers(res.items);
+    } catch (error) {
+      console.error("Failed to load members:", error);
+      toast.error("Failed to load institution members roster.");
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedInstId) {
+      void fetchMembers();
+    } else {
+      setInstMembers([]);
+    }
+  }, [selectedInstId]);
+
+  const handleUpdateStatus = async (userId: string, nextStatus: "active" | "rejected" | "pending_verification") => {
+    try {
+      const { user: updatedUser } = await backendUsers.adminUpdate(userId, { student_status: nextStatus });
+      setInstMembers((prev) => prev.map((u) => u.id === userId ? updatedUser : u));
+      toast.success(`User status updated successfully.`);
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update member status.");
+    }
+  };
+
+  const handleUpdateRole = async (userId: string, selectValue: string) => {
+    const [role, role_variant] = selectValue.split(":");
+    try {
+      const { user: updatedUser } = await backendUsers.adminUpdate(userId, { role, role_variant });
+      setInstMembers((prev) => prev.map((u) => u.id === userId ? updatedUser : u));
+      toast.success(`User role updated successfully.`);
+    } catch (error) {
+      console.error("Failed to update role:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update member role.");
+    }
+  };
+
+  const filteredMembers = useMemo(() => {
+    return instMembers.filter((m) => {
+      // 1. Status Filter
+      let matchesFilter = true;
+      if (membersFilter === "pending") matchesFilter = m.student_status === "pending_verification" && !m.disabled_at;
+      else if (membersFilter === "active") matchesFilter = m.student_status === "active" && !m.disabled_at;
+      else if (membersFilter === "deactivated") matchesFilter = !!m.disabled_at;
+
+      if (!matchesFilter) return false;
+
+      // 2. Search Filter
+      if (membersSearch.trim()) {
+        const query = membersSearch.toLowerCase();
+        const nameMatches = m.name?.toLowerCase().includes(query) ?? false;
+        const emailMatches = m.email?.toLowerCase().includes(query) ?? false;
+        return nameMatches || emailMatches;
+      }
+
+      return true;
+    });
+  }, [instMembers, membersFilter, membersSearch]);
 
   const globalTopCount = globalTopEvents[0]?.count ?? 0;
 
@@ -479,6 +553,249 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                   ))}
                 </div>
               </Card>
+
+              {/* Institution Members Roster */}
+              <Card className="p-5 border-brand/10 bg-card/40 mt-6 shadow-xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-brand/5 via-transparent to-emerald-500/5 pointer-events-none opacity-50" />
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4 mb-4 relative z-10">
+                  <div>
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <Users className="h-5 w-5 text-brand" /> Campus Members Roster
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Manage roles, approve credentials, and verify student location or contact details.
+                    </p>
+                  </div>
+                  
+                  {/* Tabs/Filters switcher */}
+                  <div className="flex flex-wrap gap-1.5 p-1 bg-secondary/30 rounded-lg border border-border/40 shrink-0">
+                    {(["all", "pending", "active", "deactivated"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setMembersFilter(tab)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${
+                          membersFilter === tab
+                            ? "bg-brand text-brand-foreground shadow-md scale-[1.02]"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/20"
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Search Bar & Stats */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4 relative z-10">
+                  <div className="relative flex-1 max-w-md">
+                    <input
+                      type="text"
+                      placeholder="Search members by name or email..."
+                      value={membersSearch}
+                      onChange={(e) => setMembersSearch(e.target.value)}
+                      className="w-full h-9 pl-3 pr-8 rounded-md border border-input bg-background/50 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand/50 transition-all"
+                    />
+                    {membersSearch && (
+                      <button
+                        onClick={() => setMembersSearch("")}
+                        className="absolute right-2.5 top-2.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-medium bg-secondary/15 px-3 py-1.5 rounded-full border border-border/20">
+                    Showing <span className="text-foreground font-bold">{filteredMembers.length}</span> of{" "}
+                    <span className="text-foreground font-bold">{instMembers.length}</span> members
+                  </div>
+                </div>
+
+                {/* Table Layout */}
+                <div className="w-full overflow-x-auto rounded-lg border border-border/40 bg-background/10 relative z-10">
+                  {membersLoading ? (
+                    <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+                      <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading campus roster…
+                    </div>
+                  ) : filteredMembers.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-muted-foreground italic">
+                      No members found matching the active criteria.
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-border/40 text-left text-xs">
+                      <thead className="bg-secondary/20 uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">
+                        <tr>
+                          <th className="px-4 py-3">Member Info</th>
+                          <th className="px-4 py-3">Role</th>
+                          <th className="px-4 py-3">Phone</th>
+                          <th className="px-4 py-3">Location</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/20 font-medium">
+                        {filteredMembers.map((m) => {
+                          const isInstAdmin = m.role === "institution_admin" || m.role_variant === "institutional_admin";
+                          const isDeactivated = !!m.disabled_at;
+                          const currentRoleKey = `${m.role}:${m.role_variant ?? m.role}`;
+                          
+                          return (
+                            <tr
+                              key={m.id}
+                              className={`transition-colors hover:bg-secondary/10 ${
+                                isDeactivated ? "opacity-60 bg-red-950/5" : ""
+                              }`}
+                            >
+                              {/* Member Info */}
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="h-8 w-8 rounded-full flex items-center justify-center font-bold text-white shadow-inner uppercase shrink-0"
+                                    style={{ backgroundColor: m.avatarColor || "#00D1FF" }}
+                                  >
+                                    {m.name ? m.name.charAt(0) : "?"}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                                      {m.name || "Unnamed Student"}
+                                      {m.verification?.institution_verified && (
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 fill-emerald-500/20" />
+                                      )}
+                                    </div>
+                                    <div className="text-muted-foreground text-[11px] font-normal flex items-center gap-1 mt-0.5">
+                                      <Mail className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                      {m.email}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Role Selector */}
+                              <td className="px-4 py-3">
+                                {isInstAdmin ? (
+                                  <Badge className="bg-amber-500/10 text-amber-500 border-none font-bold">
+                                    Institutional Admin
+                                  </Badge>
+                                ) : isDeactivated ? (
+                                  <span className="text-muted-foreground italic font-normal capitalize">
+                                    {(m.role_variant ?? m.role ?? "Student").replace(/_/g, " ")}
+                                  </span>
+                                ) : (
+                                  <select
+                                    value={currentRoleKey}
+                                    onChange={(e) => handleUpdateRole(m.id, e.target.value)}
+                                    className="h-8 rounded border border-input bg-background/50 px-2 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand/40 font-semibold cursor-pointer"
+                                  >
+                                    <option value="student:student">Student</option>
+                                    <option value="student:campus_leader">Campus Leader</option>
+                                    <option value="faculty:faculty_coordinator">Faculty Coordinator</option>
+                                  </select>
+                                )}
+                              </td>
+
+                              {/* Phone */}
+                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                {m.phone ? (
+                                  <span className="flex items-center gap-1 font-normal">
+                                    <Phone className="h-3 w-3 text-brand" /> {m.phone}
+                                  </span>
+                                ) : (
+                                  <span className="italic text-muted-foreground/50 font-normal">—</span>
+                                )}
+                              </td>
+
+                              {/* Location */}
+                              <td className="px-4 py-3 text-muted-foreground max-w-[150px] truncate">
+                                {m.location ? (
+                                  <span className="flex items-center gap-1 font-normal" title={m.location}>
+                                    <MapPin className="h-3 w-3 text-emerald-500" /> {m.location}
+                                  </span>
+                                ) : (
+                                  <span className="italic text-muted-foreground/50 font-normal">—</span>
+                                )}
+                              </td>
+
+                              {/* Status Badges */}
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {isDeactivated ? (
+                                  <Badge variant="destructive" className="font-bold">
+                                    Deactivated
+                                  </Badge>
+                                ) : m.student_status === "pending_verification" ? (
+                                  <Badge className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-none font-bold">
+                                    Pending Approval
+                                  </Badge>
+                                ) : m.student_status === "active" ? (
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-bold">
+                                    Active / Verified
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-red-500/10 text-red-600 dark:text-red-400 border-none font-bold">
+                                    Rejected
+                                  </Badge>
+                                )}
+                              </td>
+
+                              {/* Actions */}
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                {isInstAdmin ? (
+                                  <span className="text-muted-foreground text-[10px] italic">Locked</span>
+                                ) : (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    {/* Verification controls */}
+                                    {!isDeactivated && m.student_status === "pending_verification" && (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 px-2 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 text-[10px] font-bold"
+                                          onClick={() => handleUpdateStatus(m.id, "active")}
+                                        >
+                                          Approve
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 px-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-bold"
+                                          onClick={() => handleUpdateStatus(m.id, "rejected")}
+                                        >
+                                          Reject
+                                        </Button>
+                                      </>
+                                    )}
+
+                                    {/* Deactivation controls */}
+                                    {isDeactivated ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-[10px] font-bold border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                                        onClick={() => handleUpdateStatus(m.id, "active")}
+                                      >
+                                        Reactivate
+                                      </Button>
+                                    ) : (
+                                      m.student_status !== "pending_verification" && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 px-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-bold"
+                                          onClick={() => handleUpdateStatus(m.id, "rejected")}
+                                        >
+                                          Deactivate
+                                        </Button>
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </Card>
             </>
           )}
         </div>
@@ -501,6 +818,7 @@ function ScopeOpportunitiesManager() {
     category: "Design",
     requiredSkills: "",
     description: "",
+    minXpRequired: "0",
   });
 
   const fetchOpps = async () => {
@@ -540,6 +858,7 @@ function ScopeOpportunitiesManager() {
         category: form.category as any,
         requiredSkills: normalizeSkills(form.requiredSkills.split(",")),
         description: form.description,
+        min_xp_required: Math.max(0, Number(form.minXpRequired) || 0),
       });
       toast.success("Opportunity posted successfully!");
       setForm({
@@ -549,6 +868,7 @@ function ScopeOpportunitiesManager() {
         category: "Design",
         requiredSkills: "",
         description: "",
+        minXpRequired: "0",
       });
       await fetchOpps();
     } catch (error) {
@@ -599,6 +919,10 @@ function ScopeOpportunitiesManager() {
             </div>
           </div>
           <div>
+            <Label className="text-xs font-semibold">XP Needed To Unlock</Label>
+            <Input value={form.minXpRequired} onChange={(e) => setForm({ ...form, minXpRequired: e.target.value })} placeholder="0" className="mt-1" inputMode="numeric" />
+          </div>
+          <div>
             <Label className="text-xs font-semibold">Detailed Description</Label>
             <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the role requirements, duration, equity/stipend terms..." rows={4} className="mt-1" />
           </div>
@@ -630,6 +954,9 @@ function ScopeOpportunitiesManager() {
                   </Badge>
                   <Badge variant="secondary" className="text-[10px]">
                     {applicationsForOpportunity(item.id).length} applicant{applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    Unlock: {item.minXpRequired ?? 0} XP
                   </Badge>
                 </div>
                 <span className="text-[10px] text-muted-foreground">

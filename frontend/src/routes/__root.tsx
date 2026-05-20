@@ -50,6 +50,11 @@ export const Route = createRootRoute({
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "icon",
+        href: "/scopeConnect.png",
+        type: "image/x-icon",
+      },
     ],
   }),
   shellComponent: RootShell,
