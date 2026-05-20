@@ -54,6 +54,7 @@ export type PermissionKey =
   | "import_config"
   | "manage_users"
   | "manage_support"
+  | "verify_students"
   | "full_system_access";
 
 export const ALL_ROLES: RoleId[] = [
@@ -79,7 +80,7 @@ export const ALL_PERMISSIONS: PermissionKey[] = [
   "manage_projects","manage_events","manage_feed","manage_content","manage_partnerships",
   "view_finance","view_analytics","view_national_analytics","manage_scope_admins","manage_roles",
   "manage_feature_flags","manage_moderation","export_data","export_config","import_config",
-  "manage_users","manage_support","full_system_access",
+  "manage_users","manage_support","verify_students","full_system_access",
 ];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, PermissionKey[] | ["*"]> = {
@@ -88,6 +89,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, PermissionKey[] | ["*"]> =
   scope_admin: [
     "view_dashboard","view_admin","manage_partnerships","manage_institution",
     "manage_events","view_institution_analytics","export_data","manage_campuses","manage_projects",
+    "verify_students",
   ],
   institutional_admin: [
     "view_dashboard","manage_institution","manage_members","view_institution_analytics",

@@ -75,6 +75,8 @@ export type ScopeUser = {
   disabled_at?: string | null;
   phone?: string | null;
   location?: string | null;
+  opportunitiesVerified?: boolean;
+  opportunitiesVerificationStatus?: "none" | "pending" | "verified" | "rejected";
 };
 
 export type FeedPost = {
@@ -306,6 +308,8 @@ function normalizeApiUser(user: ScopeUser): ScopeUser {
     portfolioPdfUrl: user.portfolioPdfUrl ?? links.portfolio_pdf_url ?? undefined,
     instagramUrl: user.instagramUrl ?? links.instagram_url ?? undefined,
     primaryDomain: user.primaryDomain ?? user.primary_domain ?? undefined,
+    opportunitiesVerified: user.opportunitiesVerified,
+    opportunitiesVerificationStatus: user.opportunitiesVerificationStatus ?? "none",
     portfolioLinks,
   };
 

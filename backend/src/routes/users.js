@@ -300,6 +300,51 @@ usersRouter.get("/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, { user: await serializeUser(user, { includePrivate }) });
 }));
 
+usersRouter.get("/me/feedback", asyncHandler(async (req, res) => {
+  const submissions = await PublicSubmission.find({
+    user: req.user._id,
+    kind: { $in: ["feedback", "contact", "support_issue"] }
+  }).sort({ createdAt: -1 });
+
+  sendSuccess(res, { feedback: submissions });
+}));
+
+usersRouter.post("/me/opportunity-verification", asyncHandler(async (req, res) => {
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+
+  if (profile.opportunitiesVerificationStatus === "pending") {
+    throw new AppError(400, "ALREADY_PENDING", "Verification request is already pending review.");
+  }
+
+  // Gather links for the admin to review
+  const links = {
+    website: profile.website,
+    github: profile.githubUrl,
+    linkedin: profile.linkedinUrl,
+    portfolio: profile.portfolioWebsite,
+    resume: profile.resumeUrl,
+    portfolioPdf: profile.portfolioPdfUrl,
+    portfolioLinks: profile.portfolioLinks || {},
+  };
+
+  const submission = await PublicSubmission.create({
+    kind: "opportunity_verification",
+    source: "profile_verification_tab",
+    user: req.user._id,
+    institution: req.user.institution || null,
+    role: req.user.role,
+    name: req.user.name,
+    email: req.user.email,
+    message: `Opportunity Verification Request from ${req.user.name}. Portfolio Links: ${JSON.stringify(links, null, 2)}`,
+  });
+
+  profile.opportunitiesVerificationStatus = "pending";
+  await profile.save();
+
+  sendSuccess(res, { submission_id: submission.id }, "Verification request submitted successfully");
+}));
+
 usersRouter.get("/me/rank", asyncHandler(async (req, res) => {
   const profile = await Profile.findOne({ user: req.user._id });
   if (!profile) throw notFound("Profile not found");
@@ -797,8 +842,11 @@ adminUsersRouter.get("/feedback", asyncHandler(async (req, res) => {
   if (!isAllowed) throw forbidden();
 
   const submissions = await PublicSubmission.find({
-    kind: { $in: ["feedback", "contact", "support_issue"] }
-  }).sort({ createdAt: -1 });
+    kind: { $in: ["feedback", "contact", "support_issue", "opportunity_verification"] }
+  })
+    .populate("user", "name email role")
+    .populate("institution", "name slug")
+    .sort({ createdAt: -1 });
 
   const normalizedFeedback = submissions.map(item => {
     let type = item.type;
@@ -810,6 +858,9 @@ adminUsersRouter.get("/feedback", asyncHandler(async (req, res) => {
     } else if (item.kind === "support_issue") {
       type = "Bug report";
       message = `[Support Ticket]\n\n${item.message}`;
+    } else if (item.kind === "opportunity_verification") {
+      type = "Opportunity Verification";
+      message = `[Verification Request]\n\n${item.message}`;
     }
 
     return {
@@ -823,17 +874,66 @@ adminUsersRouter.get("/feedback", asyncHandler(async (req, res) => {
       message: message || "",
       rating: item.rating,
       createdAt: item.createdAt,
+      user: item.user,
+      institution: item.institution,
+      role: item.role,
     };
   });
 
   sendSuccess(res, { feedback: normalizedFeedback });
 }));
 
+adminUsersRouter.patch("/feedback/:id", asyncHandler(async (req, res) => {
+  const isAllowed = req.user.role === "scope_admin" || req.user.role === "scope_super_admin" || req.user.role === "super_admin";
+  if (!isAllowed) throw forbidden();
+
+  const { status } = req.body;
+  if (!["new", "reviewed", "closed", "verified", "rejected"].includes(status)) {
+    throw new AppError(400, "INVALID_STATUS", "Invalid status value");
+  }
+
+  const submission = await PublicSubmission.findOneAndUpdate(
+    { _id: req.params.id, kind: { $in: ["feedback", "contact", "support_issue", "opportunity_verification"] } },
+    { status },
+    { new: true }
+  );
+
+  if (!submission) throw notFound("Submission not found");
+
+  // If it's an opportunity verification, update the user's profile
+  if (submission.kind === "opportunity_verification" && submission.user) {
+    const profileStatus = status === "verified" ? "verified" : status === "rejected" ? "rejected" : "pending";
+    await Profile.findOneAndUpdate(
+      { user: submission.user },
+      { 
+        opportunitiesVerificationStatus: profileStatus,
+        opportunitiesVerified: status === "verified"
+      }
+    );
+
+    // Notify user
+    if (status === "verified" || status === "rejected") {
+      await Notification.create({
+        user: submission.user,
+        kind: status === "verified" ? "achievement" : "system",
+        title: status === "verified" ? "Opportunities Unlocked!" : "Opportunity Verification Update",
+        body: status === "verified" 
+          ? "Your portfolio has been verified. You can now unlock opportunities with XP!" 
+          : "Your opportunity verification request was not approved. Please update your portfolio and try again.",
+        link: "/opportunities",
+        dedupeKey: `opp_verify:${submission.user}:${status}:${Date.now()}`
+      }).catch(() => null);
+    }
+  }
+
+  sendSuccess(res, { submission }, "Status updated successfully");
+}));
+
 adminUsersRouter.delete("/feedback/:id", asyncHandler(async (req, res) => {
   const isAllowed = req.user.role === "scope_admin" || req.user.role === "scope_super_admin" || req.user.role === "super_admin";
   if (!isAllowed) throw forbidden();
 
-  const submission = await PublicSubmission.findOne({ _id: req.params.id, kind: { $in: ["feedback", "contact", "support_issue"] } });
+  const submission = await PublicSubmission.findOne({ _id: req.params.id, kind: { $in: ["feedback", "contact", "support_issue", "opportunity_verification"] } });
   if (!submission) throw notFound("Submission not found");
 
   await PublicSubmission.findByIdAndDelete(req.params.id);

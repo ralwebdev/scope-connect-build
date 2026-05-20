@@ -52,10 +52,16 @@ export async function serializeUser(user, options = {}) {
       level: profile?.level || 1,
       streak_days: profile?.streakDays || 0,
     },
+    opportunitiesVerified: profile?.opportunitiesVerified || false,
+    opportunitiesVerificationStatus: profile?.opportunitiesVerificationStatus || "none",
+    opportunities_verified: profile?.opportunitiesVerified || false,
+    opportunities_verification_status: profile?.opportunitiesVerificationStatus || "none",
     verification: {
       email_verified: Boolean(profile?.emailVerifiedAt),
       institution_verified: Boolean(profile?.institutionVerified),
       trust_score: profile?.trustScore || 0,
+      opportunities_verified: profile?.opportunitiesVerified || false,
+      opportunities_verification_status: profile?.opportunitiesVerificationStatus || "none",
     },
   };
 
@@ -191,6 +197,21 @@ export function serializeNotification(notification) {
     read: Boolean(notification.readAt),
     read_at: notification.readAt,
     created_at: notification.createdAt,
+  };
+}
+
+export function serializeCommunication(comm) {
+  return {
+    id: idOf(comm._id),
+    title: comm.title,
+    body: comm.body,
+    channel: comm.channel || "broadcast",
+    sender_id: idOf(comm.sender?._id || comm.sender),
+    sender_name: comm.sender?.name || null,
+    institution_id: idOf(comm.institution?._id || comm.institution),
+    delivered_count: comm.deliveredCount || 0,
+    created_at: comm.createdAt,
+    updated_at: comm.updatedAt,
   };
 }
 

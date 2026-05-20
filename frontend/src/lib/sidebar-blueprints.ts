@@ -11,7 +11,7 @@
 
 import {
   LayoutDashboard, FolderKanban, Newspaper, Calendar, Award, User,
-  Building2, Users, BarChart3, Brain, Shield, Settings, Megaphone,
+  Building2, Users, BarChart3, GitGraph, Brain, Shield, Settings, Megaphone,
   Sparkles, IndianRupee, ShieldCheck, Wrench, Target, MapPin, Handshake,
   GraduationCap, ClipboardList, TrendingUp, LifeBuoy, Briefcase, FileText,
   Network, Lock, Trophy, Rocket, Compass, MessageSquare, Layers,
@@ -198,8 +198,15 @@ const SCOPE_ADMIN_BLUEPRINT: SidebarBlueprint = {
       id: "intel",
       label: "Intel",
       items: [
-        { to: "/scope-admin?tab=performance", label: "Analytics", permission: "view_institution_analytics", icon: BarChart3 },
+        { to: "/scope-admin?tab=performance", label: "Performance", permission: "view_institution_analytics", icon: GitGraph },
       ],
+    },
+    {
+      id: "verification",
+      label: "Verification",
+      items: [
+        { to: "/scope-admin?tab=verification", label: "Student Verification", permission: "manage_partnerships", icon: BadgeCheck },
+      ]
     },
     {
       id: "feedback_proposals",

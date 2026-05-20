@@ -1,6 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
-import { AnalyticsEvent, User } from "../models/index.js";
+import { AnalyticsEvent, User, Institution, Project, Application } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { forbidden, notFound } from "../utils/errors.js";
@@ -27,27 +27,56 @@ analyticsRouter.use(authMiddleware);
 
 analyticsRouter.get("/dau", asyncHandler(async (req, res) => {
   requireAnalytics(req);
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const series = await AnalyticsEvent.aggregate([
-    { $match: { event: "session_start" } },
+    { $match: { event: "session_start", occurredAt: { $gte: since } } },
     { $group: { _id: { date: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } }, user: "$user" } } },
     { $group: { _id: "$_id.date", value: { $sum: 1 } } },
     { $sort: { _id: 1 } },
     { $project: { _id: 0, date: "$_id", value: 1 } },
   ]);
-  const totalUnique = new Set(series.map((item) => item.date)).size;
-  sendSuccess(res, { series, total_unique: totalUnique });
+
+  // Fill in days with zero for a continuous 30-day series
+  const filled = [];
+  for (let d = 0; d < 30; d++) {
+    const date = new Date(since.getTime() + d * 24 * 60 * 60 * 1000);
+    const dateStr = date.toISOString().slice(0, 10);
+    const found = series.find((s) => s.date === dateStr);
+    filled.push({ date: dateStr, value: found ? found.value : 0 });
+  }
+
+  sendSuccess(res, { series: filled, total_unique: filled.reduce((sum, item) => sum + item.value, 0) });
 }));
 
 analyticsRouter.get("/wau", asyncHandler(async (req, res) => {
   requireAnalytics(req);
+  const since = new Date(Date.now() - 12 * 7 * 24 * 60 * 60 * 1000);
   const series = await AnalyticsEvent.aggregate([
-    { $match: { event: "session_start" } },
+    { $match: { event: "session_start", occurredAt: { $gte: since } } },
     { $group: { _id: { week: { $dateToString: { format: "%G-W%V", date: "$occurredAt" } }, user: "$user" } } },
     { $group: { _id: "$_id.week", value: { $sum: 1 } } },
     { $sort: { _id: 1 } },
     { $project: { _id: 0, date: "$_id", value: 1 } },
   ]);
-  sendSuccess(res, { series, total_unique: series.reduce((sum, item) => sum + item.value, 0) });
+
+  // Fill in weeks with zero for a continuous 12-week series
+  const filled = [];
+  for (let w = 0; w < 12; w++) {
+    const d = new Date(since.getTime() + w * 7 * 24 * 60 * 60 * 1000);
+    // Get ISO week string (simplified for filling)
+    // Note: This matches the format %G-W%V used in aggregate
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const day = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() + 4 - day);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    const weekStr = `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+    
+    const found = series.find((s) => s.date === weekStr);
+    filled.push({ date: weekStr, value: found ? found.value : 0 });
+  }
+
+  sendSuccess(res, { series: filled, total_unique: filled.reduce((sum, item) => sum + item.value, 0) });
 }));
 
 analyticsRouter.get("/engagement", asyncHandler(async (req, res) => {
@@ -90,6 +119,66 @@ analyticsRouter.get("/engagement", asyncHandler(async (req, res) => {
     student_faculty_count: studentFacultyCount,
     activity_rate_pct,
     top_events: topEvents,
+  });
+}));
+
+analyticsRouter.get("/global-summary", asyncHandler(async (req, res) => {
+  requireAnalytics(req);
+
+  const now = new Date();
+  
+  const [projectStats, applicationCount, growthTrend, topInstitutions] = await Promise.all([
+    // 1. Project Stats
+    Project.aggregate([
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]).then(rows => {
+      const stats = { total: 0, open: 0, in_progress: 0, completed: 0 };
+      rows.forEach(r => {
+        stats.total += r.count;
+        if (r._id === "open") stats.open = r.count;
+        if (r._id === "in_progress") stats.in_progress = r.count;
+        if (r._id === "completed") stats.completed = r.count;
+      });
+      return stats;
+    }),
+    // 2. Total Applications
+    Application.countDocuments(),
+    // 3. Global Growth Trend (last 6 months)
+    (async () => {
+      const trend = [];
+      for (let i = 0; i < 6; i++) {
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+        const count = await User.countDocuments({ 
+          role: "student",
+          createdAt: { $lte: monthEnd } 
+        });
+        trend.unshift({
+          date: new Date(now.getFullYear(), now.getMonth() - i, 1).toLocaleString('default', { month: 'short' }),
+          value: count
+        });
+      }
+      return trend;
+    })(),
+    // 4. Top Institutions by XP
+    Institution.find({ totalStudentXp: { $gt: 0 } })
+      .sort({ totalStudentXp: -1 })
+      .limit(5)
+      .select("name totalStudentXp logoUrl slug")
+      .lean()
+      .then(rows => rows.map(r => ({
+        id: r._id,
+        name: r.name,
+        xp: r.totalStudentXp || 0,
+        logo: r.logoUrl || "🏫",
+        slug: r.slug
+      }))),
+  ]);
+
+  sendSuccess(res, {
+    projects: projectStats,
+    applications: applicationCount,
+    growth_trend: growthTrend,
+    top_institutions: topInstitutions
   });
 }));
 

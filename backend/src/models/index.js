@@ -21,3 +21,5 @@ export { Opportunity } from "./Opportunity.js";
 export { OpportunityApplication } from "./OpportunityApplication.js";
 export { PublicSubmission } from "./PublicSubmission.js";
 export { Proposal } from "./Proposal.js";
+export { Communication } from "./Communication.js";
+

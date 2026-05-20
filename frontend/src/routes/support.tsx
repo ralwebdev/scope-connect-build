@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { LifeBuoy, Mail, AlertTriangle, ChevronDown, Search, X } from "lucide-react";
+import { LifeBuoy, Mail, AlertTriangle, ChevronDown, Search, X, History, Clock, CheckCircle, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { backendPublic } from "@/lib/api/endpoints";
+import { backendPublic, backendUsers } from "@/lib/api/endpoints";
+import { auth, subscribe } from "@/lib/scope-store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/support")({
@@ -77,6 +78,9 @@ const RECENT_KEY = "scope_faq_recent_v1";
 const LAST_CAT_KEY = "scope_faq_last_cat_v1";
 
 function SupportPage() {
+  const [user, setUser] = useState(() => auth.getUser());
+  const [myTickets, setMyTickets] = useState<any[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
   const [query, setQuery] = useState("");
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [activeCat, setActiveCat] = useState<Category>(CATEGORIES[0]);
@@ -87,6 +91,31 @@ function SupportPage() {
   const [issue, setIssue] = useState("");
   const [sendingContact, setSendingContact] = useState(false);
   const [sendingIssue, setSendingIssue] = useState(false);
+
+  useEffect(() => {
+    return subscribe(() => setUser(auth.getUser()));
+  }, []);
+
+  const loadMyTickets = async () => {
+    if (!auth.isLoggedIn()) return;
+    setLoadingTickets(true);
+    try {
+      const res = await backendUsers.listMyFeedback();
+      setMyTickets(res.feedback || []);
+    } catch (err) {
+      console.warn("Failed to load your tickets", err);
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setEmail(user.email);
+      loadMyTickets();
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     try {
@@ -157,9 +186,12 @@ function SupportPage() {
         message: message.trim(),
       });
       toast.success("Got it. The Scope team replies within 24 hours.");
-      setName("");
-      setEmail("");
+      if (!user) {
+        setName("");
+        setEmail("");
+      }
       setMessage("");
+      loadMyTickets();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not send your message.";
       toast.error(message);
@@ -183,6 +215,7 @@ function SupportPage() {
       });
       toast.success("Issue logged. Thanks for helping us improve.");
       setIssue("");
+      loadMyTickets();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not log the issue.";
       toast.error(message);
@@ -240,6 +273,50 @@ function SupportPage() {
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+        {user && (myTickets.length > 0 || loadingTickets) && (
+          <div className="mb-12">
+            <div className="flex items-center gap-2 mb-4">
+              <History className="h-5 w-5 text-brand" />
+              <h2 className="text-xl font-bold text-foreground">My Support Tickets</h2>
+            </div>
+            
+            {loadingTickets && myTickets.length === 0 ? (
+              <div className="flex items-center justify-center py-12 bg-secondary/10 rounded-xl border border-dashed border-border">
+                <Loader2 className="h-6 w-6 text-brand animate-spin mr-2" />
+                <span className="text-sm text-muted-foreground">Loading your ticket history...</span>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {myTickets.map((t) => (
+                  <Card key={t.id} className="p-4 border-border/60 bg-secondary/5 hover:border-brand/30 transition-colors">
+                    <div className="flex justify-between items-start mb-2">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                        {t.kind.replace("_", " ")}
+                      </Badge>
+                      <Badge className={`text-[9px] uppercase ${
+                        t.status === "new" ? "bg-brand/10 text-brand" :
+                        t.status === "reviewed" ? "bg-amber-500/10 text-amber-500" :
+                        "bg-secondary text-muted-foreground"
+                      }`}>
+                        {t.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-foreground/80 line-clamp-3 mb-3 h-[60px]">"{t.message}"</p>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+                      <span>{new Date(t.createdAt).toLocaleDateString()}</span>
+                      {t.status === "closed" ? (
+                        <span className="flex items-center gap-1 text-emerald-500"><CheckCircle className="h-3 w-3" /> Resolved</span>
+                      ) : (
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> In progress</span>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {!isSearching && (
           <div className="mb-6 flex flex-wrap gap-2">
             {CATEGORIES.map((category) => {

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Save, Globe, Github, Twitter, Linkedin, FileText, Instagram, Plus, X, Sparkles,
   Trophy, Users, Building2, BarChart3, Handshake, MapPin, Shield, Activity, Trash2, ExternalLink,
-  ClipboardCheck, Briefcase, FileBarChart, Megaphone, ArrowRight, Calendar,
+  ClipboardCheck, Briefcase, FileBarChart, Megaphone, ArrowRight, Calendar, ShieldCheck, Lock, Clock, CheckCircle2, AlertTriangle, Check
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -822,27 +822,332 @@ function RoleLinkGrid({ items, accent }: { items: { title: string; desc: string;
 }
 
 function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) {
-  const verified = (user as ScopeUser & { verificationStatus?: string }).verificationStatus === "verified";
+  const [submitting, setSubmitting] = useState(false);
+  const v = user.verification ?? { email_verified: false, institution_verified: false, trust_score: 0 };
+  const oppStatus = user.opportunitiesVerificationStatus ?? "none";
+
+  const handleVerifyOpportunities = async () => {
+    setSubmitting(true);
+    try {
+      await backendUsers.submitOpportunityVerification();
+      toast.success("Verification request sent to Scope Admin.");
+      await auth.refreshCurrentUser();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send verification request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Extract all portfolio links from the user profile
+  const links = {
+    github: user.links?.github || "",
+    linkedin: user.linkedinUrl || "",
+    website: user.links?.website || "",
+    portfolio: user.portfolioWebsite || "",
+    resume: user.resumeUrl || "",
+    portfolioPdf: user.portfolioPdfUrl || "",
+    customLinks: user.portfolioLinks || {},
+  };
+
+  const hasLinks = Boolean(
+    links.github ||
+    links.linkedin ||
+    links.website ||
+    links.portfolio ||
+    links.resume ||
+    links.portfolioPdf ||
+    Object.keys(links.customLinks).length > 0
+  );
+
+  const handleGoToPortfolio = () => {
+    const trigger = document.querySelector('button[value="portfolio"]') as HTMLButtonElement | null;
+    if (trigger) {
+      trigger.click();
+    } else {
+      toast.error("Could not navigate automatically. Please click the 'Portfolio' tab above.");
+    }
+  };
+
   return (
-    <Card className="p-6">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl"
-          style={{ background: `color-mix(in oklab, ${accent} 18%, transparent)`, color: accent }}>
-          <Shield className="h-5 w-5" />
-        </span>
-        <div className="flex-1">
-          <h3 className="font-semibold text-foreground">Verification status</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {verified ? "You're a verified Scope builder." : "Submit verification to unlock trust badges and apply to gated opportunities."}
-          </p>
-          <div className="mt-3">
-            <Button asChild variant={verified ? "outline" : "default"} size="sm">
-              <Link to="/settings">{verified ? "Manage verification" : "Submit verification"}</Link>
-            </Button>
+    <div className="space-y-6">
+      <Card className="p-6">
+        <h3 className="mb-4 flex items-center gap-2 font-bold">
+          <ShieldCheck className="h-5 w-5 text-brand" />
+          Trust & Verification
+        </h3>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-border/50 bg-secondary/5 p-4">
+            <div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Status</div>
+            <div className="flex items-center gap-2">
+              {v.email_verified ? (
+                <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Verified</Badge>
+              ) : (
+                <Badge variant="outline">Pending</Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/50 bg-secondary/5 p-4">
+            <div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Chapter Status</div>
+            <div className="flex items-center gap-2">
+              {v.institution_verified ? (
+                <Badge className="bg-brand/10 text-brand border-brand/20">Active Member</Badge>
+              ) : (
+                <Badge variant="outline">Unverified</Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/50 bg-secondary/5 p-4">
+            <div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Trust Score</div>
+            <div className="text-xl font-bold text-foreground">{v.trust_score}%</div>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 border-brand/20 bg-gradient-to-br from-brand/5 to-transparent">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+          <div className="space-y-2 flex-1">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Lock className="h-5 w-5 text-brand" />
+              Opportunities Access
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-xl">
+              Verification of your portfolio links is required to unlock the high-value opportunities page. 
+              Our team reviews your GitHub, LinkedIn, and project links to ensure quality.
+            </p>
+          </div>
+
+          <div className="shrink-0 pt-1">
+            {oppStatus === "verified" ? (
+              <div className="flex items-center gap-2 text-emerald-500 font-bold">
+                <CheckCircle2 className="h-6 w-6" />
+                Unlocked
+              </div>
+            ) : oppStatus === "pending" ? (
+              <Button disabled className="bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                <Clock className="mr-2 h-4 w-4 animate-pulse" /> Reviewing Portfolio...
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleVerifyOpportunities} 
+                disabled={submitting || !hasLinks}
+                className={cn(
+                  "bg-gradient-brand text-brand-foreground shadow-lg shadow-brand/20",
+                  !hasLinks && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {submitting ? "Sending..." : "Submit for Verification"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Links Preview Section */}
+        <div className="mt-6 border-t border-border/40 pt-6">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4">
+            Your Submitted Portfolio Links
+          </h4>
+
+          {!hasLinks ? (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+              <div className="flex items-start gap-2.5 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="font-bold text-sm">No portfolio links found</h5>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    You have not configured any active links (GitHub, LinkedIn, Website, or Resume) on your profile.
+                    Scope Admins cannot verify empty profiles. Please populate your links first.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                onClick={handleGoToPortfolio} 
+                variant="outline" 
+                size="sm"
+                className="text-xs border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> Configure Portfolio Links
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-3 py-2 text-xs">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>Ready for review! The links below will be shared with the review board.</span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {links.github && (
+                  <a
+                    href={links.github}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Github className="h-4 w-4 shrink-0 text-foreground" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">GitHub</div>
+                        <div className="text-xs font-medium text-foreground truncate">{links.github}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                )}
+
+                {links.linkedin && (
+                  <a
+                    href={links.linkedin}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Linkedin className="h-4 w-4 shrink-0 text-[#0077b5]" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">LinkedIn</div>
+                        <div className="text-xs font-medium text-foreground truncate">{links.linkedin}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                )}
+
+                {links.website && (
+                  <a
+                    href={links.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Globe className="h-4 w-4 shrink-0 text-cyan-500" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Personal Website</div>
+                        <div className="text-xs font-medium text-foreground truncate">{links.website}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                )}
+
+                {links.portfolio && (
+                  <a
+                    href={links.portfolio}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Globe className="h-4 w-4 shrink-0 text-emerald-500" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Portfolio Page</div>
+                        <div className="text-xs font-medium text-foreground truncate">{links.portfolio}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                )}
+
+                {links.resume && (
+                  <a
+                    href={links.resume}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="h-4 w-4 shrink-0 text-amber-500" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">CV / Resume</div>
+                        <div className="text-xs font-medium text-foreground truncate">{links.resume}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                )}
+
+                {links.portfolioPdf && (
+                  <a
+                    href={links.portfolioPdf}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="h-4 w-4 shrink-0 text-rose-500" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Portfolio PDF</div>
+                        <div className="text-xs font-medium text-foreground truncate">{links.portfolioPdf}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                )}
+
+                {Object.entries(links.customLinks).map(([k, v]) => (
+                  <a
+                    key={k}
+                    href={v}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/50 p-3 hover:bg-secondary hover:border-brand/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Globe className="h-4 w-4 shrink-0 text-brand" />
+                      <div className="truncate">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                          {k.replace(/_/g, " ")}
+                        </div>
+                        <div className="text-xs font-medium text-foreground truncate">{v}</div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {oppStatus === "rejected" && (
+          <div className="mt-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Your previous request was not approved. Please update your portfolio links and try again.</span>
+          </div>
+        )}
+      </Card>
+
+      <div className="rounded-xl bg-secondary/10 p-6 border border-dashed border-border">
+        <h4 className="font-bold mb-2 text-sm uppercase tracking-widest text-muted-foreground">Verification Roadmap</h4>
+        <div className="space-y-4 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-border">
+          <div className="relative pl-8">
+            <div className="absolute left-0 top-1 h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Check className="h-2.5 w-2.5 text-white" />
+            </div>
+            <div className="font-bold text-sm">Account Created</div>
+            <div className="text-xs text-muted-foreground">Base access granted.</div>
+          </div>
+          <div className="relative pl-8">
+            <div className={`absolute left-0 top-1 h-4 w-4 rounded-full flex items-center justify-center ${v.institution_verified ? 'bg-emerald-500' : 'bg-muted border border-border'}`}>
+              {v.institution_verified && <Check className="h-2.5 w-2.5 text-white" />}
+            </div>
+            <div className="font-bold text-sm">Campus Verification</div>
+            <div className="text-xs text-muted-foreground">Join your chapter and get verified by your admin.</div>
+          </div>
+          <div className="relative pl-8">
+            <div className={`absolute left-0 top-1 h-4 w-4 rounded-full flex items-center justify-center ${oppStatus === 'verified' ? 'bg-emerald-500' : 'bg-muted border border-border'}`}>
+              {oppStatus === 'verified' && <Check className="h-2.5 w-2.5 text-white" />}
+            </div>
+            <div className="font-bold text-sm">Portfolio Review</div>
+            <div className="text-xs text-muted-foreground">Send signal with links to unlock Opportunities page.</div>
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 

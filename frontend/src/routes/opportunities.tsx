@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Bookmark, BookmarkCheck, Check, MessageSquare, Sparkles, Upload } from "lucide-react";
+import { Bookmark, BookmarkCheck, Check, MessageSquare, Sparkles, Upload, Lock, ShieldCheck, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AppShell } from "@/components/site/AppShell";
 import { AuthGate } from "@/components/site/AuthGate";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
-import { auth, opportunities, portfolio, type Opportunity } from "@/lib/scope-store";
-import { backendOpportunityApplications, backendUpload, type BackendOpportunityApplication } from "@/lib/api/endpoints";
+import { auth, opportunities, portfolio, subscribe, type Opportunity } from "@/lib/scope-store";
+import { backendOpportunityApplications, backendUpload, backendOpportunities, type BackendOpportunityApplication } from "@/lib/api/endpoints";
 import { calculateOpportunityMatch } from "@/lib/skill-matching";
 import { toast } from "sonner";
 
@@ -47,6 +47,48 @@ function OpportunitiesPage() {
     [applications],
   );
   const currentXp = user?.stats?.xp ?? 0;
+  
+  const handleUnlock = async (id: string) => {
+    try {
+      await backendOpportunities.unlock(id);
+      toast.success("Opportunity unlocked!");
+      await opportunities.syncFromBackend();
+      await auth.refreshCurrentUser();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to unlock.");
+    }
+  };
+
+  const isVerified = user?.opportunitiesVerified || user?.role === "super_admin" || user?.role === "scope_admin";
+
+  if (!isVerified) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[70vh] flex-col items-center justify-center p-6 text-center">
+          <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-brand/10 text-brand shadow-lg shadow-brand/10">
+            <Lock className="h-10 w-10" />
+          </div>
+          <h1 className="mb-2 text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Gated Opportunities</h1>
+          <p className="mx-auto mb-8 max-w-md text-muted-foreground">
+            This high-value board is restricted to verified builders. 
+            Send your portfolio links for review in your profile to unlock exclusive gigs, internships, and startup roles.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button size="lg" className="bg-gradient-brand text-brand-foreground shadow-elegant" asChild>
+              <Link to="/profile">
+                <ShieldCheck className="mr-2 h-5 w-5" /> Get Verified
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/projects">
+                Browse Public Challenges <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -101,19 +143,27 @@ function OpportunitiesPage() {
                   </p>
                 )}
                 <div className="mt-4 flex gap-2">
-                  <Button
-                    onClick={() => setSelected(opportunity)}
-                    disabled={Boolean(application) || isLocked}
-                    size="sm"
-                    className={`flex-1 ${application ? "bg-success text-primary-foreground" : "bg-gradient-brand text-brand-foreground"}`}
-                  >
-                    {application ? (<><Check className="mr-1.5 h-4 w-4" /> {application.status}</>) : isLocked ? `Unlock at ${minXpRequired} XP` : "Apply now"}
-                  </Button>
+                  {isLocked ? (
+                    <Button
+                      onClick={() => handleUnlock(opportunity.id)}
+                      disabled={currentXp < minXpRequired}
+                      size="sm"
+                      className="flex-1 bg-brand text-brand-foreground shadow-lg shadow-brand/20"
+                    >
+                      Unlock for {minXpRequired} XP
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => setSelected(opportunity)}
+                      disabled={Boolean(application)}
+                      size="sm"
+                      className={`flex-1 ${application ? "bg-success text-primary-foreground" : "bg-gradient-brand text-brand-foreground"}`}
+                    >
+                      {application ? (<><Check className="mr-1.5 h-4 w-4" /> {application.status}</>) : "Apply now"}
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => { opportunities.toggleSave(opportunity.id); toast(isSaved ? "Removed from saved" : "Saved for later"); }}>
                     {isSaved ? <BookmarkCheck className="h-4 w-4 text-brand" /> : <Bookmark className="h-4 w-4" />}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => toast.success("Message sent to " + opportunity.by)}>
-                    <MessageSquare className="h-4 w-4" />
                   </Button>
                 </div>
               </Card>

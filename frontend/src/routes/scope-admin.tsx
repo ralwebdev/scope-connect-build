@@ -22,6 +22,8 @@ import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
 import { FeedComposer } from "@/components/site/FeedComposer";
 import { opportunities, type ScopeUser } from "@/lib/scope-store";
 import { normalizeSkills } from "@/lib/skill-matching";
+import { BadgeCheck, Github, Linkedin, Globe, Search, SlidersHorizontal, Archive, Ban, Award, Check, X, FileSpreadsheet } from "lucide-react";
+
 
 export const Route = createFileRoute("/scope-admin")({
   head: () => ({ meta: [{ title: "Scope Admin · Territory CRM" }, { name: "robots", content: "noindex" }] }),
@@ -72,7 +74,7 @@ function ScopeAdminPortal() {
   );
 
   const kpis = useMemo(() => {
-    const month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
+    const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
     const monthMs = month.getTime();
     const meetingsThisMonth = visits.filter(v => new Date(v.date).getTime() >= monthMs).length;
     const proposals = institutions.filter(i => ["Proposal Sent", "Negotiation", "MoU Draft Shared"].includes(i.stage)).length;
@@ -99,60 +101,64 @@ function ScopeAdminPortal() {
   return (
     <AppShell>
       <RbacSidebar title="Territory Command">
-      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <Badge variant="outline" className="mb-2"><Building2 className="mr-1 h-3 w-3" /> Scope Admin Portal</Badge>
-            <h1 className="text-3xl font-bold tracking-tight">Territory Command</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Every visit can create a chapter. Turn meetings into movements.</p>
-          </div>
-          <NewLeadDialog ownerId={myAdminId ?? user?.id ?? ""} />
-        </header>
-
-        <div className="mt-6 mb-6">
-          <FeedComposer />
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <KpiCard label="Institutions" value={kpis.assigned} icon={Building2} />
-          <KpiCard label="Meetings (mo)" value={kpis.meetings} icon={Calendar} />
-          <KpiCard label="Proposals" value={kpis.proposals} icon={FileText} />
-          <KpiCard label="MoUs Signed" value={kpis.mous} icon={CheckCircle2} accent />
-          <KpiCard label="Potential ₹" value={`₹${(kpis.potential / 100000).toFixed(1)}L`} icon={Target} />
-          <KpiCard label="Live Chapters" value={kpis.live} icon={Rocket} accent />
-        </div>
-
-        <Tabs value={tab} onValueChange={(v) => navigate({ search: { tab: v } })} className="mt-8">
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="crm">Territory CRM</TabsTrigger>
-            <TabsTrigger value="visits">Visit Planner</TabsTrigger>
-            <TabsTrigger value="proposals">Proposals & MoU</TabsTrigger>
-            <TabsTrigger value="launch">Launch Tracker</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="events">Scope Events</TabsTrigger>
-            <TabsTrigger value="projects">Scope Projects</TabsTrigger>
-            <TabsTrigger value="opportunities">Scope Opportunities</TabsTrigger>
-            <TabsTrigger value="analytics"><BarChart2 className="mr-1.5 h-3.5 w-3.5 inline" />Analytics</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="crm" className="mt-6">
-            <div className="space-y-4">
-              <InstitutionAccountForm institutions={institutions} />
-              <PipelineBoard institutions={institutions} />
+        <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <Badge variant="outline" className="mb-2"><Building2 className="mr-1 h-3 w-3" /> Scope Admin Portal</Badge>
+              <h1 className="text-3xl font-bold tracking-tight">Territory Command</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Every visit can create a chapter. Turn meetings into movements.</p>
             </div>
-          </TabsContent>
-          <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? user?.id ?? ""} /></TabsContent>
-          <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
-          <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
-          <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} admins={all.admins} /></TabsContent>
-          <TabsContent value="events" className="mt-6"><ScopeEventsManager /></TabsContent>
-          <TabsContent value="projects" className="mt-6"><ScopeProjectsManager /></TabsContent>
-          <TabsContent value="opportunities" className="mt-6"><ScopeOpportunitiesManager /></TabsContent>
-          <TabsContent value="ideas" className="mt-6"><StudentIdeasManager /></TabsContent>
-          <TabsContent value="feedback" className="mt-6"><FeedbackManager /></TabsContent>
-          <TabsContent value="analytics" className="mt-6"><ScopeAnalyticsDashboard institutions={institutions} /></TabsContent>
-        </Tabs>
-      </section>
+            <NewLeadDialog ownerId={myAdminId ?? user?.id ?? ""} />
+          </header>
+
+          <div className="mt-6 mb-6">
+            <FeedComposer />
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <KpiCard label="Institutions" value={kpis.assigned} icon={Building2} />
+            <KpiCard label="Meetings (mo)" value={kpis.meetings} icon={Calendar} />
+            <KpiCard label="Proposals" value={kpis.proposals} icon={FileText} />
+            <KpiCard label="MoUs Signed" value={kpis.mous} icon={CheckCircle2} accent />
+            <KpiCard label="Potential ₹" value={`₹${(kpis.potential / 100000).toFixed(1)}L`} icon={Target} />
+            <KpiCard label="Live Chapters" value={kpis.live} icon={Rocket} accent />
+          </div>
+
+          <Tabs value={tab} onValueChange={(v) => navigate({ search: { tab: v } })} className="mt-8">
+            <TabsList className="flex-wrap">
+              <TabsTrigger value="crm">Territory CRM</TabsTrigger>
+              <TabsTrigger value="visits">Visit Planner</TabsTrigger>
+              <TabsTrigger value="proposals">Proposals & MoU</TabsTrigger>
+              <TabsTrigger value="launch">Launch Tracker</TabsTrigger>
+              {/* <TabsTrigger value="performance">Performance</TabsTrigger> */}
+              <TabsTrigger value="events">Scope Events</TabsTrigger>
+              <TabsTrigger value="projects">Scope Projects</TabsTrigger>
+              <TabsTrigger value="opportunities">Scope Opportunities</TabsTrigger>
+              <TabsTrigger value="ideas">Student Ideas</TabsTrigger>
+              {/* <TabsTrigger value="verification"><BadgeCheck className="mr-1.5 h-3.5 w-3.5 inline" />Student Verification</TabsTrigger> */}
+              {/* <TabsTrigger value="feedback">User Feedback</TabsTrigger> */}
+              <TabsTrigger value="analytics"><BarChart2 className="mr-1.5 h-3.5 w-3.5 inline" />Analytics</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="crm" className="mt-6">
+              <div className="space-y-4">
+                <InstitutionAccountForm institutions={institutions} />
+                <PipelineBoard institutions={institutions} />
+              </div>
+            </TabsContent>
+            <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? user?.id ?? ""} /></TabsContent>
+            <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
+            <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
+            <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} admins={all.admins} /></TabsContent>
+            <TabsContent value="events" className="mt-6"><ScopeEventsManager /></TabsContent>
+            <TabsContent value="projects" className="mt-6"><ScopeProjectsManager /></TabsContent>
+            <TabsContent value="opportunities" className="mt-6"><ScopeOpportunitiesManager /></TabsContent>
+            <TabsContent value="ideas" className="mt-6"><StudentIdeasManager /></TabsContent>
+            <TabsContent value="feedback" className="mt-6"><FeedbackManager /></TabsContent>
+            <TabsContent value="verification" className="mt-6"><StudentVerificationCenter /></TabsContent>
+            <TabsContent value="analytics" className="mt-6"><ScopeAnalyticsDashboard institutions={institutions} /></TabsContent>
+          </Tabs>
+        </section>
       </RbacSidebar>
     </AppShell>
   );
@@ -209,6 +215,12 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
   const [globalWau, setGlobalWau] = useState<AnalyticsSeries>([]);
   const [globalTopEvents, setGlobalTopEvents] = useState<Array<{ event: string; count: number }>>([]);
   const [globalStats, setGlobalStats] = useState({ dau: 0, wau: 0, memberCount: 0, studentFacultyCount: 0, activityRatePct: 0 });
+  const [globalSummary, setGlobalSummary] = useState<{
+    projects: { total: number; open: number; in_progress: number; completed: number };
+    applications: number;
+    growth_trend: AnalyticsSeries;
+    top_institutions: Array<{ id: string; name: string; xp: number; logo: string; slug: string }>;
+  } | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
 
   // ── Institution data ──
@@ -235,7 +247,8 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
       backendAnalytics.dau(),
       backendAnalytics.wau(),
       backendAnalytics.engagement(),
-    ]).then(([dauRes, wauRes, engRes]) => {
+      backendAnalytics.globalSummary(),
+    ]).then(([dauRes, wauRes, engRes, sumRes]) => {
       if (dauRes.status === "fulfilled") setGlobalDau(dauRes.value.series);
       if (wauRes.status === "fulfilled") setGlobalWau(wauRes.value.series);
       if (engRes.status === "fulfilled") {
@@ -249,6 +262,7 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
           activityRatePct: e.activity_rate_pct ?? 0,
         });
       }
+      if (sumRes.status === "fulfilled") setGlobalSummary(sumRes.value);
       setGlobalLoading(false);
     });
   }, []);
@@ -360,17 +374,15 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
         <div className="flex overflow-hidden rounded-lg border border-border">
           <button
             onClick={() => setMode("global")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
-              mode === "global" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${mode === "global" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
+              }`}
           >
             <Globe2 className="h-3.5 w-3.5" /> Global Overview
           </button>
           <button
             onClick={() => setMode("institution")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
-              mode === "institution" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${mode === "institution" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
+              }`}
           >
             <Building2 className="h-3.5 w-3.5" /> Institution Drill-Down
           </button>
@@ -421,6 +433,89 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                     <SparkLine series={globalWau} color="#10b981" />
                   </div>
                   <p className="mt-2 text-[10px] text-muted-foreground">Last 12 weeks · all users platform-wide</p>
+                </Card>
+              </div>
+
+              {/* Global Success Metrics */}
+              {globalSummary && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard label="Total Projects" value={globalSummary.projects.total} sub={`${globalSummary.projects.open} open · ${globalSummary.projects.completed} completed`} />
+                  <StatCard label="Total Applications" value={globalSummary.applications} sub="across all projects" accent />
+                  <StatCard label="Live Campuses" value={liveInstitutions.length} sub={`${institutions.length} total in pipeline`} />
+                  <StatCard label="Active Chapters" value={institutions.filter(i => i.stage === "Live Chapter").length} sub="verified chapters" accent />
+                </div>
+              )}
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                {/* Growth Curve */}
+                <Card className="p-5 lg:col-span-2">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-bold">Global Builder Growth</div>
+                      <p className="text-xs text-muted-foreground">Cumulative registered students · last 6 months</p>
+                    </div>
+                    <TrendingUp className="h-4 w-4 text-brand" />
+                  </div>
+                  <div className="h-40 w-full">
+                    {globalSummary?.growth_trend ? (
+                      <div className="relative h-full w-full pt-2">
+                        <div className="flex h-full items-end justify-between gap-1">
+                          {globalSummary.growth_trend.map((point, i) => {
+                            const max = Math.max(...globalSummary.growth_trend.map(p => p.value), 1);
+                            const height = (point.value / max) * 100;
+                            return (
+                              <div key={i} className="group relative flex flex-1 flex-col items-center">
+                                <div
+                                  className="w-full rounded-t bg-brand/20 transition-all hover:bg-brand/40"
+                                  style={{ height: `${height}%` }}
+                                >
+                                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded bg-popover px-1.5 py-0.5 text-[10px] font-bold text-popover-foreground opacity-0 shadow-sm group-hover:opacity-100 transition-opacity">
+                                    {point.value}
+                                  </div>
+                                </div>
+                                <span className="mt-2 text-[10px] font-medium text-muted-foreground">{point.date}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-muted-foreground italic">
+                        Calculating growth curve...
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Top Campuses Leaderboard */}
+                <Card className="p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="text-sm font-bold">National Leaderboard</div>
+                    <Badge variant="outline" className="text-[10px]">Top 5</Badge>
+                  </div>
+                  <div className="space-y-4">
+                    {globalSummary?.top_institutions.map((inst, i) => (
+                      <div key={inst.id} className="flex items-center gap-3">
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${i === 0 ? "bg-yellow-500/20 text-yellow-600" :
+                            i === 1 ? "bg-slate-300/30 text-slate-600" :
+                              i === 2 ? "bg-orange-400/20 text-orange-600" :
+                                "bg-secondary text-muted-foreground"
+                          }`}>
+                          {i + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate text-xs font-bold text-foreground">{inst.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{inst.xp.toLocaleString()} XP</div>
+                        </div>
+                        <div className="text-lg">{inst.logo}</div>
+                      </div>
+                    ))}
+                    {(!globalSummary || globalSummary.top_institutions.length === 0) && (
+                      <div className="py-10 text-center text-xs text-muted-foreground italic">
+                        No leaderboard data yet.
+                      </div>
+                    )}
+                  </div>
                 </Card>
               </div>
 
@@ -566,18 +661,17 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                       Manage roles, approve credentials, and verify student location or contact details.
                     </p>
                   </div>
-                  
+
                   {/* Tabs/Filters switcher */}
                   <div className="flex flex-wrap gap-1.5 p-1 bg-secondary/30 rounded-lg border border-border/40 shrink-0">
                     {(["all", "pending", "active", "deactivated"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setMembersFilter(tab)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${
-                          membersFilter === tab
-                            ? "bg-brand text-brand-foreground shadow-md scale-[1.02]"
-                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/20"
-                        }`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${membersFilter === tab
+                          ? "bg-brand text-brand-foreground shadow-md scale-[1.02]"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/20"
+                          }`}
                       >
                         {tab}
                       </button>
@@ -637,13 +731,12 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                           const isInstAdmin = m.role === "institution_admin" || m.role_variant === "institutional_admin";
                           const isDeactivated = !!m.disabled_at;
                           const currentRoleKey = `${m.role}:${m.role_variant ?? m.role}`;
-                          
+
                           return (
                             <tr
                               key={m.id}
-                              className={`transition-colors hover:bg-secondary/10 ${
-                                isDeactivated ? "opacity-60 bg-red-950/5" : ""
-                              }`}
+                              className={`transition-colors hover:bg-secondary/10 ${isDeactivated ? "opacity-60 bg-red-950/5" : ""
+                                }`}
                             >
                               {/* Member Info */}
                               <td className="px-4 py-3">
@@ -901,8 +994,8 @@ function ScopeOpportunitiesManager() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-semibold">Category</Label>
-              <select 
-                value={form.category} 
+              <select
+                value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -1409,7 +1502,7 @@ function ScopeProjectsManager() {
                   </div>
                 </div>
               )}
-              
+
               {!loading && projectsWithStats.length === 0 && (
                 <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20">
                   <Layers className="mb-2 h-8 w-8 text-muted-foreground/30" />
@@ -1424,31 +1517,28 @@ function ScopeProjectsManager() {
                   <div className="flex flex-wrap gap-1 rounded-lg bg-background p-1 border border-border">
                     <button
                       onClick={() => setProjectScopeFilter("global")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        projectScopeFilter === "global"
-                          ? "bg-brand text-brand-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-secondary"
-                      }`}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "global"
+                        ? "bg-brand text-brand-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-secondary"
+                        }`}
                     >
                       Global / Scope ({projectsWithStats.filter(p => !p.institution_id).length})
                     </button>
                     <button
                       onClick={() => setProjectScopeFilter("campus")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        projectScopeFilter === "campus"
-                          ? "bg-brand text-brand-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-secondary"
-                      }`}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "campus"
+                        ? "bg-brand text-brand-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-secondary"
+                        }`}
                     >
                       Campus Specific ({projectsWithStats.filter(p => !!p.institution_id).length})
                     </button>
                     <button
                       onClick={() => setProjectScopeFilter("all")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        projectScopeFilter === "all"
-                          ? "bg-brand text-brand-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-secondary"
-                      }`}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "all"
+                        ? "bg-brand text-brand-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-secondary"
+                        }`}
                     >
                       All ({projectsWithStats.length})
                     </button>
@@ -1517,8 +1607,8 @@ function ScopeProjectsManager() {
                           <span className="mb-1 text-xs text-muted-foreground">/ {item.capacity} students</span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                          <div 
-                            className="h-full bg-brand transition-all duration-1000" 
+                          <div
+                            className="h-full bg-brand transition-all duration-1000"
                             style={{ width: `${Math.min((item.participantCount / item.capacity) * 100, 100)}%` }}
                           />
                         </div>
@@ -1546,9 +1636,9 @@ function ScopeProjectsManager() {
                     <div className="mt-6 rounded-xl bg-secondary/30 p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recent Applicants</h5>
-                        <Button 
-                          variant="link" 
-                          size="sm" 
+                        <Button
+                          variant="link"
+                          size="sm"
                           className="h-auto p-0 text-[10px] text-brand hover:text-brand/80"
                           onClick={() => setRosterProject(item)}
                         >
@@ -1582,10 +1672,10 @@ function ScopeProjectsManager() {
                               <div className="mt-3 space-y-2 rounded-md bg-secondary/40 p-3">
                                 <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Submission Review</div>
                                 <div className="flex flex-wrap gap-2">
-                                  <Button 
-                                    asChild={Boolean(app.submission.live_url)} 
-                                    size="sm" 
-                                    variant="outline" 
+                                  <Button
+                                    asChild={Boolean(app.submission.live_url)}
+                                    size="sm"
+                                    variant="outline"
                                     className={`h-7 px-2 text-[10px] ${app.submission.live_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
                                     disabled={!app.submission.live_url}
                                   >
@@ -1597,10 +1687,10 @@ function ScopeProjectsManager() {
                                       <span>Live URL <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
                                     )}
                                   </Button>
-                                  <Button 
-                                    asChild={Boolean(app.submission.github_url)} 
-                                    size="sm" 
-                                    variant="outline" 
+                                  <Button
+                                    asChild={Boolean(app.submission.github_url)}
+                                    size="sm"
+                                    variant="outline"
                                     className={`h-7 px-2 text-[10px] ${app.submission.github_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
                                     disabled={!app.submission.github_url}
                                   >
@@ -1612,10 +1702,10 @@ function ScopeProjectsManager() {
                                       <span>GitHub <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
                                     )}
                                   </Button>
-                                  <Button 
-                                    asChild={Boolean(app.submission.screenshot_url)} 
-                                    size="sm" 
-                                    variant="outline" 
+                                  <Button
+                                    asChild={Boolean(app.submission.screenshot_url)}
+                                    size="sm"
+                                    variant="outline"
                                     className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
                                     disabled={!app.submission.screenshot_url}
                                   >
@@ -1713,7 +1803,7 @@ function ScopeProjectsManager() {
                           <div className="py-2 text-center text-[10px] italic text-muted-foreground">No student applications recorded yet.</div>
                         )}
                         {applications.filter(a => a.project_id === item.id).length > 3 && (
-                          <p 
+                          <p
                             className="mt-2 text-center text-[10px] font-medium text-brand cursor-pointer hover:underline"
                             onClick={() => setRosterProject(item)}
                           >
@@ -1725,7 +1815,7 @@ function ScopeProjectsManager() {
                   </div>
                 </Card>
               ))
-            }
+              }
             </div>
           </div>
         </TabsContent>
@@ -1979,11 +2069,10 @@ function ProjectRosterDialog({
                             asChild={Boolean(app.submission.live_url)}
                             size="sm"
                             variant="outline"
-                            className={`h-7 px-2 text-[10px] ${
-                              app.submission.live_url
-                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                                : "opacity-50 cursor-not-allowed bg-muted"
-                            }`}
+                            className={`h-7 px-2 text-[10px] ${app.submission.live_url
+                              ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                              : "opacity-50 cursor-not-allowed bg-muted"
+                              }`}
                             disabled={!app.submission.live_url}
                           >
                             {app.submission.live_url ? (
@@ -1998,11 +2087,10 @@ function ProjectRosterDialog({
                             asChild={Boolean(app.submission.github_url)}
                             size="sm"
                             variant="outline"
-                            className={`h-7 px-2 text-[10px] ${
-                              app.submission.github_url
-                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                                : "opacity-50 cursor-not-allowed bg-muted"
-                            }`}
+                            className={`h-7 px-2 text-[10px] ${app.submission.github_url
+                              ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                              : "opacity-50 cursor-not-allowed bg-muted"
+                              }`}
                             disabled={!app.submission.github_url}
                           >
                             {app.submission.github_url ? (
@@ -2017,11 +2105,10 @@ function ProjectRosterDialog({
                             asChild={Boolean(app.submission.screenshot_url)}
                             size="sm"
                             variant="outline"
-                            className={`h-7 px-2 text-[10px] ${
-                              app.submission.screenshot_url
-                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                                : "opacity-50 cursor-not-allowed bg-muted"
-                            }`}
+                            className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url
+                              ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                              : "opacity-50 cursor-not-allowed bg-muted"
+                              }`}
                             disabled={!app.submission.screenshot_url}
                           >
                             {app.submission.screenshot_url ? (
@@ -2130,7 +2217,7 @@ function ProjectRosterDialog({
   );
 }
 
-function KpiCard({ label, value, icon: Icon, accent = false }: { label: string; value: string | number; icon: React.ComponentType<{className?: string}>; accent?: boolean }) {
+function KpiCard({ label, value, icon: Icon, accent = false }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; accent?: boolean }) {
   return (
     <Card className={`relative overflow-hidden p-4 ${accent ? "border-brand/30" : ""}`}>
       <div className="flex items-center justify-between">
@@ -2339,15 +2426,15 @@ function NewLeadDialog({ ownerId }: { ownerId: string }) {
       <DialogContent>
         <DialogHeader><DialogTitle>New institution lead</DialogTitle></DialogHeader>
         <div className="grid gap-3">
-          <div><Label>Institution name</Label><Input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} /></div>
+          <div><Label>Institution name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({...form, city: e.target.value})} /></div>
-            <div><Label>State</Label><Input value={form.state} onChange={(e) => setForm({...form, state: e.target.value})} /></div>
+            <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
+            <div><Label>State</Label><Input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
           </div>
-          <div><Label>Contact person</Label><Input value={form.contactPerson} onChange={(e) => setForm({...form, contactPerson: e.target.value})} /></div>
+          <div><Label>Contact person</Label><Input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} /></div>
-            <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} /></div>
+            <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           </div>
           <Button onClick={submit} className="bg-gradient-brand text-brand-foreground">Save lead</Button>
         </div>
@@ -2357,9 +2444,9 @@ function NewLeadDialog({ ownerId }: { ownerId: string }) {
 }
 
 function VisitPlanner({ visits, institutions, ownerId }: { visits: ReturnType<typeof crm.visits>; institutions: Institution[]; ownerId: string }) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = new Date().toISOString().slice(0, 10);
   const todayVisits = visits.filter(v => v.date === today && (v.status === "scheduled" || v.status === "checked_in"));
-  const upcoming = visits.filter(v => v.date > today).sort((a,b) => a.date.localeCompare(b.date));
+  const upcoming = visits.filter(v => v.date > today).sort((a, b) => a.date.localeCompare(b.date));
   const [pickInst, setPickInst] = useState("");
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("10:00");
@@ -2528,18 +2615,18 @@ function LaunchTracker({ institutions }: { institutions: Institution[] }) {
   );
 }
 
-function PerformanceScorecard({ 
-  institutions, 
-  visits, 
-  admins 
-}: { 
-  institutions: Institution[]; 
-  visits: ReturnType<typeof crm.visits>; 
+function PerformanceScorecard({
+  institutions,
+  visits,
+  admins
+}: {
+  institutions: Institution[];
+  visits: ReturnType<typeof crm.visits>;
   admins: ReturnType<typeof crm.admins>;
 }) {
   // 1. Personal / Territory Stats
   const meetings = visits.filter(v => v.status === "completed").length;
-  const closures = institutions.filter(i => ["MoU Signed","Launch Pending","Live Chapter"].includes(i.stage)).length;
+  const closures = institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage)).length;
   const rate = institutions.length ? Math.round((closures / institutions.length) * 100) : 0;
   const reactivated = institutions.filter(i => i.stage === "Live Chapter").length;
 
@@ -2602,7 +2689,7 @@ function PerformanceScorecard({
               {admins.map((admin) => {
                 const closurePct = admin.target > 0 ? Math.min(Math.round((admin.closures / admin.target) * 100), 100) : 0;
                 const adminRate = admin.meetings > 0 ? Math.round((admin.closures / admin.meetings) * 100) : 0;
-                
+
                 return (
                   <tr key={admin.id} className="transition-colors hover:bg-muted/10">
                     <td className="px-6 py-4">
@@ -2632,7 +2719,7 @@ function PerformanceScorecard({
                           <span className="text-[10px] text-muted-foreground">Target: {admin.target}</span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-brand rounded-full transition-all duration-1000"
                             style={{ width: `${closurePct}%` }}
                           />
@@ -2643,13 +2730,12 @@ function PerformanceScorecard({
                       <Badge variant="secondary" className="font-bold">{adminRate}%</Badge>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <Badge 
-                        variant={admin.status === "active" ? "default" : "outline"} 
-                        className={`capitalize px-2 py-0.5 text-[10px] ${
-                          admin.status === "active" 
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" 
-                            : "bg-destructive/10 text-destructive border-destructive/20"
-                        }`}
+                      <Badge
+                        variant={admin.status === "active" ? "default" : "outline"}
+                        className={`capitalize px-2 py-0.5 text-[10px] ${admin.status === "active"
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                          : "bg-destructive/10 text-destructive border-destructive/20"
+                          }`}
                       >
                         {admin.status}
                       </Badge>
@@ -2661,7 +2747,7 @@ function PerformanceScorecard({
           </table>
         </div>
       </Card>
-      
+
       {/* Territory Identity Card */}
       <Card className="p-5">
         <h3 className="text-sm font-bold">Territory Identity & Zones</h3>
@@ -2938,11 +3024,10 @@ function StudentIdeasManager() {
             <button
               key={st}
               onClick={() => setFilter(st)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${
-                filter === st
-                  ? "bg-gradient-brand text-brand-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-secondary"
-              }`}
+              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${filter === st
+                ? "bg-gradient-brand text-brand-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-secondary"
+                }`}
             >
               {st}
             </button>
@@ -3119,6 +3204,16 @@ function FeedbackManager() {
     }
   };
 
+  const handleStatusUpdate = async (id: string, status: "new" | "reviewed" | "closed") => {
+    try {
+      await backendAdminUsers.updateFeedbackStatus(id, status);
+      toast.success("Status updated.");
+      setItems(prev => prev.map(item => item.id === id ? { ...item, status } : item));
+    } catch (err) {
+      toast.error("Failed to update status.");
+    }
+  };
+
   const filtered = useMemo(() => {
     return items.filter((item) => {
       const matchesType = filterType === "all" || item.type === filterType;
@@ -3214,6 +3309,7 @@ function FeedbackManager() {
             <option value="all">All Categories</option>
             <option value="Feature request">Feature Requests</option>
             <option value="Bug report">Bug Reports</option>
+            <option value="Opportunity Verification">Verification Requests</option>
             <option value="General suggestion">Suggestions</option>
             <option value="Other">Other</option>
           </select>
@@ -3250,34 +3346,56 @@ function FeedbackManager() {
           {filtered.map((item) => (
             <Card
               key={item.id}
-              className="group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl"
+              className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${item.status === "closed" ? "opacity-60 grayscale-[0.5]" : ""
+                }`}
             >
               <div className="space-y-4">
                 {/* Header details */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-medium text-muted-foreground">
-                    {new Date(item.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
-                  </span>
-                  <div className="flex gap-1.5">
-                    {item.type && (
-                      <Badge
-                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${
-                          item.type === "Bug report"
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      {new Date(item.createdAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </span>
+                    {item.user && (
+                      <span className="text-[10px] font-bold text-brand truncate max-w-[120px]">
+                        {item.user.name}
+                      </span>
+                    )}
+                    {item.institution && (
+                      <span className="text-[9px] text-muted-foreground truncate max-w-[120px]">
+                        {item.institution.name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex gap-1.5">
+                      {item.type && (
+                        <Badge
+                          className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${item.type === "Bug report"
                             ? "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20"
                             : item.type === "Feature request"
-                            ? "bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20"
-                            : "bg-secondary text-foreground border border-border/40"
-                        }`}
-                      >
-                        {item.type}
+                              ? "bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20"
+                              : "bg-secondary text-foreground border border-border/40"
+                            }`}
+                        >
+                          {item.type}
+                        </Badge>
+                      )}
+                      <Badge className={`text-[9px] px-2 py-0.5 border border-border/40 rounded-full ${item.status === "new" ? "bg-brand/10 text-brand" :
+                          item.status === "reviewed" ? "bg-amber-500/10 text-amber-500" :
+                            item.status === "verified" ? "bg-emerald-500/10 text-emerald-500" :
+                              item.status === "rejected" ? "bg-rose-500/10 text-rose-500" :
+                                "bg-secondary text-muted-foreground"
+                        }`}>
+                        {item.status.toUpperCase()}
                       </Badge>
-                    )}
+                    </div>
                     <Badge className="text-[9px] px-2 py-0.5 bg-secondary/80 text-muted-foreground border border-border/40 rounded-full">
                       {item.source === "feedback_widget" ? "Widget" : "Page"}
                     </Badge>
@@ -3290,11 +3408,10 @@ function FeedbackManager() {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
-                        className={`h-3.5 w-3.5 transition-colors ${
-                          star <= item.rating
-                            ? "fill-brand text-brand"
-                            : "text-muted-foreground/20 dark:text-muted-foreground/10"
-                        }`}
+                        className={`h-3.5 w-3.5 transition-colors ${star <= item.rating
+                          ? "fill-brand text-brand"
+                          : "text-muted-foreground/20 dark:text-muted-foreground/10"
+                          }`}
                       />
                     ))}
                   </div>
@@ -3307,7 +3424,19 @@ function FeedbackManager() {
               </div>
 
               {/* Action/Delete footer bar */}
-              <div className="mt-5 flex items-center justify-end border-t border-border/40 pt-3">
+              <div className="mt-5 flex items-center justify-between border-t border-border/40 pt-3">
+                <select
+                  value={item.status}
+                  onChange={(e) => handleStatusUpdate(item.id, e.target.value as any)}
+                  className="h-8 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase focus:outline-none focus:ring-1 focus:ring-brand/40"
+                >
+                  <option value="new">New</option>
+                  <option value="reviewed">In Review</option>
+                  <option value="verified">Verified</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="closed">Closed</option>
+                </select>
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -3316,7 +3445,7 @@ function FeedbackManager() {
                   className="h-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 text-xs px-2.5 rounded-lg transition-colors"
                 >
                   <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                  {deletingId === item.id ? "Archiving..." : "Archive Feedback"}
+                  {deletingId === item.id ? "Archiving..." : "Archive"}
                 </Button>
               </div>
             </Card>
@@ -3326,6 +3455,412 @@ function FeedbackManager() {
     </div>
   );
 }
+
+// ─── Student Verification Center Component ───────────────────────────────────
+function StudentVerificationCenter() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await backendAdminUsers.listFeedback();
+      const verifications = (res.feedback || []).filter(
+        (item: any) => item.kind === "opportunity_verification"
+      );
+      setItems(verifications);
+    } catch (err) {
+      toast.error("Failed to load student verification requests.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleStatusUpdate = async (id: string, status: "verified" | "rejected") => {
+    setProcessingId(id);
+    try {
+      await backendAdminUsers.updateFeedbackStatus(id, status);
+      toast.success(
+        status === "verified"
+          ? "Student successfully verified and opportunities unlocked!"
+          : "Student verification request marked as rejected."
+      );
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status } : item))
+      );
+    } catch (err) {
+      toast.error("Failed to update verification status.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to archive this verification request?")) return;
+    setProcessingId(id);
+    try {
+      await backendAdminUsers.deleteFeedback(id);
+      toast.success("Verification request archived.");
+      setItems((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      toast.error("Failed to archive verification request.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const parsedItems = useMemo(() => {
+    return items.map((item) => {
+      const links = parseVerificationMessage(item.message);
+      return {
+        ...item,
+        parsedLinks: links,
+      };
+    });
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    return parsedItems.filter((item) => {
+      // Status matching
+      let matchesStatus = true;
+      if (filterStatus === "pending") {
+        matchesStatus = item.status === "new" || item.status === "reviewed";
+      } else if (filterStatus !== "all") {
+        matchesStatus = item.status === filterStatus;
+      }
+
+      // Search matching
+      const query = search.toLowerCase();
+      const matchesSearch =
+        !search ||
+        (item.user?.name || "").toLowerCase().includes(query) ||
+        (item.user?.email || "").toLowerCase().includes(query) ||
+        (item.institution?.name || "").toLowerCase().includes(query) ||
+        item.message.toLowerCase().includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [parsedItems, filterStatus, search]);
+
+  const stats = useMemo(() => {
+    const total = items.length;
+    const pending = items.filter((i) => i.status === "new" || i.status === "reviewed").length;
+    const verified = items.filter((i) => i.status === "verified").length;
+    const rejected = items.filter((i) => i.status === "rejected").length;
+    return { total, pending, verified, rejected };
+  }, [items]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* KPI Stats Grid */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card className="p-4 border-border bg-secondary/5 relative overflow-hidden group hover:border-border/80 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Requests</div>
+          <div className="mt-2 text-3xl font-extrabold text-foreground">{stats.total}</div>
+          <div className="absolute right-3 bottom-3 text-muted-foreground/10 group-hover:scale-110 transition-transform">
+            <BadgeCheck className="h-12 w-12" />
+          </div>
+        </Card>
+        <Card className="p-4 border-amber-500/20 bg-amber-500/5 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">Pending Review</div>
+          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">{stats.pending}</div>
+          <div className="absolute right-3 bottom-3 text-amber-500/10 group-hover:scale-110 transition-transform">
+            <Clock className="h-12 w-12" />
+          </div>
+        </Card>
+        <Card className="p-4 border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 dark:text-emerald-400">Verified Builders</div>
+          <div className="mt-2 text-3xl font-extrabold text-emerald-500 dark:text-emerald-400">{stats.verified}</div>
+          <div className="absolute right-3 bottom-3 text-emerald-500/10 group-hover:scale-110 transition-transform">
+            <Award className="h-12 w-12 fill-emerald-500/10" />
+          </div>
+        </Card>
+        <Card className="p-4 border-rose-500/20 bg-rose-500/5 relative overflow-hidden group hover:border-rose-500/30 transition-colors">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">Rejected Portfolios</div>
+          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">{stats.rejected}</div>
+          <div className="absolute right-3 bottom-3 text-rose-500/10 group-hover:scale-110 transition-transform">
+            <Ban className="h-12 w-12" />
+          </div>
+        </Card>
+      </div>
+
+      {/* Filters Toolbar */}
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            🛡️ Student Verification Center
+            <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs px-2.5 py-0.5 rounded-full">{filtered.length}</Badge>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Review, verify, and approve student portfolios to grant opportunities page access.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground/60" />
+            <Input
+              placeholder="Search name or campus..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 pl-8 pr-4 w-full sm:w-48 bg-secondary/15 border-border/50 text-xs"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-brand/40"
+          >
+            <option value="all">All Submissions</option>
+            <option value="pending">Pending Review</option>
+            <option value="verified">Verified Builders</option>
+            <option value="rejected">Rejected Requests</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Grid List */}
+      {filtered.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center p-16 text-center border-dashed border-muted-foreground/20 bg-secondary/5 rounded-xl">
+          <BadgeCheck className="h-12 w-12 mb-4 text-muted-foreground/30" />
+          <h3 className="text-base font-bold text-foreground">No verification requests found</h3>
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">
+            There are no student portfolio submissions matching your search queries or status filters.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((item) => {
+            const l = item.parsedLinks;
+            const hasPortfolio = l.github || l.linkedin || l.website || l.portfolio || l.resume || l.portfolioPdf;
+
+            return (
+              <Card
+                key={item.id}
+                className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/45 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${item.status === "verified"
+                    ? "border-emerald-500/20 bg-emerald-950/5"
+                    : item.status === "rejected"
+                      ? "opacity-60 grayscale-[0.4]"
+                      : ""
+                  }`}
+              >
+                <div className="space-y-4">
+                  {/* Header details */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {new Date(item.createdAt).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-foreground text-base mt-1 truncate max-w-[170px]" title={item.user?.name}>
+                        {item.user?.name || "Anonymous Student"}
+                      </h3>
+                      <p className="text-[10px] text-brand font-medium truncate max-w-[170px]" title={item.user?.email}>
+                        {item.user?.email}
+                      </p>
+                      {item.institution && (
+                        <p className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1 mt-0.5 truncate max-w-[170px]">
+                          <Building2 className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                          {item.institution.name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <Badge
+                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${item.status === "verified"
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            : item.status === "rejected"
+                              ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                              : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                          }`}
+                      >
+                        {item.status === "new" || item.status === "reviewed" ? "Pending" : item.status}
+                      </Badge>
+                      <Badge className="text-[9px] px-2 py-0.5 bg-secondary text-muted-foreground border border-border/30 rounded-full font-semibold">
+                        Builder Profile
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Portfolio Credentials Grid */}
+                  <div className="space-y-2 border-t border-border/40 pt-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Submitted Portfolio Links</div>
+                    {hasPortfolio ? (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {l.github && (
+                          <a
+                            href={l.github}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-1.5 hover:bg-secondary hover:border-brand/40 text-foreground transition-all truncate"
+                          >
+                            <Github className="h-3.5 w-3.5 shrink-0 text-foreground" />
+                            <span className="truncate">GitHub</span>
+                          </a>
+                        )}
+                        {l.linkedin && (
+                          <a
+                            href={l.linkedin}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-1.5 hover:bg-secondary hover:border-brand/40 text-foreground transition-all truncate"
+                          >
+                            <Linkedin className="h-3.5 w-3.5 shrink-0 text-[#0077b5]" />
+                            <span className="truncate">LinkedIn</span>
+                          </a>
+                        )}
+                        {l.website && (
+                          <a
+                            href={l.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-1.5 hover:bg-secondary hover:border-brand/40 text-foreground transition-all truncate"
+                          >
+                            <Globe className="h-3.5 w-3.5 shrink-0 text-cyan-500" />
+                            <span className="truncate">Website</span>
+                          </a>
+                        )}
+                        {l.portfolio && (
+                          <a
+                            href={l.portfolio}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-1.5 hover:bg-secondary hover:border-brand/40 text-foreground transition-all truncate"
+                          >
+                            <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                            <span className="truncate">Portfolio Page</span>
+                          </a>
+                        )}
+                        {l.resume && (
+                          <a
+                            href={l.resume}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-1.5 hover:bg-secondary hover:border-brand/40 text-foreground transition-all truncate"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                            <span className="truncate">CV / Resume</span>
+                          </a>
+                        )}
+                        {l.portfolioPdf && (
+                          <a
+                            href={l.portfolioPdf}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-background/50 px-2 py-1.5 hover:bg-secondary hover:border-brand/40 text-foreground transition-all truncate"
+                          >
+                            <FileUp className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                            <span className="truncate">Portfolio PDF</span>
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground italic bg-secondary/10 rounded-lg p-3 text-center">
+                        No active portfolio URLs attached to this request.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer verification controls */}
+                <div className="mt-5 flex items-center justify-between border-t border-border/40 pt-3 gap-2">
+                  <div className="flex gap-1.5">
+                    {item.status !== "verified" && (
+                      <Button
+                        size="sm"
+                        disabled={processingId === item.id}
+                        onClick={() => handleStatusUpdate(item.id, "verified")}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] h-8 px-2.5 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1"
+                      >
+                        <Check className="h-3 w-3" /> Verify
+                      </Button>
+                    )}
+                    {item.status !== "rejected" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={processingId === item.id}
+                        onClick={() => handleStatusUpdate(item.id, "rejected")}
+                        className="border-rose-500/20 text-rose-500 hover:bg-rose-500/10 font-bold text-[10px] h-8 px-2.5 rounded-lg transition-all flex items-center gap-1"
+                      >
+                        <X className="h-3 w-3" /> Reject
+                      </Button>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={processingId === item.id}
+                    onClick={() => handleDelete(item.id)}
+                    className="h-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 text-[10px] px-2.5 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function parseVerificationMessage(message: string) {
+  const defaultLinks = {
+    website: "",
+    github: "",
+    linkedin: "",
+    portfolio: "",
+    resume: "",
+    portfolioPdf: "",
+    portfolioLinks: {} as Record<string, string>,
+  };
+
+  try {
+    const idx = message.indexOf("Portfolio Links:");
+    if (idx === -1) return defaultLinks;
+    const jsonStr = message.slice(idx + "Portfolio Links:".length).trim();
+    const parsed = JSON.parse(jsonStr);
+    return {
+      website: parsed.website || "",
+      github: parsed.github || "",
+      linkedin: parsed.linkedin || "",
+      portfolio: parsed.portfolio || "",
+      resume: parsed.resume || "",
+      portfolioPdf: parsed.portfolioPdf || "",
+      portfolioLinks: parsed.portfolioLinks || {},
+    };
+  } catch (err) {
+    console.warn("Failed to parse verification message links", err);
+    return defaultLinks;
+  }
+}
+
 
 
 

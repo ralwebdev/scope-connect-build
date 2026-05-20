@@ -28,6 +28,7 @@ export async function optionalAuthMiddleware(req, _res, next) {
     req.user = {
       id: user.id,
       _id: user._id,
+      name: user.name,
       email: user.email,
       role: user.role,
       roleVariant: user.roleVariant,
@@ -67,6 +68,7 @@ export async function authMiddleware(req, _res, next) {
     req.user = {
       id: user.id,
       _id: user._id,
+      name: user.name,
       email: user.email,
       role: user.role,
       roleVariant: user.roleVariant,

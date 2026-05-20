@@ -128,6 +128,24 @@ export const backendUsers = {
       body: JSON.stringify({ id, action }),
     });
   },
+  submitOpportunityVerification() {
+    return api<{ submission_id: string }>("/api/v1/users/me/opportunity-verification", {
+      method: "POST",
+    });
+  },
+  listMyFeedback() {
+    return api<{ feedback: Array<{
+      id: string;
+      kind: string;
+      source: string;
+      status: "new" | "reviewed" | "closed";
+      rating?: number | null;
+      score?: number | null;
+      type?: string;
+      message: string;
+      createdAt: string;
+    }> }>("/api/v1/users/me/feedback");
+  },
 };
 
 type BackendInstitution = {
@@ -367,13 +385,24 @@ export const backendAdminUsers = {
   listFeedback() {
     return api<{ feedback: Array<{
       id: string;
-      source: "feedback_page" | "feedback_widget";
+      kind: string;
+      source: string;
+      status: "new" | "reviewed" | "closed";
       rating?: number | null;
       score?: number | null;
       type?: string;
       message: string;
       createdAt: string;
+      user?: { id: string; name: string; email: string; role: string } | null;
+      institution?: { id: string; name: string; slug: string } | null;
+      role?: string | null;
     }> }>("/api/v1/admin/users/feedback");
+  },
+  updateFeedbackStatus(id: string, status: "new" | "reviewed" | "closed" | "verified" | "rejected") {
+    return api<{ submission: any }>(`/api/v1/admin/users/feedback/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
   },
   deleteFeedback(id: string) {
     return api<{ message: string }>(`/api/v1/admin/users/feedback/${id}`, {
@@ -401,6 +430,14 @@ export const backendAnalytics = {
       student_faculty_count?: number;
       activity_rate_pct?: number;
     }>("/api/v1/analytics/engagement");
+  },
+  globalSummary() {
+    return api<{
+      projects: { total: number; open: number; in_progress: number; completed: number };
+      applications: number;
+      growth_trend: Array<{ date: string; value: number }>;
+      top_institutions: Array<{ id: string; name: string; xp: number; logo: string; slug: string }>;
+    }>("/api/v1/analytics/global-summary");
   },
   /** Institution-scoped DAU (last 30 days). */
   institutionDau(institutionId: string) {
@@ -701,6 +738,11 @@ export const backendOpportunities = {
     return api<{ opportunity: BackendOpportunity }>("/api/v1/opportunities", {
       method: "POST",
       body: JSON.stringify(opportunity),
+    });
+  },
+  unlock(id: string) {
+    return api<{ opportunity: BackendOpportunity; current_xp: number }>(`/api/v1/opportunities/${id}/unlock`, {
+      method: "POST",
     });
   },
 };

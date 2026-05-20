@@ -4,6 +4,7 @@ import { PublicSubmission } from "../models/index.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
+import { optionalAuthMiddleware } from "../middleware/auth.js";
 
 export const publicRouter = express.Router();
 
@@ -47,7 +48,7 @@ const ambassadorSchema = z.object({
   why: z.string().trim().min(30).max(1000),
 });
 
-publicRouter.post("/feedback", validate(feedbackSchema), asyncHandler(async (req, res) => {
+publicRouter.post("/feedback", optionalAuthMiddleware, validate(feedbackSchema), asyncHandler(async (req, res) => {
   const payload = req.body;
   const submission = await PublicSubmission.create({
     kind: "feedback",
@@ -56,6 +57,9 @@ publicRouter.post("/feedback", validate(feedbackSchema), asyncHandler(async (req
     score: payload.score ?? null,
     type: payload.type,
     message: payload.message,
+    user: req.user?.id || null,
+    institution: req.user?.institution || null,
+    role: req.user?.role || null,
   });
 
   sendSuccess(res, { submission_id: submission.id }, "Feedback received", 201);
@@ -65,7 +69,7 @@ publicRouter.post("/waitlist", validate(waitlistSchema), asyncHandler(async (req
   return res.status(403).json({ success: false, error: "Waitlist registration is currently closed." });
 }));
 
-publicRouter.post("/contact", validate(contactSchema), asyncHandler(async (req, res) => {
+publicRouter.post("/contact", optionalAuthMiddleware, validate(contactSchema), asyncHandler(async (req, res) => {
   const payload = req.body;
   const submission = await PublicSubmission.create({
     kind: "contact",
@@ -74,17 +78,23 @@ publicRouter.post("/contact", validate(contactSchema), asyncHandler(async (req, 
     email: payload.email,
     reason: payload.reason,
     message: payload.message,
+    user: req.user?.id || null,
+    institution: req.user?.institution || null,
+    role: req.user?.role || null,
   });
 
   sendSuccess(res, { submission_id: submission.id }, "Message received", 201);
 }));
 
-publicRouter.post("/support-issue", validate(supportIssueSchema), asyncHandler(async (req, res) => {
+publicRouter.post("/support-issue", optionalAuthMiddleware, validate(supportIssueSchema), asyncHandler(async (req, res) => {
   const payload = req.body;
   const submission = await PublicSubmission.create({
     kind: "support_issue",
     source: payload.source,
     message: payload.message,
+    user: req.user?.id || null,
+    institution: req.user?.institution || null,
+    role: req.user?.role || null,
   });
 
   sendSuccess(res, { submission_id: submission.id }, "Issue logged", 201);
