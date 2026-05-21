@@ -133,6 +133,12 @@ export const backendUsers = {
       method: "POST",
     });
   },
+  joinChapter(institutionId: string) {
+    return api<{ user: ScopeUser; awarded_xp: number }>("/api/v1/users/join-chapter", {
+      method: "POST",
+      body: JSON.stringify({ institution_id: institutionId }),
+    });
+  },
   listMyFeedback() {
     return api<{ feedback: Array<{
       id: string;

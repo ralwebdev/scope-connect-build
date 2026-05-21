@@ -75,10 +75,10 @@ export function MobileDock() {
   const primarySlice = nav.primary.slice(0, 4);
   const dockItems: DockItem[] = session.isAuthenticated
     ? [
-        ...primarySlice.slice(0, 2),
-        { key: "primary", label: "More", icon: Plus, to: "", action: "logout" /* sentinel; handled below */ } as unknown as DockItem,
-        ...primarySlice.slice(2, 4),
-      ]
+      ...primarySlice.slice(0, 2),
+      { key: "primary", label: "More", icon: Plus, to: "", action: "logout" /* sentinel; handled below */ } as unknown as DockItem,
+      ...primarySlice.slice(2, 4),
+    ]
     : nav.primary.slice(0, 5);
 
   // Mark the center button as the quick-actions trigger using key === "primary".
@@ -228,9 +228,9 @@ export function MobileDock() {
                   style={
                     isActive
                       ? {
-                          background: `color-mix(in oklab, ${roleTheme.glow} 18%, transparent)`,
-                          color: roleTheme.glow,
-                        }
+                        background: `color-mix(in oklab, ${roleTheme.glow} 18%, transparent)`,
+                        color: roleTheme.glow,
+                      }
                       : undefined
                   }
                 >

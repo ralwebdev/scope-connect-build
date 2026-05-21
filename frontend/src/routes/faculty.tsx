@@ -274,11 +274,16 @@ function FacultyDashboard() {
           </div>
           <ul className="mt-4 space-y-2">
             {events.map((e) => (
-              <li key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-                <span className="font-medium">{e.title}</span>
-                <Badge variant="outline" className={e.ok ? "border-emerald-500/30 text-emerald-500" : "border-amber-500/30 text-amber-500"}>
-                  {e.ok ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <AlertTriangle className="mr-1 h-3 w-3" />}
-                  {e.status}
+              <li key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm w-full overflow-hidden min-w-0 gap-3">
+                <span className="font-medium truncate flex-1 min-w-0" title={e.title}>
+                  {e.title}
+                </span>
+                <Badge 
+                  variant="outline" 
+                  className={`shrink-0 ${e.ok ? "border-emerald-500/30 text-emerald-500" : "border-amber-500/30 text-amber-500"}`}
+                >
+                  {e.ok ? <CheckCircle2 className="mr-1 h-3 w-3 shrink-0" /> : <AlertTriangle className="mr-1 h-3 w-3 shrink-0" />}
+                  <span className="truncate max-w-[100px]">{e.status}</span>
                 </Badge>
               </li>
             ))}

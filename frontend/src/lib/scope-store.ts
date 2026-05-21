@@ -974,13 +974,27 @@ export const opportunities = {
 
 export const chapter = {
   joined(): string | null {
-    return read<string | null>(KEYS.joinedChapter, null);
+    const user = auth.getUser();
+    return user?.institution?.name || user?.campus || read<string | null>(KEYS.joinedChapter, null);
   },
-  join(name: string) {
-    write(KEYS.joinedChapter, name);
-    xp.add(40, `Joined ${name}`);
-    const u = auth.getUser();
-    notifications.push({ icon: "users", text: `Welcome to ${name}. Say hi to your chapter.`, dedupKey: `chapter_joined:${u?.id ?? "anon"}:${name}` });
+  async join(institutionId: string) {
+    const response = await backendUsers.joinChapter(institutionId);
+    if (response?.user) {
+      const updatedUser = auth.syncApiUser(response.user);
+      const name = updatedUser.institution?.name || updatedUser.campus || "Chapter";
+      write(KEYS.joinedChapter, name);
+      if (response.awarded_xp > 0) {
+        xp.add(response.awarded_xp, `Joined ${name} Chapter`);
+      } else {
+        // Just trigger event so subscribers re-render
+        writeNow(KEYS.joinedChapter, name);
+      }
+      notifications.push({
+        icon: "users",
+        text: `Welcome to the ${name} Chapter! Your membership is pending verification by the campus coordinator.`,
+        dedupKey: `chapter_joined:${updatedUser.id}:${institutionId}`,
+      });
+    }
   },
 };
 
