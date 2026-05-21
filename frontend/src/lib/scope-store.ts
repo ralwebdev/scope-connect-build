@@ -77,6 +77,7 @@ export type ScopeUser = {
   location?: string | null;
   opportunitiesVerified?: boolean;
   opportunitiesVerificationStatus?: "none" | "pending" | "verified" | "rejected";
+  achievements?: string[];
 };
 
 export type FeedPost = {
@@ -832,13 +833,28 @@ export const projects = {
     notifications.push({ icon: "spark", text: `Builders are viewing "${p.title}".` });
     return p;
   },
-  vote(id: string) {
-    const list = projects.all().map((p) => {
+  async vote(id: string) {
+    const curList = projects.all();
+    const project = curList.find((p) => p.id === id);
+    if (!project) return;
+    const v = !project.userVoted;
+    const list = curList.map((p) => {
       if (p.id !== id) return p;
-      const v = !p.userVoted;
       return { ...p, userVoted: v, votes: p.votes + (v ? 1 : -1) };
     });
-    write(KEYS.projects, list);
+    writeNow(KEYS.projects, list);
+    try {
+      const response = await backendProjects.vote(id);
+      const updatedList = projects.all().map((p) => {
+        if (p.id !== id) return p;
+        return { ...p, userVoted: response.voted, votes: response.votes };
+      });
+      writeNow(KEYS.projects, updatedList);
+      void auth.refreshCurrentUser().catch(() => null);
+    } catch (error) {
+      console.warn("Project vote sync failed", error);
+      writeNow(KEYS.projects, curList);
+    }
   },
 };
 
@@ -1111,6 +1127,8 @@ export type CuratedProject = {
   postedBy: string;
   postedAt: number;
   endsAt?: number;
+  votes?: number;
+  userVoted?: boolean;
 };
 
 export type Application = {
@@ -1175,6 +1193,8 @@ function backendProjectsAsCurated(): CuratedProject[] {
       cover: p.cover,
       postedBy: p.author,
       postedAt: p.createdAt,
+      votes: p.votes || 0,
+      userVoted: p.userVoted || false,
     }));
 }
 

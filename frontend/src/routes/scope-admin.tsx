@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink, BarChart2, TrendingUp, Globe2, ArrowUpRight, MessageSquare } from "lucide-react";
+import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink, BarChart2, TrendingUp, Globe2, ArrowUpRight, MessageSquare, Flame } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { AccessDenied } from "@/components/site/AccessDenied";
@@ -1269,9 +1269,9 @@ function ScopeEventsManager() {
             <div key={item.id} className="relative rounded-lg border border-border p-3 group overflow-hidden">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate break-all" title={item.title}>{item.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground truncate break-all" title={item.type}>{item.type} · {item.date}</div>
-                  <div className="text-xs text-muted-foreground truncate break-all" title={item.venue}>{item.venue} · {item.seats} seats</div>
+                  <div className="text-sm font-semibold truncate" title={item.title}>{item.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground truncate" title={`${item.type} · ${item.date}`}>{item.type} · {item.date}</div>
+                  <div className="text-xs text-muted-foreground truncate" title={`${item.venue} · ${item.seats} seats`}>{item.venue} · {item.seats} seats</div>
                 </div>
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <Badge variant="outline">{item.color}</Badge>
@@ -1599,7 +1599,7 @@ function ScopeProjectsManager() {
                       </div>
                     </div>
 
-                    <div className="mt-6 grid grid-cols-2 gap-6 border-t border-border pt-6">
+                    <div className="mt-6 grid grid-cols-3 gap-6 border-t border-border pt-6">
                       <div className="space-y-1">
                         <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Participation Rate</div>
                         <div className="flex items-end gap-2">
@@ -1618,6 +1618,16 @@ function ScopeProjectsManager() {
                         <div className="flex items-end gap-2">
                           <span className="text-2xl font-bold text-foreground">{item.applicantCount}</span>
                           <span className="mb-1 text-xs text-muted-foreground">/ {item.capacity} students</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Project Demand</div>
+                        <div className="flex items-end gap-1.5">
+                          <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-full border border-orange-500/20 shadow-[0_0_12px_rgba(249,115,22,0.15)] animate-pulse">
+                            <Flame className="h-4 w-4 fill-orange-500 text-orange-500" />
+                            <span className="text-base font-bold leading-none">{item.votes || 0}</span>
+                          </div>
+                          <span className="mb-0.5 text-xs text-muted-foreground">upvotes</span>
                         </div>
                       </div>
                     </div>

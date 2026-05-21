@@ -416,11 +416,14 @@ function EventsSection() {
               }>
                 {e.type}
               </Badge>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">{e.title}</h3>
+              <h3 className="mt-4 text-lg font-semibold text-foreground line-clamp-2 break-words h-14" title={e.title}>{e.title}</h3>
               <div className="mt-4 space-y-1.5 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2"><Calendar className="h-3.5 w-3.5" /> {e.date}</div>
-                <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {e.venue}</div>
-                <div className="flex items-center gap-2"><Users className="h-3.5 w-3.5" /> {e.seats} seats</div>
+                <div className="flex items-center gap-2 min-w-0"><Calendar className="h-3.5 w-3.5 shrink-0" /><span className="truncate flex-1">{e.date}</span></div>
+                <div className="flex items-center gap-2 min-w-0" title={e.venue}>
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate flex-1">{e.venue}</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0"><Users className="h-3.5 w-3.5 shrink-0" /><span className="truncate flex-1">{e.seats} seats</span></div>
               </div>
               <Button asChild variant="outline" size="sm" className="mt-5 w-full">
                 <Link to="/events">Register</Link>

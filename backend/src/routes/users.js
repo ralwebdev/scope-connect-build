@@ -13,6 +13,7 @@ import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
 import { serializeUser } from "../utils/serializers.js";
 import { Institution as InstitutionModel } from "../models/Institution.js";
+import { unlockAchievement } from "../utils/achievement-engine.js";
 
 export const usersRouter = express.Router();
 export const adminUsersRouter = express.Router();
@@ -258,6 +259,7 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
   // Trigger notifications
   try {
     if (req.body.student_status === "active") {
+      await unlockAchievement(user._id, "verified_builder");
       await Notification.create({
         user: user._id,
         kind: "achievement",
@@ -773,6 +775,7 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
     // Trigger notification
     try {
       if (status === "active") {
+        await unlockAchievement(user._id, "verified_builder");
         await Notification.create({
           user: user._id,
           kind: "achievement",

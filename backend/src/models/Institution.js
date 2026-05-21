@@ -41,6 +41,10 @@ const institutionSchema = new mongoose.Schema(
     pipelineStage: { type: String, enum: pipelineStages, default: "Prospect", index: true },
     notes: { type: String, default: "" },
     totalStudentXp: { type: Number, default: 0 },
+    logoText: { type: String, default: "" },
+    description: { type: String, default: "" },
+    topSkills: { type: [String], default: [] },
+    departments: { type: [String], default: [] },
     documents: [
       {
         kind: { type: String, enum: ["brochure", "proposal", "pricing", "mou", "document"] },

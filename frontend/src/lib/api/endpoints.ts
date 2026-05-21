@@ -148,12 +148,16 @@ export const backendUsers = {
   },
 };
 
-type BackendInstitution = {
+export type BackendInstitution = {
   id: string;
   name: string;
   city?: string;
   state?: string;
   pipeline_stage?: string;
+  logo_text?: string;
+  description?: string;
+  top_skills?: string[];
+  departments?: string[];
   documents?: Array<{
     kind: "brochure" | "proposal" | "pricing" | "mou";
     file_id: string;
@@ -176,6 +180,18 @@ export const backendInstitutions = {
       projects_shipped: number;
       weekly_growth_pct: number;
     }>("/api/v1/institutions/me/campus-summary");
+  },
+  getProfile() {
+    return api<{ institution: BackendInstitution }>("/api/v1/institutions/me");
+  },
+  get(id: string) {
+    return api<{ institution: BackendInstitution }>(`/api/v1/institutions/${id}`);
+  },
+  update(id: string, body: Partial<Omit<BackendInstitution, "id">>) {
+    return api<{ institution: BackendInstitution }>(`/api/v1/institutions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
   },
   sendDocument(id: string, body: {
     kind: "brochure" | "proposal" | "pricing" | "mou" | "document";
@@ -211,6 +227,8 @@ export type BackendProject = {
   cover_url?: string | null;
   visibility: string;
   meta?: Record<string, string>;
+  votes?: number;
+  user_voted?: boolean;
   created_at: string;
   updated_at?: string;
 };
@@ -265,6 +283,11 @@ export const backendProjects = {
   },
   remove(id: string) {
     return api<null>(`/api/v1/projects/${id}`, { method: "DELETE" });
+  },
+  vote(id: string) {
+    return api<{ voted: boolean; votes: number }>(`/api/v1/projects/${id}/vote`, {
+      method: "POST",
+    });
   },
 };
 
@@ -662,12 +685,13 @@ export function mapBackendProject(project: BackendProject): Project {
     problem: project.summary || "Solving a real campus / industry pain.",
     team: "Scope Builder",
     category: project.domain || project.tags?.[0] || "Software",
-    votes: 0,
+    votes: project.votes || 0,
     cover: project.cover_url || "🚀",
     createdAt: project.created_at ? new Date(project.created_at).getTime() : Date.now(),
     endsAt: project.ends_on ? new Date(project.ends_on).getTime() : undefined,
     teams_allowed: project.teams_allowed,
     team_members_limit: project.team_members_limit,
+    userVoted: project.user_voted || false,
   };
 }
 

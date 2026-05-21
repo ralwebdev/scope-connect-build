@@ -22,7 +22,7 @@ async function main() {
   const health = await request("/api/health");
   if (health.status !== "ok") throw new Error("Health endpoint did not return ok");
 
-  const login = await request("/api/auth/login", {
+  const login = await request("/api/v1/auth/login", {
     method: "POST",
     body: JSON.stringify({ email: "alice@iitb.ac.in", password: "Password123!" }),
   });
@@ -31,13 +31,13 @@ async function main() {
   }
 
   const authHeaders = { Authorization: `Bearer ${login.access_token}` };
-  const me = await request("/api/auth/me", { headers: authHeaders });
+  const me = await request("/api/v1/auth/me", { headers: authHeaders });
   if (me.user.id !== login.user.id) throw new Error("/auth/me did not return the logged-in user");
 
-  const projects = await request("/api/projects?limit=10", { headers: authHeaders });
+  const projects = await request("/api/v1/projects?limit=10", { headers: authHeaders });
   if (!Array.isArray(projects.items)) throw new Error("/projects did not return a paginated item list");
 
-  const notifications = await request("/api/notifications?limit=10", { headers: authHeaders });
+  const notifications = await request("/api/v1/notifications?limit=10", { headers: authHeaders });
   if (!Array.isArray(notifications.items)) throw new Error("/notifications did not return a paginated item list");
 
   console.log("Integration test passed");

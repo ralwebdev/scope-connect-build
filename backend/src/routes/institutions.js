@@ -46,6 +46,10 @@ const institutionSchema = z.object({
   potential_value: z.number().min(0).optional(),
   pipeline_stage: z.enum(pipelineStages).or(z.literal("")).optional().transform(v => v === "" ? undefined : v),
   notes: z.string().max(10000).optional(),
+  logo_text: z.string().max(40).optional(),
+  description: z.string().max(5000).optional(),
+  top_skills: z.array(z.string().max(100)).optional(),
+  departments: z.array(z.string().max(100)).optional(),
 });
 
 institutionsRouter.get("/public", asyncHandler(async (_req, res) => {
@@ -92,6 +96,16 @@ institutionsRouter.get("/me/campus-summary", asyncHandler(async (req, res) => {
     weekly_growth_pct: weeklyGrowthPct,
   });
 }));
+
+institutionsRouter.get("/me", asyncHandler(async (req, res) => {
+  if (!req.user.institution) {
+    throw notFound("Institution not linked to this user");
+  }
+  const institution = await Institution.findById(req.user.institution);
+  if (!institution) throw notFound("Institution not found");
+  sendSuccess(res, { institution: serializeInstitution(institution) });
+}));
+
 
 const visitSchema = z.object({
   institution_id: z.string().min(1),
@@ -154,6 +168,10 @@ function institutionUpdateFromBody(body) {
     ...(body.potential_value !== undefined && { potentialValue: body.potential_value }),
     ...(body.pipeline_stage !== undefined && { pipelineStage: body.pipeline_stage }),
     ...(body.notes !== undefined && { notes: body.notes }),
+    ...(body.logo_text !== undefined && { logoText: body.logo_text }),
+    ...(body.description !== undefined && { description: body.description }),
+    ...(body.top_skills !== undefined && { topSkills: body.top_skills }),
+    ...(body.departments !== undefined && { departments: body.departments }),
   };
 }
 
@@ -320,6 +338,9 @@ institutionsRouter.post("/", requirePermission("manage_partnerships"), validate(
 institutionsRouter.patch("/:id", validate(institutionSchema.partial()), asyncHandler(async (req, res) => {
   if (!canManageCrm(req) && req.user.role !== "institution_admin") {
     throw forbidden();
+  }
+  if (req.user.role === "institution_admin" && String(req.user.institution) !== req.params.id) {
+    throw forbidden("You can only manage your own institution");
   }
   const institution = await Institution.findByIdAndUpdate(
     req.params.id,

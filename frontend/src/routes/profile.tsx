@@ -142,14 +142,14 @@ function ProfilePage() {
 
   return (
     <AppShell>
-      <ProfileHero 
-        user={user} 
-        role={role} 
+      <ProfileHero
+        user={user}
+        role={role}
         isStudentLike={isStudentLike}
-        strength={strength} 
-        xp={xpValue} 
-        levelName={levelData.name} 
-        streak={streakValue} 
+        strength={strength}
+        xp={xpValue}
+        levelName={levelData.name}
+        streak={streakValue}
         onUpdate={refresh}
       />
 
@@ -169,9 +169,9 @@ function ProfilePage() {
               </>}
 
               {role === "institutional_admin" && <>
-                <TabsTrigger value="institution">Institution</TabsTrigger>
-                <TabsTrigger value="students">Students</TabsTrigger>
-                <TabsTrigger value="reports">Reports</TabsTrigger>
+                {/* <TabsTrigger value="institution">Institution</TabsTrigger> */}
+                {/* <TabsTrigger value="students">Students</TabsTrigger> */}
+                {/* <TabsTrigger value="reports">Reports</TabsTrigger> */}
                 <TabsTrigger value="settings">Settings</TabsTrigger>
               </>}
 
@@ -203,18 +203,18 @@ function ProfilePage() {
           </div>
 
           <TabsContent value="overview" className="mt-6">
-            <OverviewTab 
-              user={user} 
-              role={role} 
+            <OverviewTab
+              user={user}
+              role={role}
               isStudentLike={isStudentLike}
-              strength={strength} 
-              xp={xpValue} 
-              level={levelData} 
+              strength={strength}
+              xp={xpValue}
+              level={levelData}
               levelProgress={levelProgressValue}
               streak={streakValue}
               backendOverview={overviewFromBackend}
               portfolioItems={overviewPortfolioItems}
-              portfolioItemsLoading={overviewPortfolioItemsLoading} 
+              portfolioItemsLoading={overviewPortfolioItemsLoading}
               accent={roleTheme.glow}
             />
           </TabsContent>
@@ -224,14 +224,15 @@ function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="achievements" className="mt-6">
-            <AchievementsTab 
-              role={role} 
+            <AchievementsTab
+              role={role}
               isStudentLike={isStudentLike}
-              xp={xpValue} 
-              level={levelData} 
+              xp={xpValue}
+              level={levelData}
               levelProgress={levelProgressValue}
-              streak={streakValue} 
+              streak={streakValue}
               accent={roleTheme.glow}
+              user={user}
             />
           </TabsContent>
 
@@ -406,9 +407,9 @@ function ProfileHero(props: {
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl text-3xl font-bold text-brand-foreground shadow-brand ring-2 ring-white/10 transition-transform group-hover:scale-105"
             style={{ background: avatar.hasImage ? "transparent" : user.avatarColor }}>
             {avatar.hasImage ? (
-              <img 
-                src={avatar.src} 
-                alt={user.name} 
+              <img
+                src={avatar.src}
+                alt={user.name}
                 className="h-full w-full object-cover"
                 onError={avatar.onError}
               />
@@ -416,8 +417,8 @@ function ProfileHero(props: {
               user.name.charAt(0).toUpperCase()
             )}
           </div>
-          <Label 
-            htmlFor="avatar-upload" 
+          <Label
+            htmlFor="avatar-upload"
             className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-brand text-brand-foreground shadow-lg transition-all hover:scale-110 active:scale-95"
           >
             {uploading ? <Sparkles className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -704,19 +705,19 @@ function ActivityTab({ role }: { role: RoleId }) {
   );
 }
 
-function AchievementsTab({ role, isStudentLike, xp, level, levelProgress, streak, accent }: {
-  role: RoleId; isStudentLike: boolean; xp: number; level: { name: string; min: number; max: number; next: string }; levelProgress: number; streak: number; accent: string;
+function AchievementsTab({ role, isStudentLike, xp, level, levelProgress, streak, accent, user }: {
+  role: RoleId; isStudentLike: boolean; xp: number; level: { name: string; min: number; max: number; next: string }; levelProgress: number; streak: number; accent: string; user?: ScopeUser | null;
 }) {
   if (!isStudentLike) {
     const milestones = (role === "scope_super_admin" || role === "super_admin")
       ? ["Platform launch", "1k+ active users", "100+ partner institutions"]
       : role === "scope_admin"
-      ? ["First MoU signed", "10 institutions onboarded"]
-      : role === "institutional_admin"
-      ? ["Institution verified", "1000+ students onboarded"]
-      : role === "faculty_coordinator"
-      ? ["100 verifications approved"]
-      : ["Top campus leaderboard"];
+        ? ["First MoU signed", "10 institutions onboarded"]
+        : role === "institutional_admin"
+          ? ["Institution verified", "1000+ students onboarded"]
+          : role === "faculty_coordinator"
+            ? ["100 verifications approved"]
+            : ["Top campus leaderboard"];
     return (
       <Card className="p-6">
         <h3 className="font-semibold text-foreground">Milestones</h3>
@@ -727,11 +728,13 @@ function AchievementsTab({ role, isStudentLike, xp, level, levelProgress, streak
     );
   }
 
+  const unlockedSet = new Set(user?.achievements || ["early_adopter"]);
+
   const milestones = [
-    { name: "Early Adopter", desc: "Joined during Beta", icon: Sparkles, unlocked: true },
-    { name: "Verified Builder", desc: "Institution verified", icon: Shield, unlocked: false },
-    { name: "First Project", desc: "Launched a work item", icon: Briefcase, unlocked: false },
-    { name: "Team Player", desc: "Voted on 5 projects", icon: Users, unlocked: false },
+    { name: "Early Adopter", desc: "Joined during Beta", icon: Sparkles, unlocked: unlockedSet.has("early_adopter") },
+    { name: "Verified Builder", desc: "Institution verified", icon: Shield, unlocked: unlockedSet.has("verified_builder") },
+    { name: "First Project", desc: "Launched a work item", icon: Briefcase, unlocked: unlockedSet.has("first_project") },
+    { name: "Team Player", desc: "Voted on 5 projects", icon: Users, unlocked: unlockedSet.has("team_player") },
   ];
 
   return (
@@ -753,7 +756,7 @@ function AchievementsTab({ role, isStudentLike, xp, level, levelProgress, streak
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-6">
           <h3 className="text-sm font-medium text-muted-foreground">Scope Points</h3>
           <p className="mt-2 text-3xl font-bold text-foreground">{xp.toLocaleString()}</p>
@@ -774,17 +777,26 @@ function AchievementsTab({ role, isStudentLike, xp, level, levelProgress, streak
             const Icon = m.icon;
             return (
               <div key={m.name} className={cn(
-                "flex flex-col items-center rounded-xl border p-4 text-center transition-all",
-                m.unlocked ? "border-brand/20 bg-brand/5" : "border-border bg-muted/20 opacity-40 grayscale"
+                "flex flex-col items-center rounded-xl border p-5 text-center transition-all duration-300",
+                m.unlocked 
+                  ? "border-brand/20 bg-brand/5 shadow-[0_0_15px_-3px_rgba(0,209,255,0.15)] hover:scale-102 hover:shadow-[0_0_20px_1px_rgba(0,209,255,0.25)] hover:border-brand/40" 
+                  : "border-border bg-muted/10 opacity-40 grayscale hover:opacity-50 hover:grayscale-[50%]"
               )}>
                 <div className={cn(
-                  "mb-3 flex h-12 w-12 items-center justify-center rounded-full",
-                  m.unlocked ? "bg-brand/10 text-brand" : "bg-muted text-muted-foreground"
+                  "mb-3 flex h-14 w-14 items-center justify-center rounded-2xl transition-all duration-300",
+                  m.unlocked 
+                    ? "bg-brand/10 text-brand shadow-[inset_0_0_10px_rgba(0,209,255,0.2)]" 
+                    : "bg-muted text-muted-foreground"
                 )}>
-                  <Icon className="h-6 w-6" />
+                  <Icon className="h-7 w-7" />
                 </div>
-                <h4 className="text-sm font-semibold text-foreground">{m.name}</h4>
-                <p className="mt-1 text-[10px] text-muted-foreground leading-tight">{m.desc}</p>
+                <h4 className="text-sm font-bold text-foreground">{m.name}</h4>
+                <p className="mt-1 text-xs text-muted-foreground leading-snug">{m.desc}</p>
+                {m.unlocked && (
+                  <Badge variant="secondary" className="mt-3 bg-brand/10 text-brand hover:bg-brand/20 border-none text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                    Unlocked
+                  </Badge>
+                )}
               </div>
             );
           })}
@@ -915,7 +927,7 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
               Opportunities Access
             </h3>
             <p className="text-sm text-muted-foreground max-w-xl">
-              Verification of your portfolio links is required to unlock the high-value opportunities page. 
+              Verification of your portfolio links is required to unlock the high-value opportunities page.
               Our team reviews your GitHub, LinkedIn, and project links to ensure quality.
             </p>
           </div>
@@ -931,8 +943,8 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
                 <Clock className="mr-2 h-4 w-4 animate-pulse" /> Reviewing Portfolio...
               </Button>
             ) : (
-              <Button 
-                onClick={handleVerifyOpportunities} 
+              <Button
+                onClick={handleVerifyOpportunities}
                 disabled={submitting || !hasLinks}
                 className={cn(
                   "bg-gradient-brand text-brand-foreground shadow-lg shadow-brand/20",
@@ -963,9 +975,9 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
                   </p>
                 </div>
               </div>
-              <Button 
-                onClick={handleGoToPortfolio} 
-                variant="outline" 
+              <Button
+                onClick={handleGoToPortfolio}
+                variant="outline"
                 size="sm"
                 className="text-xs border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
               >
