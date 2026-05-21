@@ -1,5 +1,6 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { User, Profile, Session, Institution, ProfileActivity } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -13,6 +14,7 @@ import { createRefreshToken, hashRefreshToken, signAccessToken } from "../utils/
 import { serializeUser } from "../utils/serializers.js";
 import { env } from "../config/env.js";
 import { awardXp } from "../utils/xp-engine.js";
+import { sendEmail } from "../utils/email.js";
 
 export const authRouter = express.Router();
 
@@ -38,6 +40,15 @@ const refreshSchema = z.object({
 const logoutSchema = z.object({
   refresh_token: z.string().min(16).optional(),
   all_sessions: z.boolean().optional().default(false),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(20).max(512),
+  password: z.string().min(8).max(128),
 });
 
 function handleBaseFromEmail(email) {
@@ -80,6 +91,12 @@ async function issueSession(req, user) {
     refresh_token: refreshToken,
     access_token_expires_in: env.jwtAccessTtlSeconds,
   };
+}
+
+function createPasswordResetToken() {
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  return { token, tokenHash };
 }
 
 authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(async (req, res) => {
@@ -222,6 +239,58 @@ authRouter.post("/logout", validate(logoutSchema), asyncHandler(async (req, res)
     }
   }
   sendSuccess(res, { revoked });
+}));
+
+authRouter.post("/forgot-password", authRateLimit, validate(forgotPasswordSchema), asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const user = await User.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
+
+  if (user && !user.disabledAt) {
+    const { token, tokenHash } = createPasswordResetToken();
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+
+    const resetLink = `${env.appBaseUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(token)}`;
+    const subject = "Reset your Scope Connect password";
+    const body = [
+      `Hi ${user.name || "there"},`,
+      "",
+      "We received a request to reset your password.",
+      `Use this link to set a new password: ${resetLink}`,
+      "",
+      "This link expires in 15 minutes.",
+      "If you did not request this, you can ignore this email.",
+    ].join("\n");
+
+    await sendEmail({ to: user.email, subject, body }).catch((error) => {
+      console.error("Forgot password email send failed:", error);
+      throw new AppError(500, "EMAIL_SEND_FAILED", "Unable to send reset email right now");
+    });
+  }
+
+  sendSuccess(res, { sent: true }, "If an account exists, a reset link has been sent");
+}));
+
+authRouter.post("/reset-password", authRateLimit, validate(resetPasswordSchema), asyncHandler(async (req, res) => {
+  const tokenHash = crypto.createHash("sha256").update(req.body.token).digest("hex");
+  const user = await User.findOne({
+    resetPasswordTokenHash: tokenHash,
+    resetPasswordExpiresAt: { $gt: new Date() },
+  }).select("+passwordHash +resetPasswordTokenHash +resetPasswordExpiresAt");
+
+  if (!user) {
+    throw new AppError(400, "INVALID_RESET_TOKEN", "Reset token is invalid or expired");
+  }
+
+  user.passwordHash = await bcrypt.hash(req.body.password, 12);
+  user.resetPasswordTokenHash = null;
+  user.resetPasswordExpiresAt = null;
+  await user.save();
+
+  await Session.updateMany({ user: user._id, revokedAt: null }, { revokedAt: new Date() });
+
+  sendSuccess(res, { reset: true }, "Password reset successful");
 }));
 
 authRouter.get("/me", authMiddleware, asyncHandler(async (req, res) => {

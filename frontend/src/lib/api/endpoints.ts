@@ -27,6 +27,18 @@ export const backendAuth = {
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
   },
+  forgotPassword(body: { email: string }) {
+    return api<{ sent: boolean }>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  resetPassword(body: { token: string; password: string }) {
+    return api<{ reset: boolean }>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
   me() {
     return api<{ user: ScopeUser }>("/api/v1/auth/me");
   },

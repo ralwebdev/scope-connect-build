@@ -77,12 +77,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  // Apply persisted theme on client mount (no SSR mismatch — only sets a class).
   useEffect(() => {
     try {
-      const t = (localStorage.getItem("scope_theme") as "system" | "dark" | "light" | null) ?? "system";
-      const dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      document.documentElement.classList.toggle("dark", dark);
+      localStorage.setItem("scope_theme", "light");
+      document.documentElement.classList.remove("dark");
     } catch { /* noop */ }
     // Boot hydration: validates schema, repairs corrupt slices, never throws.
     const result = hydration.boot();

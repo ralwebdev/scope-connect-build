@@ -12,15 +12,14 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bell, LogOut, Settings as SettingsIcon, User as UserIcon, Menu,
-  Sun, Moon, Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useImageSrc } from "@/hooks/use-image-src";
 import { useUserSession } from "@/hooks/use-session";
 import { useUnreadNotifications } from "@/hooks/use-scope";
 import { auth, meta, notifications } from "@/lib/scope-store";
+import { ApiException } from "@/lib/api/client";
 import { useBrand } from "@/hooks/use-platform";
-import { useTheme } from "@/hooks/use-theme";
 import { landingRouteForRole } from "@/lib/rbac";
 import { themeForRole } from "@/lib/role-theme";
 import { navConfigForRole } from "@/lib/role-nav";
@@ -61,8 +60,32 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
 
     let lastUnreadCount = 0;
     let isInitial = true;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let backoffMs = 15000;
+
+    const schedule = (ms = backoffMs) => {
+      if (stopped) return;
+      timer = setTimeout(() => {
+        void sync();
+      }, ms);
+    };
+
+    const forceReauth = (reason: "401" | "403") => {
+      if (stopped) return;
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      auth.logout();
+      toast.error(
+        reason === "403"
+          ? "Your session no longer has access to notifications. Please sign in again."
+          : "Session expired. Please sign in again.",
+      );
+      navigate({ to: "/auth", replace: true });
+    };
 
     const sync = async () => {
+      if (stopped) return;
       try {
         const list = await notifications.syncFromBackend();
         const currentUnread = list.filter((n) => !n.read);
@@ -90,17 +113,25 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
         }
         lastUnreadCount = unreadCount;
         isInitial = false;
+        backoffMs = 15000;
+        schedule();
       } catch (err) {
         console.warn("Live notifications poll error", err);
+        if (err instanceof ApiException && (err.status === 401 || err.status === 403)) {
+          forceReauth(err.status === 403 ? "403" : "401");
+          return;
+        }
+        backoffMs = Math.min(backoffMs * 2, 120000);
+        schedule(backoffMs);
       }
     };
 
     // Initial sync
     void sync();
-
-    // Auto-polling interval every 15 seconds
-    const interval = setInterval(sync, 15000);
-    return () => clearInterval(interval);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [session.isAuthenticated, session.ready, navigate]);
 
   useEffect(() => {
@@ -294,8 +325,6 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
             {/* RIGHT GROUP — actions */}
             <div className="relative flex items-center gap-1">
               <div className="flex items-center gap-0.5">
-                <ThemeQuickToggle />
-
                 {showAuthedUI ? (
                   <>
                     <div ref={bellRef} className="relative">
@@ -385,23 +414,6 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
         </div>
       </header>
     </>
-  );
-}
-
-function ThemeQuickToggle() {
-  const { mode, setTheme } = useTheme();
-  const next = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
-  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-  return (
-    <button
-      type="button"
-      aria-label={`Theme: ${mode}. Click to switch to ${next}.`}
-      onClick={() => setTheme(next)}
-      className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/40 transition-colors hover:bg-secondary"
-      title={`Theme: ${mode}`}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
   );
 }
 

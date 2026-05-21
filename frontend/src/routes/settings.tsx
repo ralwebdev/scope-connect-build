@@ -14,14 +14,6 @@ import { auth, meta } from "@/lib/scope-store";
 import { toast } from "sonner";
 
 const THEME_KEY = "scope_theme";
-type Theme = "system" | "dark" | "light";
-
-function applyTheme(t: Theme) {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  const dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  root.classList.toggle("dark", dark);
-}
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -46,22 +38,14 @@ function SettingsPage() {
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
   const [weekly, setWeekly] = useState(true);
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "system";
-    return ((localStorage.getItem(THEME_KEY) as Theme) ?? "system");
-  });
-
   // Sync email when user resolves on mount
   useEffect(() => {
     if (user?.email) setEmail(user.email);
+    try {
+      localStorage.setItem(THEME_KEY, "light");
+      document.documentElement.classList.remove("dark");
+    } catch { /* noop */ }
   }, [user?.email]);
-
-  const setTheme = (t: Theme) => {
-    setThemeState(t);
-    try { localStorage.setItem(THEME_KEY, t); } catch { /* noop */ }
-    applyTheme(t);
-    toast(`Theme set to ${t}.`);
-  };
 
   if (!user) return null;
 
@@ -114,10 +98,8 @@ function SettingsPage() {
             </div>
             <div>
               <Label>Theme</Label>
-              <div className="mt-1.5 flex gap-2">
-                {(["system", "light", "dark"] as const).map((t) => (
-                  <button key={t} onClick={() => setTheme(t)} className={`rounded-lg border px-3 py-1.5 text-xs capitalize transition-colors ${theme === t ? "border-brand bg-brand/10 text-brand" : "border-border text-muted-foreground hover:text-foreground"}`}>{t}</button>
-                ))}
+              <div className="mt-1.5 rounded-lg border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
+                Day mode is enabled by default.
               </div>
             </div>
           </div>

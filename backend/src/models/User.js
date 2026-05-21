@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema(
     },
     founder: { type: Boolean, default: false },
     disabledAt: { type: Date, default: null },
+    resetPasswordTokenHash: { type: String, default: null, select: false },
+    resetPasswordExpiresAt: { type: Date, default: null, select: false },
   },
   { timestamps: true },
 );

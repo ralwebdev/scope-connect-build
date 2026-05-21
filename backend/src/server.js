@@ -11,7 +11,10 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Failed to start server", error);
+  console.error("Failed to start server.");
+  console.error(error?.message || error);
+  if (error?.code) console.error(`code=${error.code}`);
+  if (error?.hostname) console.error(`hostname=${error.hostname}`);
   process.exit(1);
 });
 

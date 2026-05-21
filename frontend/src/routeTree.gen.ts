@@ -17,6 +17,7 @@ import { Route as SupportRouteImport } from './routes/support'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScopeSuperAdminRouteImport } from './routes/scope-super-admin'
 import { Route as ScopeAdminRouteImport } from './routes/scope-admin'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReferRouteImport } from './routes/refer'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -27,6 +28,7 @@ import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
 import { Route as InstitutionAdminRouteImport } from './routes/institution-admin'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as FaqsRouteImport } from './routes/faqs'
@@ -103,6 +105,11 @@ const ScopeAdminRoute = ScopeAdminRouteImport.update({
   path: '/scope-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReferRoute = ReferRouteImport.update({
   id: '/refer',
   path: '/refer',
@@ -151,6 +158,11 @@ const LeaderboardsRoute = LeaderboardsRouteImport.update({
 const InstitutionAdminRoute = InstitutionAdminRouteImport.update({
   id: '/institution-admin',
   path: '/institution-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedbackRoute = FeedbackRouteImport.update({
@@ -352,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/faqs': typeof FaqsRoute
   '/feed': typeof FeedRoute
   '/feedback': typeof FeedbackRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/institution-admin': typeof InstitutionAdminRouteWithChildren
   '/leaderboards': typeof LeaderboardsRoute
   '/notifications': typeof NotificationsRoute
@@ -362,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRoute
   '/refer': typeof ReferRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/scope-admin': typeof ScopeAdminRouteWithChildren
   '/scope-super-admin': typeof ScopeSuperAdminRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -407,6 +421,7 @@ export interface FileRoutesByTo {
   '/faqs': typeof FaqsRoute
   '/feed': typeof FeedRoute
   '/feedback': typeof FeedbackRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/institution-admin': typeof InstitutionAdminRouteWithChildren
   '/leaderboards': typeof LeaderboardsRoute
   '/notifications': typeof NotificationsRoute
@@ -417,6 +432,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRoute
   '/refer': typeof ReferRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/scope-admin': typeof ScopeAdminRouteWithChildren
   '/scope-super-admin': typeof ScopeSuperAdminRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -463,6 +479,7 @@ export interface FileRoutesById {
   '/faqs': typeof FaqsRoute
   '/feed': typeof FeedRoute
   '/feedback': typeof FeedbackRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/institution-admin': typeof InstitutionAdminRouteWithChildren
   '/leaderboards': typeof LeaderboardsRoute
   '/notifications': typeof NotificationsRoute
@@ -473,6 +490,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRoute
   '/refer': typeof ReferRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/scope-admin': typeof ScopeAdminRouteWithChildren
   '/scope-super-admin': typeof ScopeSuperAdminRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -520,6 +538,7 @@ export interface FileRouteTypes {
     | '/faqs'
     | '/feed'
     | '/feedback'
+    | '/forgot-password'
     | '/institution-admin'
     | '/leaderboards'
     | '/notifications'
@@ -530,6 +549,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/refer'
+    | '/reset-password'
     | '/scope-admin'
     | '/scope-super-admin'
     | '/settings'
@@ -575,6 +595,7 @@ export interface FileRouteTypes {
     | '/faqs'
     | '/feed'
     | '/feedback'
+    | '/forgot-password'
     | '/institution-admin'
     | '/leaderboards'
     | '/notifications'
@@ -585,6 +606,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/refer'
+    | '/reset-password'
     | '/scope-admin'
     | '/scope-super-admin'
     | '/settings'
@@ -630,6 +652,7 @@ export interface FileRouteTypes {
     | '/faqs'
     | '/feed'
     | '/feedback'
+    | '/forgot-password'
     | '/institution-admin'
     | '/leaderboards'
     | '/notifications'
@@ -640,6 +663,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/refer'
+    | '/reset-password'
     | '/scope-admin'
     | '/scope-super-admin'
     | '/settings'
@@ -686,6 +710,7 @@ export interface RootRouteChildren {
   FaqsRoute: typeof FaqsRoute
   FeedRoute: typeof FeedRoute
   FeedbackRoute: typeof FeedbackRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InstitutionAdminRoute: typeof InstitutionAdminRouteWithChildren
   LeaderboardsRoute: typeof LeaderboardsRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -696,6 +721,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRoute
   ReferRoute: typeof ReferRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ScopeAdminRoute: typeof ScopeAdminRouteWithChildren
   ScopeSuperAdminRoute: typeof ScopeSuperAdminRouteWithChildren
   SettingsRoute: typeof SettingsRoute
@@ -768,6 +794,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScopeAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/refer': {
       id: '/refer'
       path: '/refer'
@@ -836,6 +869,13 @@ declare module '@tanstack/react-router' {
       path: '/institution-admin'
       fullPath: '/institution-admin'
       preLoaderRoute: typeof InstitutionAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feedback': {
@@ -1167,6 +1207,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqsRoute: FaqsRoute,
   FeedRoute: FeedRoute,
   FeedbackRoute: FeedbackRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InstitutionAdminRoute: InstitutionAdminRouteWithChildren,
   LeaderboardsRoute: LeaderboardsRoute,
   NotificationsRoute: NotificationsRoute,
@@ -1177,6 +1218,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRoute,
   ReferRoute: ReferRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ScopeAdminRoute: ScopeAdminRouteWithChildren,
   ScopeSuperAdminRoute: ScopeSuperAdminRouteWithChildren,
   SettingsRoute: SettingsRoute,
