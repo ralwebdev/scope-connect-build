@@ -82,8 +82,13 @@ export const configStore = {
   set(next: RuntimeConfig) {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(KEY, JSON.stringify({ ...next, meta: { updatedAt: Date.now() } }));
+      const payload = { ...next, meta: { updatedAt: Date.now() } };
+      localStorage.setItem(KEY, JSON.stringify(payload));
       notify();
+      // Sync to backend asynchronously
+      import("./api/endpoints").then(({ backendConfig }) => {
+        backendConfig.update(payload).catch((e) => console.warn("Config persist failed", e));
+      });
     } catch {
       /* noop */
     }
@@ -157,6 +162,26 @@ export const configStore = {
       meta: { updatedAt: Date.now() },
     };
     return { ok: true, errors: [], data };
+  },
+  async syncFromBackend() {
+    if (typeof window === "undefined") return;
+    try {
+      // Import here to avoid cyclic dependencies
+      const { backendConfig } = await import("./api/endpoints");
+      const { config } = await backendConfig.get();
+      if (config) {
+        configStore.set({
+          edition: configStore.get().edition,
+          brand: config.brand,
+          contact: config.contact,
+          features: config.features,
+          campuses: config.campuses,
+          meta: { updatedAt: Date.now() },
+        });
+      }
+    } catch (e) {
+      console.warn("Config sync failed", e);
+    }
   },
 };
 

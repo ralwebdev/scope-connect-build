@@ -91,6 +91,22 @@ function RootComponent() {
         description: `${result.recoveredKeys.length} slice${result.recoveredKeys.length === 1 ? "" : "s"} repaired.`,
       });
     }
+    
+    // Sync platform config and store items from backend on boot
+    import("@/lib/config-store").then(({ configStore }) => {
+      void configStore.syncFromBackend();
+    });
+    import("@/lib/scope-store").then(({ events, opportunities, curated, projects, portfolio, applications }) => {
+      Promise.allSettled([
+        events.syncFromBackend(),
+        opportunities.syncFromBackend(),
+        curated.syncFromBackend(),
+        projects.syncFromBackend(),
+        portfolio.syncFromBackend(),
+        applications.syncFromBackend(),
+      ]).catch((err) => console.warn("Global hydration errors:", err));
+    });
+
     // Soft-launch instrumentation: anonymous tester id + invite-source capture.
     analytics.init();
     // One session_start per app load (frontend-only analytics).
