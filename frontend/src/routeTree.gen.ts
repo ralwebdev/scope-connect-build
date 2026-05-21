@@ -42,6 +42,7 @@ import { Route as CampusLeaderRouteImport } from './routes/campus-leader'
 import { Route as CampusRouteImport } from './routes/campus'
 import { Route as BrokenLinkRouteImport } from './routes/broken-link'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ApplicationsRouteImport } from './routes/applications'
 import { Route as AnnouncementsRouteImport } from './routes/announcements'
 import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -229,6 +230,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApplicationsRoute = ApplicationsRouteImport.update({
+  id: '/applications',
+  path: '/applications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnnouncementsRoute = AnnouncementsRouteImport.update({
   id: '/announcements',
   path: '/announcements',
@@ -344,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
+  '/applications': typeof ApplicationsRoute
   '/auth': typeof AuthRoute
   '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRouteWithChildren
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
+  '/applications': typeof ApplicationsRoute
   '/auth': typeof AuthRoute
   '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
@@ -457,6 +465,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
+  '/applications': typeof ApplicationsRoute
   '/auth': typeof AuthRoute
   '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
@@ -515,6 +524,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ambassador'
     | '/announcements'
+    | '/applications'
     | '/auth'
     | '/broken-link'
     | '/campus'
@@ -571,6 +581,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ambassador'
     | '/announcements'
+    | '/applications'
     | '/auth'
     | '/broken-link'
     | '/campus'
@@ -627,6 +638,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ambassador'
     | '/announcements'
+    | '/applications'
     | '/auth'
     | '/broken-link'
     | '/campus'
@@ -684,6 +696,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   AmbassadorRoute: typeof AmbassadorRoute
   AnnouncementsRoute: typeof AnnouncementsRoute
+  ApplicationsRoute: typeof ApplicationsRoute
   AuthRoute: typeof AuthRoute
   BrokenLinkRoute: typeof BrokenLinkRoute
   CampusRoute: typeof CampusRoute
@@ -956,6 +969,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/applications': {
+      id: '/applications'
+      path: '/applications'
+      fullPath: '/applications'
+      preLoaderRoute: typeof ApplicationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/announcements': {
       id: '/announcements'
       path: '/announcements'
@@ -1173,6 +1193,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   AmbassadorRoute: AmbassadorRoute,
   AnnouncementsRoute: AnnouncementsRoute,
+  ApplicationsRoute: ApplicationsRoute,
   AuthRoute: AuthRoute,
   BrokenLinkRoute: BrokenLinkRoute,
   CampusRoute: CampusRoute,

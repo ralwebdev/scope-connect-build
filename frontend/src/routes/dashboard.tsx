@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Trophy, Flame, TrendingUp, Calendar, Users, Sparkles, ArrowRight, Target, Zap, Rocket, Briefcase, Lightbulb, ShieldCheck, MapPin } from "lucide-react";
+import { Trophy, Flame, TrendingUp, Calendar, Users, Sparkles, ArrowRight, Target, Zap, Rocket, Briefcase, Lightbulb, ShieldCheck, MapPin, ClipboardList } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -464,9 +464,14 @@ function DashboardPage() {
                   })}
                 </ul>
               )}
-              <Button asChild size="sm" variant="outline" className="mt-4 w-full">
-                <Link to="/projects">Browse opportunities <ArrowRight className="ml-1 h-3 w-3" /></Link>
-              </Button>
+              <div className="mt-4 flex gap-2">
+                <Button asChild size="sm" className="flex-1 bg-gradient-brand text-brand-foreground shadow-brand">
+                  <Link to="/applications"><ClipboardList className="mr-1.5 h-3.5 w-3.5" /> Track All <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="flex-1">
+                  <Link to="/projects">Browse More</Link>
+                </Button>
+              </div>
             </Card>
 
             <Card className="bg-gradient-hero p-5 text-primary-foreground hover-lift">

@@ -67,7 +67,7 @@ const STUDENT_BLUEPRINT: SidebarBlueprint = {
       id: "me",
       label: "Me",
       items: [
-        { to: "/notifications", label: "My Applications", permission: "view_dashboard", icon: Briefcase },
+        { to: "/applications", label: "My Applications", permission: "view_dashboard", icon: Briefcase },
         { to: "/profile", label: "Profile", permission: "manage_profile", icon: User },
         { to: "/settings", label: "Settings", permission: "view_dashboard", icon: Settings },
       ],
