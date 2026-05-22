@@ -56,6 +56,7 @@ type CuratedProject = {
   endsAt?: number;
   votes?: number;
   userVoted?: boolean;
+  entryXpRequired?: number;
   xpCommitmentStake?: number;
 };
 
@@ -157,6 +158,7 @@ function ProjectsPage() {
             endsAt: p.ends_on ? new Date(p.ends_on).getTime() : undefined,
             votes: p.votes || 0,
             userVoted: p.user_voted || false,
+            entryXpRequired: p.minimum_xp_required || 0,
             xpCommitmentStake: p.xp_commitment_stake || 0,
           };
 
@@ -192,6 +194,7 @@ function ProjectsPage() {
             scope: "scope",
             votes: p.votes || 0,
             userVoted: false,
+            entryXpRequired: 0,
           }));
           setScopeChallenges(seeds);
         } else {
@@ -725,6 +728,8 @@ function ProjectCard({
   const seatsFull = seatsLeft <= 0;
   const closed = project.status === "closed";
   const submissionDeadline = resolveSubmissionDeadline(project);
+  const entryXpRequired = Math.max(0, project.entryXpRequired || 0);
+  const stakeAmount = Math.max(50, project.xpCommitmentStake || 50);
 
   const isPending = application?.status === "pending";
   const isRejected = application?.status === "rejected";
@@ -803,6 +808,15 @@ function ProjectCard({
 
         <div className="mt-4 rounded-lg bg-secondary/50 p-3 text-xs text-foreground/90">
           <span className="font-semibold">Rewards:</span> {project.rewards}
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge variant="outline" className="bg-secondary/40 text-[10px] font-semibold">
+            Entry {entryXpRequired} XP
+          </Badge>
+          <Badge variant="outline" className="bg-brand/10 text-brand text-[10px] font-semibold">
+            Stake {stakeAmount} XP
+          </Badge>
         </div>
 
         {applied && (
@@ -915,6 +929,7 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
   const [xpAfterCommit, setXpAfterCommit] = useState<number | null>(null);
   const [currentXp, setCurrentXp] = useState<number | null>(null);
   const [loadingXp, setLoadingXp] = useState(true);
+  const entryAmount = Math.max(0, project.entryXpRequired || 0);
 
   // Platform minimum XP commitment is 50 XP — use project's stake or default to 50
   const stakeAmount = Math.max(50, project.xpCommitmentStake || 50);
@@ -931,12 +946,18 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
     });
   }, []);
 
-  const hasEnoughXp = currentXp !== null && currentXp >= stakeAmount;
+  const hasEntryXp = currentXp !== null && currentXp >= entryAmount;
+  const hasStakeXp = currentXp !== null && currentXp >= stakeAmount;
+  const hasEnoughXp = hasEntryXp && hasStakeXp;
 
   const submit = async () => {
     if (submitting || committed) return;
     if (!fit.trim()) { toast.error("Tell us why you're a fit."); return; }
     if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
+    if (currentXp !== null && currentXp < entryAmount) {
+      toast.error(`You need at least ${entryAmount} Entry XP before you can stake for this project.`);
+      return;
+    }
     if (currentXp !== null && currentXp < stakeAmount) {
       toast.error(`You need at least ${stakeAmount} XP to commit. You currently have ${currentXp} XP.`);
       return;
@@ -1044,16 +1065,22 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
         loadingXp ? "border-border bg-secondary/30" :
         hasEnoughXp ? "border-brand/30 bg-brand/5" : "border-red-500/30 bg-red-500/5"
       }`}>
-        <div className="flex items-center justify-between">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">XP to Commit</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entry XP</div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-foreground">{entryAmount}</span>
+              <span className="text-sm font-medium text-muted-foreground">XP</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stake XP</div>
             <div className="mt-1 flex items-baseline gap-1.5">
               <span className="text-2xl font-bold text-foreground">{stakeAmount}</span>
               <span className="text-sm font-medium text-muted-foreground">XP</span>
             </div>
           </div>
-          <div className="h-8 w-px bg-border" />
-          <div className="text-right">
+          <div className="sm:text-right">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your Balance</div>
             <div className="mt-1 flex items-baseline gap-1 justify-end">
               {loadingXp ? (
@@ -1080,12 +1107,12 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
                 className={`h-full rounded-full transition-all duration-700 ${
                   hasEnoughXp ? "bg-gradient-to-r from-brand to-cyan" : "bg-red-500"
                 }`}
-                style={{ width: `${Math.min(100, (currentXp / stakeAmount) * 100)}%` }}
+                style={{ width: `${Math.min(100, (currentXp / Math.max(entryAmount, stakeAmount, 1)) * 100)}%` }}
               />
             </div>
             {!hasEnoughXp ? (
               <div className="mt-1.5 text-xs font-medium text-red-500">
-                ⚠ Need {(stakeAmount - currentXp).toLocaleString()} more XP — earn XP via events, activities &amp; achievements
+                Need {((!hasEntryXp ? entryAmount : stakeAmount) - currentXp).toLocaleString()} more XP before this project can be entered.
               </div>
             ) : (
               <div className="mt-1.5 text-xs text-muted-foreground">
@@ -1117,10 +1144,10 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
           </div>
         </div>
 
-        {/* Stake policy reminder */}
+        {/* Entry and stake policy reminder */}
         <div className="rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">📋 Stake policy: </span>
-          Your {stakeAmount} XP is <em>reserved</em>, not permanently lost. Complete the project to reclaim it plus bonus rewards. Dropping out may result in a partial forfeit.
+          <span className="font-semibold text-foreground">Entry and stake policy: </span>
+          Entry XP is checked first. If covered, your {stakeAmount} Stake XP is <em>reserved</em>, not permanently lost. Complete the project to reclaim it plus bonus rewards.
         </div>
       </div>
 

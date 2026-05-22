@@ -291,6 +291,7 @@ export const backendProjects = {
         visibility: project.visibility || "public",
         status: project.status || "open",
         institution_id: project.institution_id || null,
+        minimum_xp_required: project.minimum_xp_required ?? 0,
         xp_commitment_stake: project.xp_commitment_stake ?? 50,
         reward_pool_xp: project.reward_pool_xp ?? 0,
       }),
@@ -305,7 +306,7 @@ export const backendProjects = {
   apply(id: string, message: string) {
     return this.join(id, message);
   },
-  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string; xp_commitment_stake: number; reward_pool_xp: number }>) {
+  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string; minimum_xp_required: number; xp_commitment_stake: number; reward_pool_xp: number }>) {
     return api<{ project: BackendProject }>(`/api/v1/projects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -846,6 +847,7 @@ export function mapBackendProject(project: BackendProject): Project {
     teams_allowed: project.teams_allowed,
     team_members_limit: project.team_members_limit,
     userVoted: project.user_voted || false,
+    minimumXpRequired: project.minimum_xp_required,
     xpCommitmentStake: project.xp_commitment_stake,
     rewardPoolXp: project.reward_pool_xp,
   };

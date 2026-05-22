@@ -1886,10 +1886,12 @@ function ScopeProjectsManager() {
     visibility: "public" as const,
     status: "open" as "open" | "closed" | "draft",
     institution_id: "" as string,
+    minimum_xp_required: 0,
     xp_commitment_stake: 50,
     reward_pool_xp: 0,
   });
 
+  const [templateEntryXps, setTemplateEntryXps] = useState<Record<string, number>>({});
   // Per-template XP stake override for library templates (default: 50)
   const [templateXpStakes, setTemplateXpStakes] = useState<Record<string, number>>({});
   // Per-template Reward XP override for library templates
@@ -1900,6 +1902,7 @@ function ScopeProjectsManager() {
   const [templateIsTeam, setTemplateIsTeam] = useState<Record<string, boolean>>({});
   // Inline XP edit for active projects
   const [editingXpProjectId, setEditingXpProjectId] = useState<string | null>(null);
+  const [editingEntryXpValue, setEditingEntryXpValue] = useState<string>("0");
   const [editingXpValue, setEditingXpValue] = useState<string>("50");
   const [editingRewardValue, setEditingRewardValue] = useState<string>("75");
   const [savingXp, setSavingXp] = useState(false);
@@ -1947,6 +1950,7 @@ function ScopeProjectsManager() {
         visibility: "public",
         status: "open",
         institution_id: "",
+        minimum_xp_required: 0,
         xp_commitment_stake: 50,
         reward_pool_xp: 0,
       });
@@ -1962,11 +1966,13 @@ function ScopeProjectsManager() {
 
   // Save XP settings inline edit for an active project
   const saveXpStake = async (projectId: string) => {
+    const entry = Math.max(0, Number(editingEntryXpValue) || 0);
     const stake = Math.max(0, Number(editingXpValue) || 0);
     const reward = Math.max(0, Number(editingRewardValue) || 0);
     setSavingXp(true);
     try {
       const { project: updated } = await backendProjects.update(projectId, {
+        minimum_xp_required: entry,
         xp_commitment_stake: stake,
         reward_pool_xp: reward,
       } as any);
@@ -1975,13 +1981,14 @@ function ScopeProjectsManager() {
           p.id === projectId
             ? {
                 ...p,
+                minimum_xp_required: updated.minimum_xp_required ?? entry,
                 xp_commitment_stake: updated.xp_commitment_stake ?? stake,
                 reward_pool_xp: updated.reward_pool_xp ?? reward,
               }
             : p,
         ),
       );
-      toast.success(`XP settings updated: ${stake} Stake / ${reward} Reward.`);
+      toast.success(`XP settings updated: ${entry} Entry / ${stake} Stake / ${reward} Reward.`);
       setEditingXpProjectId(null);
     } catch (error) {
       toast.error("Could not update XP settings.");
@@ -1991,6 +1998,7 @@ function ScopeProjectsManager() {
   };
 
   const activateTemplate = async (template: (typeof PROJECT_TEMPLATES)[0]) => {
+    const entry = Math.max(0, templateEntryXps[template.title] ?? 0);
     const stake = Math.max(0, templateXpStakes[template.title] ?? 50);
     const reward = Math.max(0, templateRewardXps[template.title] ?? Math.round(stake * 1.5));
     const isTeam = templateIsTeam[template.title] ?? true;
@@ -2006,6 +2014,7 @@ function ScopeProjectsManager() {
         teams_allowed: isTeam ? 5 : 10,
         visibility: "public" as const,
         status: "open" as const,
+        minimum_xp_required: entry,
         xp_commitment_stake: stake,
         reward_pool_xp: reward,
         meta: {
@@ -2020,7 +2029,7 @@ function ScopeProjectsManager() {
       const { project: created } = await backendProjects.create(payload);
       setProjects((current) => [created, ...current]);
       setActiveSubTab("active");
-      toast.success(`"${template.title}" activated with ${stake} XP stake!`);
+      toast.success(`"${template.title}" activated with ${entry} Entry XP and ${stake} Stake XP!`);
     } catch (error) {
       toast.error("Could not activate template.");
     } finally {
@@ -2289,6 +2298,17 @@ function ScopeProjectsManager() {
                                 <div className="flex flex-wrap items-center gap-2 bg-background border border-brand/20 rounded px-2 py-1">
                                   <div className="flex items-center gap-1 border-r border-border pr-2">
                                     <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                      Entry:
+                                    </span>
+                                    <input
+                                      type="number"
+                                      value={editingEntryXpValue}
+                                      onChange={(e) => setEditingEntryXpValue(e.target.value)}
+                                      className="w-10 h-5 bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 border-r border-border pr-2">
+                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">
                                       Stake:
                                     </span>
                                     <input
@@ -2329,6 +2349,12 @@ function ScopeProjectsManager() {
                                 <div className="flex items-center gap-1">
                                   <Badge
                                     variant="outline"
+                                    className="bg-secondary/50 border-border text-muted-foreground text-[10px] font-bold py-0"
+                                  >
+                                    {item.minimum_xp_required ?? 0} XP Entry
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
                                     className="bg-brand/10 border-brand/20 text-brand text-[10px] font-bold py-0"
                                   >
                                     {item.xp_commitment_stake ?? 50} XP Stake
@@ -2344,6 +2370,7 @@ function ScopeProjectsManager() {
                                   <button
                                     onClick={() => {
                                       setEditingXpProjectId(item.id);
+                                      setEditingEntryXpValue(String(item.minimum_xp_required ?? 0));
                                       setEditingXpValue(String(item.xp_commitment_stake ?? 50));
                                       setEditingRewardValue(String(item.reward_pool_xp ?? 75));
                                     }}
@@ -2794,8 +2821,29 @@ function ScopeProjectsManager() {
                     </div>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-border/60 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-4">
+                  <div className="mt-6 pt-4 border-t border-border/60 flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-end gap-4">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Set Entry
+                        </span>
+                        <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={isActive}
+                            value={templateEntryXps[template.title] ?? 0}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value) || 0);
+                              setTemplateEntryXps((prev) => ({ ...prev, [template.title]: val }));
+                            }}
+                            className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
+                          />
+                          <span className="text-[9px] font-bold text-muted-foreground shrink-0">
+                            XP
+                          </span>
+                        </div>
+                      </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                           Set Stake
@@ -2862,7 +2910,7 @@ function ScopeProjectsManager() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 shrink-0">
                       <span className={`text-xs font-semibold ${isActive ? "text-brand" : "text-muted-foreground"}`}>
                         {isActive ? "Active" : "Inactive"}
                       </span>
@@ -3011,7 +3059,22 @@ function ScopeProjectsManager() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label>Entry XP (required before staking)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.minimum_xp_required}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        minimum_xp_required: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    placeholder="e.g. 100"
+                  />
+                </div>
                 <div>
                   <Label>XP Commitment Stake (Standard: 50 XP) *</Label>
                   <Input

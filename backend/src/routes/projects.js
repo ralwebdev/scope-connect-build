@@ -368,7 +368,8 @@ projectsRouter.post("/:id/vote", authMiddleware, asyncHandler(async (req, res) =
 
 async function evaluateProjectEligibility({ req, project, profile }) {
   const failures = [];
-  const minimumXp = project.minimumXpRequired || 0;
+  const entryXp = project.minimumXpRequired || 0;
+  const stakeXp = Math.max(50, project.xpCommitmentStake || 0);
   const currentXp = profile?.xp || 0;
   const activeProjects = await Application.countDocuments({
     user: req.user._id,
@@ -379,7 +380,8 @@ async function evaluateProjectEligibility({ req, project, profile }) {
   if (req.user.role !== "student") failures.push("verified_student");
   const profileComplete = !!(profile?.profileComplete || profile?.headline || profile?.bio || profile?.skills?.length);
   if (!profileComplete) failures.push("profile_complete");
-  if (currentXp < minimumXp) failures.push("minimum_xp");
+  if (currentXp < entryXp) failures.push("entry_xp");
+  if (currentXp >= entryXp && currentXp < stakeXp) failures.push("stake_xp");
   if (project.allowedInstitutions?.length) {
     const institutionId = req.user.institution?.toString?.() || "";
     if (!institutionId || !project.allowedInstitutions.map(String).includes(institutionId)) failures.push("institution_eligibility");
@@ -394,10 +396,15 @@ async function evaluateProjectEligibility({ req, project, profile }) {
   return {
     eligible: failures.length === 0,
     failures,
+    entry_xp_required: entryXp,
+    stake_xp_required: stakeXp,
+    current_xp: currentXp,
     checks: {
       verified_student: req.user.role === "student",
       profile_complete: profileComplete,
-      minimum_xp: currentXp >= minimumXp,
+      minimum_xp: currentXp >= entryXp,
+      entry_xp: currentXp >= entryXp,
+      stake_xp: currentXp >= stakeXp,
       institution_eligibility: !failures.includes("institution_eligibility"),
       role_fit: !failures.includes("role_fit"),
       challenge_prerequisite: !failures.includes("challenge_prerequisite"),

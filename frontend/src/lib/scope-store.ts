@@ -119,6 +119,7 @@ export type Project = {
   userVoted?: boolean;
   teams_allowed?: number;
   team_members_limit?: number;
+  minimumXpRequired?: number;
   xpCommitmentStake?: number;
   rewardPoolXp?: number;
 };
@@ -1175,6 +1176,7 @@ export type CuratedProject = {
   endsAt?: number;
   votes?: number;
   userVoted?: boolean;
+  minimumXpRequired?: number;
   xpCommitmentStake?: number;
   rewardPoolXp?: number;
 };
@@ -1267,6 +1269,7 @@ function backendProjectsAsCurated(): CuratedProject[] {
       postedAt: p.createdAt,
       votes: p.votes || 0,
       userVoted: p.userVoted || false,
+      minimumXpRequired: p.minimumXpRequired ?? 0,
       xpCommitmentStake: p.xpCommitmentStake ?? 50,
       rewardPoolXp: p.rewardPoolXp ?? 0,
     }));
