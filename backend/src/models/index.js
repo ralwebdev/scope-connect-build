@@ -24,3 +24,5 @@ export { Proposal } from "./Proposal.js";
 export { Communication } from "./Communication.js";
 export { Challenge } from "./Challenge.js";
 export { PlatformConfig } from "./PlatformConfig.js";
+export { DailyReport } from "./DailyReport.js";
+export { ReportRecoveryRequest } from "./ReportRecoveryRequest.js";

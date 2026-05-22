@@ -609,6 +609,66 @@ export const backendPortfolio = {
 };
 
 export const backendReports = {
+  my() {
+    return api<{
+      today: string;
+      assignments: Array<{
+        id: string;
+        project_id?: string | null;
+        title: string;
+        status?: string;
+        starts_on?: string | null;
+        ends_on?: string | null;
+      }>;
+      reports: Array<{
+        id: string;
+        project_id?: string | null;
+        project_title?: string | null;
+        assignment_id: string;
+        day_key: string;
+        content: { tasks_done: string; hours_spent: number; blockers: string };
+        submitted_at: string;
+      }>;
+      recoveries: Array<{
+        id: string;
+        project_id?: string | null;
+        project_title?: string | null;
+        day_key: string;
+        reason: string;
+        status: "pending" | "approved" | "rejected";
+        reviewer_note?: string;
+        reviewed_at?: string | null;
+      }>;
+      can_submit: boolean;
+    }>("/api/v1/reports/my");
+  },
+  submit(body: {
+    project_id?: string | null;
+    assignment_id?: string;
+    tasks_done: string;
+    hours_spent?: number;
+    blockers?: string;
+  }) {
+    return api<{ report: unknown }>("/api/v1/reports", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  team() {
+    return api<{ reports: unknown[]; recoveries: unknown[] }>("/api/v1/reports/team");
+  },
+  requestRecovery(body: { project_id?: string | null; day_key: string; reason: string }) {
+    return api<{ recovery: unknown }>("/api/v1/reports/recover", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  reviewRecovery(id: string, body: { status: "approved" | "rejected"; reviewer_note?: string }) {
+    return api<{ recovery: unknown }>(`/api/v1/reports/recover/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
   institution(id: string) {
     return api<{
       institution: { id: string; name: string };

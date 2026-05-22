@@ -1,21 +1,270 @@
 import express from "express";
-import { Institution, User, Project, AnalyticsEvent, Application, Event } from "../models/index.js";
+import { z } from "zod";
+import {
+  Institution,
+  User,
+  Project,
+  AnalyticsEvent,
+  Application,
+  Event,
+  DailyReport,
+  ReportRecoveryRequest,
+  Profile,
+  Notification,
+} from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { forbidden, notFound } from "../utils/errors.js";
+import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { serializeUser } from "../utils/serializers.js";
 import { hasPermission } from "../utils/roles.js";
+import { validate } from "../utils/validate.js";
 
 export const reportsRouter = express.Router();
 
 reportsRouter.use(authMiddleware);
+
+const reportSchema = z.object({
+  project_id: z.string().optional().nullable(),
+  assignment_id: z.string().max(120).optional(),
+  day_key: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  tasks_done: z.string().min(3).max(5000),
+  hours_spent: z.number().min(0).max(24).optional().default(0),
+  blockers: z.string().max(2000).optional().default(""),
+});
+
+const recoverySchema = z.object({
+  project_id: z.string().optional().nullable(),
+  day_key: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reason: z.string().min(10).max(3000),
+});
+
+const recoveryPatchSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  reviewer_note: z.string().max(2000).optional().default(""),
+});
+
+function istDayKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function serializeDailyReport(report) {
+  return {
+    id: report.id,
+    user_id: report.user?._id?.toString?.() || report.user?.toString?.(),
+    user_name: report.user?.name || null,
+    institution_id: report.institution?._id?.toString?.() || report.institution?.toString?.() || null,
+    project_id: report.project?._id?.toString?.() || report.project?.toString?.() || null,
+    project_title: report.project?.title || null,
+    assignment_id: report.assignmentKey,
+    day_key: report.dayKey,
+    content: {
+      tasks_done: report.tasksDone,
+      hours_spent: report.hoursSpent,
+      blockers: report.blockers || "",
+    },
+    submitted_at: report.submittedAt,
+    created_at: report.createdAt,
+  };
+}
+
+function serializeRecovery(item) {
+  return {
+    id: item.id,
+    user_id: item.user?._id?.toString?.() || item.user?.toString?.(),
+    user_name: item.user?.name || null,
+    institution_id: item.institution?._id?.toString?.() || item.institution?.toString?.() || null,
+    project_id: item.project?._id?.toString?.() || item.project?.toString?.() || null,
+    project_title: item.project?.title || null,
+    day_key: item.dayKey,
+    reason: item.reason,
+    status: item.status,
+    reviewer_id: item.reviewer?.toString?.() || null,
+    reviewer_note: item.reviewerNote || "",
+    reviewed_at: item.reviewedAt,
+    created_at: item.createdAt,
+  };
+}
 
 function canAccessInstitutionReports(req, institutionId) {
   const isSuperAdmin = req.user.role === "super_admin" || req.user.role === "scope_admin";
   const isMyInstitution = req.user.institution?.toString() === institutionId;
   return isSuperAdmin || isMyInstitution;
 }
+
+async function activeAssignmentsFor(userId) {
+  const applications = await Application.find({
+    user: userId,
+    status: "accepted",
+  }).populate("project").sort({ updatedAt: -1 }).limit(100);
+
+  return applications
+    .filter((application) => application.project)
+    .map((application) => ({
+      id: `project:${application.project.id}`,
+      project_id: application.project.id,
+      title: application.project.title,
+      status: application.project.status,
+      starts_on: application.project.startsOn || null,
+      ends_on: application.project.endsOn || null,
+    }));
+}
+
+reportsRouter.get("/my", asyncHandler(async (req, res) => {
+  const today = istDayKey();
+  const assignments = await activeAssignmentsFor(req.user._id);
+  const reports = await DailyReport.find({ user: req.user._id })
+    .populate("project")
+    .sort({ dayKey: -1, submittedAt: -1 })
+    .limit(30);
+  const recoveries = await ReportRecoveryRequest.find({ user: req.user._id })
+    .populate("project")
+    .sort({ createdAt: -1 })
+    .limit(20);
+
+  sendSuccess(res, {
+    today,
+    assignments,
+    reports: reports.map(serializeDailyReport),
+    recoveries: recoveries.map(serializeRecovery),
+    can_submit: !reports.some((report) => report.dayKey === today),
+  });
+}));
+
+reportsRouter.post("/", validate(reportSchema), asyncHandler(async (req, res) => {
+  const today = istDayKey();
+  const dayKey = req.body.day_key || today;
+  if (dayKey !== today) {
+    throw new AppError(400, "INVALID_DAY_KEY", "Daily reports must use the current IST day key");
+  }
+
+  const projectId = req.body.project_id || null;
+  if (projectId) {
+    const project = await Project.findById(projectId).select("_id");
+    if (!project) throw notFound("Project not found");
+  }
+
+  const assignmentKey = req.body.assignment_id || (projectId ? `project:${projectId}` : "general");
+  try {
+    const report = await DailyReport.create({
+      user: req.user._id,
+      institution: req.user.institution || null,
+      project: projectId,
+      assignmentKey,
+      dayKey,
+      tasksDone: req.body.tasks_done,
+      hoursSpent: req.body.hours_spent,
+      blockers: req.body.blockers || "",
+      submittedAt: new Date(),
+    });
+
+    await Profile.findOneAndUpdate(
+      { user: req.user._id },
+      {
+        $set: { lastActiveDate: new Date() },
+        $inc: { streakDays: 1, trustScore: 1 },
+      },
+    ).catch(() => null);
+
+    sendSuccess(res, { report: serializeDailyReport(report) }, "Daily report submitted", 201);
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new AppError(409, "REPORT_ALREADY_SUBMITTED", "You have already submitted this report for today");
+    }
+    throw error;
+  }
+}));
+
+reportsRouter.get("/team", asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "review_application") && !hasPermission(req.user, "view_institution_analytics")) {
+    throw forbidden("You do not have permission to review reports");
+  }
+
+  const filter = {};
+  if (req.user.role !== "scope_admin" && req.user.role !== "super_admin") {
+    filter.institution = req.user.institution || null;
+  }
+
+  const [reports, recoveries] = await Promise.all([
+    DailyReport.find(filter).populate("user", "name email").populate("project").sort({ submittedAt: -1 }).limit(100),
+    ReportRecoveryRequest.find({ ...filter, status: "pending" })
+      .populate("user", "name email")
+      .populate("project")
+      .sort({ createdAt: -1 })
+      .limit(100),
+  ]);
+
+  sendSuccess(res, {
+    reports: reports.map(serializeDailyReport),
+    recoveries: recoveries.map(serializeRecovery),
+  });
+}));
+
+reportsRouter.post("/recover", validate(recoverySchema), asyncHandler(async (req, res) => {
+  const projectId = req.body.project_id || null;
+  if (projectId) {
+    const project = await Project.findById(projectId).select("_id");
+    if (!project) throw notFound("Project not found");
+  }
+
+  try {
+    const recovery = await ReportRecoveryRequest.create({
+      user: req.user._id,
+      institution: req.user.institution || null,
+      project: projectId,
+      dayKey: req.body.day_key,
+      reason: req.body.reason,
+    });
+    sendSuccess(res, { recovery: serializeRecovery(recovery) }, "Recovery request submitted", 201);
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new AppError(409, "RECOVERY_ALREADY_SUBMITTED", "A recovery request already exists for this day");
+    }
+    throw error;
+  }
+}));
+
+reportsRouter.patch("/recover/:id", validate(recoveryPatchSchema), asyncHandler(async (req, res) => {
+  if (!hasPermission(req.user, "review_application") && !hasPermission(req.user, "view_institution_analytics")) {
+    throw forbidden("You do not have permission to review recovery requests");
+  }
+
+  const recovery = await ReportRecoveryRequest.findById(req.params.id);
+  if (!recovery) throw notFound("Recovery request not found");
+  if (
+    req.user.role !== "scope_admin" &&
+    req.user.role !== "super_admin" &&
+    String(recovery.institution || "") !== String(req.user.institution || "")
+  ) {
+    throw forbidden();
+  }
+
+  recovery.status = req.body.status;
+  recovery.reviewer = req.user._id;
+  recovery.reviewedAt = new Date();
+  recovery.reviewerNote = req.body.reviewer_note || "";
+  await recovery.save();
+
+  if (recovery.status === "approved") {
+    await Profile.findOneAndUpdate({ user: recovery.user }, { $inc: { trustScore: 2 } }).catch(() => null);
+  }
+
+  await Notification.create({
+    user: recovery.user,
+    kind: "system",
+    title: "Report recovery reviewed",
+    body: `Your recovery request for ${recovery.dayKey} was ${recovery.status}.`,
+    link: "/profile",
+    dedupeKey: `report-recovery:${recovery.id}:${recovery.status}`,
+  }).catch(() => null);
+
+  sendSuccess(res, { recovery: serializeRecovery(recovery) });
+}));
 
 reportsRouter.get("/institution/:id", asyncHandler(async (req, res) => {
   const institutionId = req.params.id;

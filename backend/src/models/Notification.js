@@ -8,6 +8,8 @@ const NOTIFICATION_KINDS = [
   "system",
   "achievement",
   "admin_action",
+  "opportunity_application_received",
+  "opportunity_application_status_changed",
 ];
 
 const notificationSchema = new mongoose.Schema(

@@ -9,11 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppShell } from "@/components/site/AppShell";
 import { AuthGate } from "@/components/site/AuthGate";
+import { useTheme, type ThemeMode } from "@/hooks/use-theme";
 import { useUser } from "@/hooks/use-scope";
 import { auth, meta } from "@/lib/scope-store";
 import { toast } from "sonner";
-
-const THEME_KEY = "scope_theme";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -38,13 +37,10 @@ function SettingsPage() {
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
   const [weekly, setWeekly] = useState(true);
+  const { mode: theme, setTheme } = useTheme();
   // Sync email when user resolves on mount
   useEffect(() => {
     if (user?.email) setEmail(user.email);
-    try {
-      localStorage.setItem(THEME_KEY, "light");
-      document.documentElement.classList.remove("dark");
-    } catch { /* noop */ }
   }, [user?.email]);
 
   if (!user) return null;
@@ -98,8 +94,24 @@ function SettingsPage() {
             </div>
             <div>
               <Label>Theme</Label>
-              <div className="mt-1.5 rounded-lg border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
-                Day mode is enabled by default.
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {(["system", "light", "dark"] as ThemeMode[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => {
+                      setTheme(item);
+                      toast(`Theme set to ${item}.`);
+                    }}
+                    className={`rounded-lg border px-3 py-1.5 text-xs capitalize transition-colors ${
+                      theme === item
+                        ? "border-brand bg-brand/10 text-brand"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

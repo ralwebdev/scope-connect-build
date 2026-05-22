@@ -7,6 +7,7 @@ import { hydration } from "@/lib/scope-store";
 import { useRouteAnalytics } from "@/hooks/use-route-analytics";
 import { useRageClickDetector } from "@/hooks/use-rage-click";
 import { FeedbackWidget } from "@/components/site/FeedbackWidget";
+import { applyTheme, type ThemeMode } from "@/hooks/use-theme";
 
 import appCss from "../styles.css?url";
 
@@ -79,8 +80,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   useEffect(() => {
     try {
-      localStorage.setItem("scope_theme", "light");
-      document.documentElement.classList.remove("dark");
+      const savedTheme = localStorage.getItem("scope_theme") as ThemeMode | null;
+      applyTheme(savedTheme === "dark" || savedTheme === "light" || savedTheme === "system" ? savedTheme : "system");
     } catch { /* noop */ }
     // Boot hydration: validates schema, repairs corrupt slices, never throws.
     const result = hydration.boot();

@@ -1,54 +1,73 @@
 # Scope Connect v2 Patch Report
 
 ## Completed UI Patches
-- Preserved the existing `frontend` app as the runnable frontend and kept the already-merged v2 UI surfaces from `scope-connect-v2`.
-- Resolved the generated TanStack route tree conflict by preserving both v2 `/innovation-lab` and existing password recovery routes `/forgot-password` and `/reset-password`.
-- Added frontend API helpers for v2-backed runtime config and challenge data.
-- Updated store hydration so events, opportunities, and curated challenges can sync from backend APIs instead of staying mock-only after backend data has loaded.
-- Removed localStorage submission mirrors from waitlist and feedback flows; those forms now rely on backend persistence.
+- Compared `scope-connect-v2/frontend/src` against the active `frontend/src`; the active app already contained the v2 route/component set plus newer backend integrations, so no broad replacement was done.
+- Restored the v2 theme UX into the active frontend:
+  - Added system/light/dark theme support in `frontend/src/hooks/use-theme.ts`.
+  - Added the quick theme toggle to `frontend/src/components/site/NavbarShell.tsx`.
+  - Added theme selection controls to `frontend/src/routes/settings.tsx`.
+  - Updated app boot in `frontend/src/routes/__root.tsx` to apply the saved theme instead of forcing light mode.
+- Preserved existing backend-backed auth, project, feed, CRM, events, opportunity, portfolio, feedback, waitlist, and reporting integrations rather than downgrading to v2 mock/localStorage behavior.
 
-## Backend Features Implemented / Patched
-- Mounted existing but previously unreachable backend routers:
-  - `GET/POST /api/v1/challenges`
-  - `GET/PATCH /api/v1/config`
-- Exported `Challenge` and `PlatformConfig` models from the central model index.
-- Expanded `PlatformConfig` to store the frontend runtime config shape (`brand`, `contact`, `features`, `campuses`) without dropping operator-managed fields.
-- Updated config defaults to match frontend expectations.
-- Re-enabled public waitlist persistence at `POST /api/v1/public/waitlist`, including duplicate-email handling.
+## Backend Features Implemented
+- Added daily reporting persistence:
+  - `backend/src/models/DailyReport.js`
+  - `backend/src/models/ReportRecoveryRequest.js`
+- Added report endpoints to `backend/src/routes/reports.js`:
+  - `GET /api/v1/reports/my`
+  - `POST /api/v1/reports`
+  - `GET /api/v1/reports/team`
+  - `POST /api/v1/reports/recover`
+  - `PATCH /api/v1/reports/recover/:id`
+- Enforced server-side IST day keys for daily report submissions.
+- Added duplicate protection for one daily report per user/assignment/day and one recovery request per user/project/day.
+- Added reviewer workflow for recovery requests with notification feedback to students.
+- Added unversioned compatibility mounts for plan-style endpoints such as `/api/auth`, `/api/users`, `/api/projects`, `/api/reports`, and `/api/crm`.
+- Added CRM stage compatibility endpoint: `PATCH /api/crm/:id/stage`.
 
 ## Existing Features Preserved
-- Existing auth/session/token flow in `frontend/src/lib/api/client.ts`.
-- Existing forgot/reset password UI and backend endpoint usage.
-- Existing backend-connected projects, applications, portfolio, feed, notifications, events, reports, institutions, users, and opportunities logic.
-- Existing RBAC guards for protected admin config and challenge creation.
+- JWT auth, refresh token handling, password reset routes, and existing frontend token storage were preserved.
+- Existing `/api/v1/*` API contract remains intact.
+- Existing frontend routes were not replaced with v2 mock implementations.
+- Existing backend CRM, institutions, users, projects, feed, opportunities, notifications, analytics, upload, config, and public submission routes were retained.
 
-## Routes Added / Changed
-- Mounted `backend/src/routes/challenges.js` at `/api/v1/challenges`.
-- Mounted `backend/src/routes/config.js` at `/api/v1/config`.
-- Patched `POST /api/v1/public/waitlist` to persist `PublicSubmission` records instead of returning a closed response.
-- Resolved frontend route tree entries for `/innovation-lab`, `/forgot-password`, and `/reset-password`.
+## Routes Added or Changed
+- Added report APIs listed above.
+- Added unversioned aliases in `backend/src/app.js`.
+- Changed institution document sharing permission from `manage_crm` to the existing `manage_partnerships` permission.
+- Added `PATCH /api/v1/institutions/crm/:id/stage` and alias-compatible `/api/crm/:id/stage`.
 
-## Models Added / Changed
-- `PlatformConfig`: changed to flexible mixed subdocuments for runtime config compatibility.
-- `Challenge`: exported from `backend/src/models/index.js` so controller imports work.
-- `PublicSubmission`: reused for waitlist persistence.
+## Models Added or Changed
+- Added `DailyReport`.
+- Added `ReportRecoveryRequest`.
+- Exported both models from `backend/src/models/index.js`.
+- Extended `Notification.kind` to allow `opportunity_application_received` and `opportunity_application_status_changed`, matching the existing opportunity application code.
 
-## Environment Variables Required
-- Backend: `MONGODB_URI`, `PORT`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, optional SMTP vars for password reset email.
-- Frontend: `VITE_API_BASE_URL`; when targeting the local backend, the existing Vite proxy keeps API calls relative.
+## Env Vars Required
+- Frontend: `VITE_API_BASE_URL` should continue pointing at the backend, currently `http://localhost:5050`.
+- Backend existing env remains unchanged: `MONGODB_URI`, JWT secrets, CORS origins, SMTP settings where applicable.
+- Optional backend tuning remains available: `MONGO_CONNECT_MAX_ATTEMPTS`, `MONGO_SERVER_SELECTION_TIMEOUT_MS`, `MONGO_RETRY_DELAY_MS`.
 
 ## Verification
-- `frontend`: `npm.cmd run build` completed successfully.
-- `backend`: `npm.cmd run lint` completed successfully (`node --check src/server.js`).
-- Backend startup: confirmed DB connection and Express startup with an ephemeral listen port. Normal `npm start` reached listen but port `5050` was already occupied.
-- `frontend`: `npm.cmd run lint` was run but failed on repository-wide Prettier CRLF/style issues already present across many files.
+- `npm.cmd run build` in `frontend` completed successfully.
+- `npm.cmd run lint` in `backend` completed successfully (`node --check src/server.js`).
+- Additional syntax checks passed for changed backend files:
+  - `backend/src/app.js`
+  - `backend/src/routes/reports.js`
+  - `backend/src/routes/institutions.js`
+  - `backend/src/models/DailyReport.js`
+  - `backend/src/models/ReportRecoveryRequest.js`
+  - `backend/src/models/Notification.js`
+- Backend startup was verified on a spare port with `GET /api/health` returning `{"success":true,"data":{"status":"ok"}}`.
 
 ## Known Issues
-- Frontend build reports non-blocking Vite warnings about dynamic/static import chunking and an existing duplicate `case "Live Chapter"` in `src/lib/crm-store.ts`.
-- Wrangler tries to write logs under `C:\Users\Administrator\AppData\Roaming\xdg.config\.wrangler\logs` and reports `EPERM`, but Vite still exits successfully.
-- Full browser/network verification was not run in this pass because the request scope was code patch plus command-line validation.
+- Port `5050` was already occupied during verification, so backend startup was checked on spare ports.
+- Vite build reports pre-existing warnings about large chunks and a duplicate `Live Chapter` case in `frontend/src/lib/crm-store.ts`.
+- Wrangler attempts to write debug logs outside the sandbox during build and prints an EPERM log-writing warning, but the Vite build exits successfully.
+- A background frontend dev server could not be kept alive from this sandboxed command session, although Vite reached the "ready" state before the spawned process exited.
 
 ## Next Steps
-- Free or change backend port `5050` before running `npm.cmd start` normally.
-- Normalize frontend line endings / Prettier formatting in a dedicated pass if lint cleanliness is required.
-- Seed MongoDB with real challenge/config/opportunity records so v2 pages show live backend content immediately after login.
+- Add a dedicated daily reporting frontend page/workflow if product wants students to submit daily updates outside profile/project flows.
+- Add scheduled penalty evaluation for missed reports once the reporting SLA and trust-score deduction rules are finalized.
+- Clean up the duplicate `Live Chapter` case warning in `crm-store.ts`.
+- Run browser navigation smoke tests in a persistent local terminal with backend on `5050` and frontend on a Vite port.

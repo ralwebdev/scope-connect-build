@@ -80,6 +80,21 @@ export function createApp() {
 
   app.use("/api/v1", v1Router);
 
+  // Compatibility aliases for the unversioned endpoints documented in the v2 plan.
+  app.use("/api/auth", authRouter);
+  app.use("/api/users", usersRouter);
+  app.use("/api/institutions", institutionsRouter);
+  app.use("/api/projects", projectsRouter);
+  app.use("/api/applications", applicationsRouter);
+  app.use("/api/opportunities", opportunitiesRouter);
+  app.use("/api/feed", feedRouter);
+  app.use("/api/reports", reportsRouter);
+  app.use("/api/analytics", analyticsRouter);
+  app.use("/api/crm", (req, res, next) => {
+    req.url = `/crm${req.url}`;
+    institutionsRouter(req, res, next);
+  });
+
   app.use(notFoundHandler);
   app.use(errorHandler);
 

@@ -120,6 +120,10 @@ const visitStatusSchema = z.object({
   notes: z.string().max(5000).optional(),
 });
 
+const pipelineStageSchema = z.object({
+  stage: z.enum(pipelineStages),
+});
+
 const launchSchema = z.object({
   key: z.enum(["facultyAssigned", "leaderShortlisted", "launchScheduled", "registrationsStarted", "pageLive", "challengeActivated"]),
   value: z.boolean().optional(),
@@ -225,6 +229,16 @@ institutionsRouter.patch("/crm/institutions/:id", requirePermission("manage_part
   sendSuccess(res, { institution: serializeInstitution(institution) });
 }));
 
+institutionsRouter.patch("/crm/:id/stage", requirePermission("manage_partnerships"), validate(pipelineStageSchema), asyncHandler(async (req, res) => {
+  const institution = await Institution.findByIdAndUpdate(
+    req.params.id,
+    { pipelineStage: req.body.stage },
+    { new: true },
+  );
+  if (!institution) throw notFound("Institution not found");
+  sendSuccess(res, { institution: serializeInstitution(institution) });
+}));
+
 institutionsRouter.post("/crm/visits", requirePermission("manage_partnerships"), validate(visitSchema), asyncHandler(async (req, res) => {
   const institution = await Institution.findById(req.body.institution_id);
   if (!institution) throw notFound("Institution not found");
@@ -274,7 +288,7 @@ const sendDocSchema = z.object({
   file_url: z.string().min(1),
 });
 
-institutionsRouter.post("/:id/documents", requirePermission("manage_crm"), validate(sendDocSchema), asyncHandler(async (req, res) => {
+institutionsRouter.post("/:id/documents", requirePermission("manage_partnerships"), validate(sendDocSchema), asyncHandler(async (req, res) => {
   const institution = await Institution.findById(req.params.id);
   if (!institution) throw notFound("Institution not found");
 

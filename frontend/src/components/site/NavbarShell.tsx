@@ -12,6 +12,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bell, LogOut, Settings as SettingsIcon, User as UserIcon, Menu,
+  Moon, Monitor, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useImageSrc } from "@/hooks/use-image-src";
@@ -20,6 +21,7 @@ import { useUnreadNotifications } from "@/hooks/use-scope";
 import { auth, meta, notifications } from "@/lib/scope-store";
 import { ApiException } from "@/lib/api/client";
 import { useBrand } from "@/hooks/use-platform";
+import { useTheme } from "@/hooks/use-theme";
 import { landingRouteForRole } from "@/lib/rbac";
 import { themeForRole } from "@/lib/role-theme";
 import { navConfigForRole } from "@/lib/role-nav";
@@ -325,6 +327,8 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
             {/* RIGHT GROUP — actions */}
             <div className="relative flex items-center gap-1">
               <div className="flex items-center gap-0.5">
+                {/* <ThemeQuickToggle /> */}
+
                 {showAuthedUI ? (
                   <>
                     <div ref={bellRef} className="relative">
@@ -416,5 +420,23 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
     </>
   );
 }
+
+// function ThemeQuickToggle() {
+//   const { mode, setTheme } = useTheme();
+//   const next = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
+//   const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+
+//   return (
+//     <button
+//       type="button"
+//       aria-label={`Theme: ${mode}. Click to switch to ${next}.`}
+//       onClick={() => setTheme(next)}
+//       className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-secondary hover:text-foreground"
+//       title={`Theme: ${mode}`}
+//     >
+//       <Icon className="h-4 w-4" />
+//     </button>
+//   );
+// }
 
 if (typeof window !== "undefined") meta.bumpVisit();
