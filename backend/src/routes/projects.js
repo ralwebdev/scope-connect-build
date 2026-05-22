@@ -447,7 +447,7 @@ function projectEligibilityMessage(eligibility) {
 async function ensureProjectRoom(project, application, projectRole = "") {
   let room = await ProjectRoom.findOne({ project: project._id });
   const acceptedCount = await Application.countDocuments({ project: project._id, status: "accepted" });
-  const maxParticipants = project.maximumParticipants || project.capacity || 1;
+  const maxParticipants = project.teamMembersLimit && project.teamMembersLimit > 1 ? project.teamMembersLimit : (project.maximumParticipants || project.capacity || 1);
 
   if (!room) {
     room = await ProjectRoom.create({
@@ -488,7 +488,7 @@ async function joinProject(req, res) {
   if (existing) throw new AppError(409, "ALREADY_JOINED", "You have already joined or requested this project");
 
   const acceptedCount = await Application.countDocuments({ project: project._id, status: "accepted" });
-  const maxParticipants = project.maximumParticipants || project.capacity || 1;
+  const maxParticipants = project.teamMembersLimit && project.teamMembersLimit > 1 ? project.teamMembersLimit : (project.maximumParticipants || project.capacity || 1);
   if (acceptedCount >= maxParticipants) throw new AppError(409, "PROJECT_FULL", "This project room is already locked");
 
   const profile = await Profile.findOne({ user: req.user._id });
@@ -610,7 +610,9 @@ function canCoordinateProject(req, project, room) {
 projectsRouter.get("/:id/room", authMiddleware, asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
-  const room = await ProjectRoom.findOne({ project: project._id }).populate("participants.user", "name email role");
+  const room = await ProjectRoom.findOne({ project: project._id })
+    .populate("participants.user", "name email role")
+    .populate("grievances.createdBy", "name email role");
   if (!room) throw notFound("Project room not found");
   const isParticipant = room.participants.some((participant) => participant.user?._id?.toString?.() === req.user.id || participant.user?.toString?.() === req.user.id);
   if (!isParticipant && !canCoordinateProject(req, project, room)) throw forbidden();
@@ -631,7 +633,155 @@ projectsRouter.patch("/:id/room", authMiddleware, validate(roomUpdateSchema), as
     if (participant) participant.progress = update.progress;
   }
   await room.save();
-  sendSuccess(res, { room });
+  
+  const populated = await ProjectRoom.findOne({ project: project._id })
+    .populate("participants.user", "name email role")
+    .populate("grievances.createdBy", "name email role");
+  sendSuccess(res, { room: populated });
+}));
+
+projectsRouter.delete("/:id/room/participants/:userId", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!room) throw notFound("Project room not found");
+  
+  if (!hasPermission(req.user, "manage_projects")) throw forbidden();
+  
+  // Remove participant from room
+  room.participants = room.participants.filter(p => p.user.toString() !== req.params.userId);
+  
+  // If the kicked user was the temporaryCoordinator, reassign or set null
+  if (room.temporaryCoordinator && room.temporaryCoordinator.toString() === req.params.userId) {
+    room.temporaryCoordinator = room.participants[0]?.user || null;
+  }
+  
+  await room.save();
+  
+  // Update student's application status to withdrawn
+  const application = await Application.findOne({ project: project._id, user: req.params.userId });
+  if (application) {
+    application.status = "withdrawn";
+    application.coordinator = false;
+    await application.save();
+  }
+  
+  const updatedRoom = await ProjectRoom.findOne({ project: project._id })
+    .populate("participants.user", "name email role")
+    .populate("grievances.createdBy", "name email role");
+    
+  sendSuccess(res, { room: updatedRoom });
+}));
+
+projectsRouter.patch("/:id/room/participants/:userId", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!room) throw notFound("Project room not found");
+  
+  if (!hasPermission(req.user, "manage_projects")) throw forbidden();
+  
+  const participant = room.participants.find(p => p.user.toString() === req.params.userId);
+  if (!participant) throw notFound("Participant not found in project room");
+  
+  if (req.body.role !== undefined) {
+    participant.role = req.body.role;
+    // Also update Application projectRole if it exists
+    const application = await Application.findOne({ project: project._id, user: req.params.userId });
+    if (application) {
+      application.projectRole = req.body.role;
+      await application.save();
+    }
+  }
+  
+  if (req.body.isLeader === true) {
+    // Demote old leader's application
+    if (room.temporaryCoordinator) {
+      await Application.findOneAndUpdate(
+        { project: project._id, user: room.temporaryCoordinator },
+        { coordinator: false }
+      );
+    }
+    
+    // Promote new leader
+    room.temporaryCoordinator = req.params.userId;
+    await Application.findOneAndUpdate(
+      { project: project._id, user: req.params.userId },
+      { coordinator: true }
+    );
+  }
+  
+  await room.save();
+  
+  const updatedRoom = await ProjectRoom.findOne({ project: project._id })
+    .populate("participants.user", "name email role")
+    .populate("grievances.createdBy", "name email role");
+    
+  sendSuccess(res, { room: updatedRoom });
+}));
+
+projectsRouter.post("/:id/room/grievance", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!room) throw notFound("Project room not found");
+  
+  // Ensure the user is the leader/temporaryCoordinator
+  const isLeader = room.temporaryCoordinator && room.temporaryCoordinator.toString() === req.user.id;
+  if (!isLeader) throw forbidden("Only the student project leader can submit grievances.");
+  
+  const { title, description } = req.body;
+  if (!title || !description) {
+    throw new AppError(400, "BAD_REQUEST", "Title and description are required.");
+  }
+  
+  room.grievances.push({
+    title,
+    description,
+    status: "open",
+    createdBy: req.user._id,
+  });
+  
+  await room.save();
+  
+  const updatedRoom = await ProjectRoom.findOne({ project: project._id })
+    .populate("participants.user", "name email role")
+    .populate("grievances.createdBy", "name email role");
+    
+  sendSuccess(res, { room: updatedRoom }, "Grievance submitted successfully");
+}));
+
+projectsRouter.patch("/:id/room/grievances/:grievanceId", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!room) throw notFound("Project room not found");
+  
+  if (!hasPermission(req.user, "manage_projects")) throw forbidden();
+  
+  const grievance = room.grievances.id(req.params.grievanceId);
+  if (!grievance) throw notFound("Grievance not found");
+  
+  if (req.body.adminResponse !== undefined) {
+    grievance.adminResponse = req.body.adminResponse;
+  }
+  if (req.body.status !== undefined) {
+    grievance.status = req.body.status;
+  } else {
+    grievance.status = "resolved"; // Default resolve
+  }
+  
+  await room.save();
+  
+  const updatedRoom = await ProjectRoom.findOne({ project: project._id })
+    .populate("participants.user", "name email role")
+    .populate("grievances.createdBy", "name email role");
+    
+  sendSuccess(res, { room: updatedRoom }, "Grievance updated successfully");
 }));
 
 projectsRouter.get("/:id/tasks", authMiddleware, asyncHandler(async (req, res) => {

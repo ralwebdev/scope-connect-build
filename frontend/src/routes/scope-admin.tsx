@@ -37,6 +37,7 @@ import {
   ArrowUpRight,
   MessageSquare,
   Flame,
+  Crown,
 } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -73,6 +74,7 @@ import {
   type BackendEvent,
   backendProjects,
   type BackendProject,
+  type BackendProjectRoom,
   backendApplications,
   type BackendApplication,
   backendInstitutions,
@@ -3123,6 +3125,7 @@ function ScopeProjectsManager() {
         updatingApplicationId={updatingApplicationId}
         updateApplicationStatus={updateApplicationStatus}
         updateSubmissionReviewStatus={updateSubmissionReviewStatus}
+        refreshData={fetchData}
       />
     </div>
   );
@@ -3135,6 +3138,7 @@ function ProjectRosterDialog({
   updatingApplicationId,
   updateApplicationStatus,
   updateSubmissionReviewStatus,
+  refreshData,
 }: {
   project: BackendProject | null;
   applications: BackendApplication[];
@@ -3142,9 +3146,39 @@ function ProjectRosterDialog({
   updatingApplicationId: string | null;
   updateApplicationStatus: (id: string, status: any) => Promise<void>;
   updateSubmissionReviewStatus: (id: string, reviewStatus: any) => Promise<void>;
+  refreshData: () => Promise<void>;
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [room, setRoom] = useState<BackendProjectRoom | null>(null);
+  const [loadingRoom, setLoadingRoom] = useState(false);
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [resolvingGrievanceId, setResolvingGrievanceId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("candidates");
+
+  const fetchRoom = async () => {
+    if (!project) return;
+    try {
+      setLoadingRoom(true);
+      const res = await backendProjects.room(project.id);
+      setRoom(res.room);
+    } catch (err) {
+      console.error("Room not found or not created yet", err);
+      setRoom(null);
+    } finally {
+      setLoadingRoom(false);
+    }
+  };
+
+  useEffect(() => {
+    if (project) {
+      fetchRoom();
+      setResponses({});
+      setActiveTab("candidates");
+    } else {
+      setRoom(null);
+    }
+  }, [project?.id]);
 
   if (!project) return null;
 
@@ -3158,6 +3192,67 @@ function ProjectRosterDialog({
     return matchesStatus && matchesSearch;
   });
 
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      const res = await backendProjects.updateParticipantRole(project.id, userId, newRole);
+      setRoom(res.room);
+      toast.success("Participant role updated successfully.");
+      await refreshData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update role.");
+    }
+  };
+
+  const handlePromoteLeader = async (userId: string) => {
+    try {
+      const res = await backendProjects.promoteLeader(project.id, userId);
+      setRoom(res.room);
+      toast.success("New project coordinator promoted successfully.");
+      await refreshData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to promote leader.");
+    }
+  };
+
+  const handleRemoveParticipant = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to remove this student? This will withdraw their application and remove them from the project room.")) {
+      return;
+    }
+    try {
+      const res = await backendProjects.removeParticipant(project.id, userId);
+      setRoom(res.room);
+      toast.success("Participant removed from the project room.");
+      await refreshData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove participant.");
+    }
+  };
+
+  const handleResolveGrievance = async (grievanceId: string) => {
+    const responseText = responses[grievanceId]?.trim();
+    if (!responseText) {
+      toast.error("Please enter a response before resolving.");
+      return;
+    }
+    try {
+      setResolvingGrievanceId(grievanceId);
+      const res = await backendProjects.respondToGrievance(project.id, grievanceId, {
+        adminResponse: responseText,
+        status: "resolved",
+      });
+      setRoom(res.room);
+      setResponses((prev) => ({ ...prev, [grievanceId]: "" }));
+      toast.success("Grievance resolved and response logged.");
+      await refreshData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resolve grievance.");
+    } finally {
+      setResolvingGrievanceId(null);
+    }
+  };
+
+  const isTeamProject = (project.team_members_limit ?? 1) > 1;
+
   return (
     <Dialog
       open={Boolean(project)}
@@ -3170,262 +3265,490 @@ function ProjectRosterDialog({
           <DialogTitle className="flex items-center gap-2 text-lg">
             <span>Roster: {project.title}</span>
             <Badge variant="secondary" className="text-xs bg-brand/10 text-brand">
-              {projectApps.length} Total
+              {projectApps.length} Candidates
             </Badge>
           </DialogTitle>
           <DialogDescription>
-            Manage applications, review live URL / repository submissions, and select candidates.
+            Manage student candidates, monitor the active participant team, and respond to lodged student leader grievances.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Filter controls */}
-        <div className="flex flex-col sm:flex-row gap-3 py-2 border-b border-border/50">
-          <Input
-            placeholder="Search by student name or institute..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 text-xs h-9"
-          />
-          <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            {["all", "pending", "shortlisted", "accepted", "rejected"].map((status) => (
-              <Button
-                key={status}
-                size="sm"
-                variant={statusFilter === status ? "default" : "outline"}
-                className="h-9 px-3 text-[11px] capitalize"
-                onClick={() => setStatusFilter(status)}
-              >
-                {status}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1 min-h-0">
+          <TabsList className={`grid w-full mb-4 ${isTeamProject ? "grid-cols-3" : "grid-cols-2"}`}>
+            <TabsTrigger value="candidates" className="text-xs">Candidates ({projectApps.length})</TabsTrigger>
+            <TabsTrigger value="roster" className="text-xs">Active Team Roster ({room?.participants?.length ?? 0})</TabsTrigger>
+            {isTeamProject && (
+              <TabsTrigger value="grievances" className="text-xs">
+                Grievances ({room?.grievances?.length ?? 0})
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-        {/* Scrollable List */}
-        <div className="flex-1 overflow-y-auto pr-1 mt-3 space-y-3 min-h-[300px]">
-          {filteredApps.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
-              No matching applications found.
+          <TabsContent value="candidates" className="flex-1 flex flex-col min-h-0 space-y-3">
+            {/* Filter controls */}
+            <div className="flex flex-col sm:flex-row gap-3 py-2 border-b border-border/50">
+              <Input
+                placeholder="Search candidates by name or institute..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 text-xs h-9"
+              />
+              <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {["all", "pending", "shortlisted", "accepted", "rejected"].map((status) => (
+                  <Button
+                    key={status}
+                    size="sm"
+                    variant={statusFilter === status ? "default" : "outline"}
+                    className="h-9 px-3 text-[11px] capitalize"
+                    onClick={() => setStatusFilter(status)}
+                  >
+                    {status}
+                  </Button>
+                ))}
+              </div>
             </div>
-          ) : (
-            filteredApps.map((app) => (
-              <div
-                key={app.id}
-                className="rounded-lg border border-border/70 p-4 bg-background/50 hover:bg-background/80 transition-colors"
-              >
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-sm truncate">{app.user_name}</span>
-                      <Badge
-                        variant="outline"
-                        className="h-5 text-[9px] capitalize border-brand/30 px-1.5"
-                      >
-                        {app.status}
-                      </Badge>
-                      {app.submission_review_status &&
-                        app.submission_review_status !== "not_submitted" && (
+
+            {/* Scrollable List */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[50vh]">
+              {filteredApps.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                  No matching applications found.
+                </div>
+              ) : (
+                filteredApps.map((app) => (
+                  <div
+                    key={app.id}
+                    className="rounded-lg border border-border/70 p-4 bg-background/50 hover:bg-background/80 transition-colors"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-sm truncate">{app.user_name}</span>
                           <Badge
                             variant="outline"
-                            className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-1.5"
+                            className="h-5 text-[9px] capitalize border-brand/30 px-1.5"
                           >
-                            {app.submission_review_status.replace("_", " ")}
+                            {app.status}
                           </Badge>
-                        )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {app.user_institution} · {app.user_email || "No email"}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3 min-w-[320px] md:items-end">
-                    {/* Submission block */}
-                    {app.submission ? (
-                      <div className="space-y-2 w-full rounded-md bg-secondary/40 p-3 md:text-right border border-border/40">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground md:text-right text-left">
-                          Submission Review
-                        </div>
-                        <div className="flex flex-wrap md:justify-end gap-1.5">
-                          <Button
-                            asChild={Boolean(app.submission.live_url)}
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 px-2 text-[10px] ${
-                              app.submission.live_url
-                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                                : "opacity-50 cursor-not-allowed bg-muted"
-                            }`}
-                            disabled={!app.submission.live_url}
-                          >
-                            {app.submission.live_url ? (
-                              <a href={app.submission.live_url} target="_blank" rel="noreferrer">
-                                Live URL{" "}
-                                <span className="ml-1 text-[9px] text-emerald-500 font-bold">
-                                  ✓
-                                </span>
-                              </a>
-                            ) : (
-                              <span>
-                                Live URL{" "}
-                                <span className="ml-1 text-[9px] text-muted-foreground font-bold">
-                                  ✗
-                                </span>
-                              </span>
-                            )}
-                          </Button>
-                          <Button
-                            asChild={Boolean(app.submission.github_url)}
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 px-2 text-[10px] ${
-                              app.submission.github_url
-                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                                : "opacity-50 cursor-not-allowed bg-muted"
-                            }`}
-                            disabled={!app.submission.github_url}
-                          >
-                            {app.submission.github_url ? (
-                              <a href={app.submission.github_url} target="_blank" rel="noreferrer">
-                                GitHub{" "}
-                                <span className="ml-1 text-[9px] text-emerald-500 font-bold">
-                                  ✓
-                                </span>
-                              </a>
-                            ) : (
-                              <span>
-                                GitHub{" "}
-                                <span className="ml-1 text-[9px] text-muted-foreground font-bold">
-                                  ✗
-                                </span>
-                              </span>
-                            )}
-                          </Button>
-                          <Button
-                            asChild={Boolean(app.submission.screenshot_url)}
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 px-2 text-[10px] ${
-                              app.submission.screenshot_url
-                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                                : "opacity-50 cursor-not-allowed bg-muted"
-                            }`}
-                            disabled={!app.submission.screenshot_url}
-                          >
-                            {app.submission.screenshot_url ? (
-                              <a
-                                href={app.submission.screenshot_url}
-                                target="_blank"
-                                rel="noreferrer"
+                          {app.submission_review_status &&
+                            app.submission_review_status !== "not_submitted" && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-1.5"
                               >
-                                Screenshot{" "}
-                                <span className="ml-1 text-[9px] text-emerald-500 font-bold">
-                                  ✓
-                                </span>
-                              </a>
-                            ) : (
-                              <span>
-                                Screenshot{" "}
-                                <span className="ml-1 text-[9px] text-muted-foreground font-bold">
-                                  ✗
-                                </span>
-                              </span>
+                                {app.submission_review_status.replace("_", " ")}
+                              </Badge>
                             )}
-                          </Button>
                         </div>
-                        {app.submission.notes && (
-                          <p className="text-[10px] text-muted-foreground italic md:text-right text-left mt-1">
-                            "{app.submission.notes}"
-                          </p>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {app.user_institution} · {app.user_email || "No email"}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3 min-w-[320px] md:items-end">
+                        {/* Submission block */}
+                        {app.submission ? (
+                          <div className="space-y-2 w-full rounded-md bg-secondary/40 p-3 md:text-right border border-border/40">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground md:text-right text-left">
+                              Submission Review
+                            </div>
+                            <div className="flex flex-wrap md:justify-end gap-1.5">
+                              <Button
+                                asChild={Boolean(app.submission.live_url)}
+                                size="sm"
+                                variant="outline"
+                                className={`h-7 px-2 text-[10px] ${
+                                  app.submission.live_url
+                                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                    : "opacity-50 cursor-not-allowed bg-muted"
+                                }`}
+                                disabled={!app.submission.live_url}
+                              >
+                                {app.submission.live_url ? (
+                                  <a href={app.submission.live_url} target="_blank" rel="noreferrer">
+                                    Live URL{" "}
+                                    <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                      ✓
+                                    </span>
+                                  </a>
+                                ) : (
+                                  <span>
+                                    Live URL{" "}
+                                    <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                      ✗
+                                    </span>
+                                  </span>
+                                )}
+                              </Button>
+                              <Button
+                                asChild={Boolean(app.submission.github_url)}
+                                size="sm"
+                                variant="outline"
+                                className={`h-7 px-2 text-[10px] ${
+                                  app.submission.github_url
+                                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                    : "opacity-50 cursor-not-allowed bg-muted"
+                                }`}
+                                disabled={!app.submission.github_url}
+                              >
+                                {app.submission.github_url ? (
+                                  <a href={app.submission.github_url} target="_blank" rel="noreferrer">
+                                    GitHub{" "}
+                                    <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                      ✓
+                                    </span>
+                                  </a>
+                                ) : (
+                                  <span>
+                                    GitHub{" "}
+                                    <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                      ✗
+                                    </span>
+                                  </span>
+                                )}
+                              </Button>
+                              <Button
+                                asChild={Boolean(app.submission.screenshot_url)}
+                                size="sm"
+                                variant="outline"
+                                className={`h-7 px-2 text-[10px] ${
+                                  app.submission.screenshot_url
+                                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                    : "opacity-50 cursor-not-allowed bg-muted"
+                                }`}
+                                disabled={!app.submission.screenshot_url}
+                              >
+                                {app.submission.screenshot_url ? (
+                                  <a
+                                    href={app.submission.screenshot_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Screenshot{" "}
+                                    <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                      ✓
+                                    </span>
+                                  </a>
+                                ) : (
+                                  <span>
+                                    Screenshot{" "}
+                                    <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                      ✗
+                                    </span>
+                                  </span>
+                                )}
+                              </Button>
+                            </div>
+                            {app.submission.notes && (
+                              <p className="text-[10px] text-muted-foreground italic md:text-right text-left mt-1">
+                                "{app.submission.notes}"
+                              </p>
+                            )}
+                            <div className="flex flex-wrap md:justify-end gap-1.5 pt-1">
+                              <Button
+                                size="sm"
+                                className="h-6 px-2 text-[9px] bg-success text-primary-foreground hover:bg-success/90"
+                                disabled={updatingApplicationId === app.id}
+                                onClick={() => updateSubmissionReviewStatus(app.id, "passed")}
+                              >
+                                Mark Passed
+                              </Button>
+                              {app.submission_review_status !== "passed" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[9px]"
+                                  disabled={updatingApplicationId === app.id}
+                                  onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
+                                >
+                                  Needs Changes
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic">
+                            No submission uploaded yet
+                          </span>
                         )}
-                        <div className="flex flex-wrap md:justify-end gap-1.5 pt-1">
-                          <Button
-                            size="sm"
-                            className="h-6 px-2 text-[9px] bg-success text-primary-foreground hover:bg-success/90"
-                            disabled={updatingApplicationId === app.id}
-                            onClick={() => updateSubmissionReviewStatus(app.id, "passed")}
-                          >
-                            Mark Passed
-                          </Button>
-                          {app.submission_review_status !== "passed" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 px-2 text-[9px]"
-                              disabled={updatingApplicationId === app.id}
-                              onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
-                            >
-                              Needs Changes
-                            </Button>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-wrap gap-1.5 md:justify-end">
+                          {app.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-[10px]"
+                                disabled={updatingApplicationId === app.id}
+                                onClick={() => updateApplicationStatus(app.id, "shortlisted")}
+                              >
+                                Shortlist
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="h-7 px-2.5 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                                disabled={updatingApplicationId === app.id}
+                                onClick={() => updateApplicationStatus(app.id, "accepted")}
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 px-2.5 text-[10px]"
+                                disabled={updatingApplicationId === app.id}
+                                onClick={() => updateApplicationStatus(app.id, "rejected")}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+
+                          {app.status === "shortlisted" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-7 px-2.5 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                                disabled={updatingApplicationId === app.id}
+                                onClick={() => updateApplicationStatus(app.id, "accepted")}
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 px-2.5 text-[10px]"
+                                disabled={updatingApplicationId === app.id}
+                                onClick={() => updateApplicationStatus(app.id, "rejected")}
+                              >
+                                Reject
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground italic">
-                        No submission uploaded yet
-                      </span>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex flex-wrap gap-1.5 md:justify-end">
-                      {app.status === "pending" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2.5 text-[10px]"
-                            disabled={updatingApplicationId === app.id}
-                            onClick={() => updateApplicationStatus(app.id, "shortlisted")}
-                          >
-                            Shortlist
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-7 px-2.5 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
-                            disabled={updatingApplicationId === app.id}
-                            onClick={() => updateApplicationStatus(app.id, "accepted")}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-7 px-2.5 text-[10px]"
-                            disabled={updatingApplicationId === app.id}
-                            onClick={() => updateApplicationStatus(app.id, "rejected")}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
-
-                      {app.status === "shortlisted" && (
-                        <>
-                          <Button
-                            size="sm"
-                            className="h-7 px-2.5 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
-                            disabled={updatingApplicationId === app.id}
-                            onClick={() => updateApplicationStatus(app.id, "accepted")}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-7 px-2.5 text-[10px]"
-                            disabled={updatingApplicationId === app.id}
-                            onClick={() => updateApplicationStatus(app.id, "rejected")}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
-                </div>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="roster" className="flex-1 flex flex-col min-h-0 space-y-3">
+            {loadingRoom ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Loading team roster...
               </div>
-            ))
+            ) : !room || !room.participants || room.participants.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground border border-dashed rounded-lg flex flex-col items-center justify-center">
+                <Users className="mb-2 h-8 w-8 text-muted-foreground/30" />
+                <p>No active participants in the project yet.</p>
+                <p className="text-xs text-muted-foreground mt-1">Students will appear here once they commit XP and join.</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[50vh]">
+                {room.participants.map((p) => {
+                  const uObj = typeof p.user === 'object' ? p.user : null;
+                  const uId = uObj?._id || uObj?.id || (typeof p.user === 'string' ? p.user : "");
+                  const uName = uObj?.name || "Unknown Student";
+                  const uEmail = uObj?.email || "No email";
+                  const isLeader = room.temporaryCoordinator && room.temporaryCoordinator === uId;
+                  
+                  return (
+                    <div
+                      key={uId}
+                      className="rounded-lg border border-border/70 p-4 bg-background/50 hover:bg-background/80 transition-all hover:border-brand/30"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand uppercase border border-brand/20">
+                              {uName[0]}
+                            </div>
+                            {isLeader && (
+                              <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white rounded-full p-0.5 shadow-md" title="Team Coordinator">
+                                <Crown className="h-3 w-3 fill-white" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{uName}</span>
+                              {isLeader && (
+                                <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-[9px] font-bold py-0 h-4 border-amber-500/20">
+                                  Coordinator
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 border-border font-mono text-muted-foreground h-4">
+                                {p.role || "participant"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {uEmail}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Roster Actions */}
+                        <div className="flex flex-wrap items-center gap-3 self-end sm:self-center">
+                          {/* Role Select Dropdown */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Role:</span>
+                            <Select
+                              value={p.role || "Contributor"}
+                              onValueChange={(val) => handleRoleChange(uId, val)}
+                            >
+                              <SelectTrigger className="h-8 w-28 text-xs">
+                                <SelectValue placeholder="Role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Contributor">Contributor</SelectItem>
+                                <SelectItem value="Developer">Developer</SelectItem>
+                                <SelectItem value="Designer">Designer</SelectItem>
+                                <SelectItem value="QA Analyst">QA Analyst</SelectItem>
+                                <SelectItem value="Researcher">Researcher</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Promote to Leader Button */}
+                          {!isLeader && isTeamProject && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-[11px] font-medium border-amber-500/20 text-amber-600 hover:bg-amber-500/5 hover:border-amber-500 flex items-center gap-1"
+                              onClick={() => handlePromoteLeader(uId)}
+                              title="Promote to Project Coordinator"
+                            >
+                              <Crown className="h-3.5 w-3.5 text-amber-500 fill-amber-500/30" />
+                              Promote
+                            </Button>
+                          )}
+
+                          {/* Remove/Kick Button */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                            onClick={() => handleRemoveParticipant(uId)}
+                            title="Remove Participant"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {isTeamProject && (
+            <TabsContent value="grievances" className="flex-1 flex flex-col min-h-0 space-y-3">
+              {loadingRoom ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Loading grievances...
+                </div>
+              ) : !room || !room.grievances || room.grievances.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground border border-dashed rounded-lg flex flex-col items-center justify-center">
+                  <ShieldAlert className="mb-2 h-8 w-8 text-muted-foreground/30" />
+                  <p>No grievances lodged for this project yet.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Student project leaders can raise grievances about blockers or team issues from their project room.</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto pr-1 space-y-4 max-h-[50vh]">
+                  {room.grievances.map((g) => {
+                    const gId = g.id || g._id || "";
+                    const creatorObj = typeof g.createdBy === 'object' ? g.createdBy : null;
+                    const creatorName = creatorObj?.name || "Unknown Student";
+                    const isResolved = g.status === "resolved";
+                    
+                    return (
+                      <div
+                        key={gId}
+                        className={`rounded-xl border p-4 bg-background/50 hover:bg-background/80 transition-all ${
+                          isResolved ? "border-emerald-500/20 bg-emerald-500/[0.01]" : "border-amber-500/20 bg-amber-500/[0.01]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h5 className="font-bold text-sm text-foreground">{g.title}</h5>
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] uppercase tracking-wider py-0.5 px-1.5 font-bold rounded-full ${
+                                  isResolved
+                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                    : "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                                }`}
+                              >
+                                {g.status}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Raised by <span className="font-medium text-foreground">{creatorName}</span> on {new Date(g.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 text-xs text-foreground/80 bg-secondary/20 rounded-lg p-3 border border-border/40 whitespace-pre-wrap leading-relaxed">
+                          {g.description}
+                        </div>
+
+                        {/* Admin Response Section */}
+                        <div className="mt-4 border-t border-border/50 pt-4">
+                          {isResolved ? (
+                            <div className="bg-emerald-500/5 dark:bg-emerald-500/[0.02] border border-emerald-500/10 rounded-lg p-3">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 dark:text-emerald-400 block mb-1">
+                                Admin Response
+                              </span>
+                              <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                                {g.adminResponse || "Grievance resolved without notes."}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 block">
+                                Reply & Resolve Grievance
+                              </span>
+                              <Textarea
+                                placeholder="Enter admin instructions, resources, or resolution notes..."
+                                value={responses[gId] || ""}
+                                onChange={(e) =>
+                                  setResponses((prev) => ({ ...prev, [gId]: e.target.value }))
+                                }
+                                className="text-xs h-20 focus-visible:ring-amber-500/30"
+                              />
+                              <div className="flex justify-end">
+                                <Button
+                                  size="sm"
+                                  className="h-8 text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 flex items-center gap-1.5 shadow-sm shadow-orange-500/10 transition-all duration-300"
+                                  disabled={resolvingGrievanceId === gId}
+                                  onClick={() => handleResolveGrievance(gId)}
+                                >
+                                  {resolvingGrievanceId === gId ? (
+                                    <span>Resolving...</span>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                      <span>Respond & Resolve</span>
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
           )}
-        </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

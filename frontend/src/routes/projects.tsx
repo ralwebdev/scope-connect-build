@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AppShell } from "@/components/site/AppShell";
 import { ConfettiBurst } from "@/components/site/Effects";
 import { TrustFAQ } from "@/components/site/TrustFAQ";
@@ -69,6 +70,7 @@ type ProjectApplication = {
   status: BackendApplication["status"];
   submissionReviewStatus: BackendApplication["submission_review_status"];
   submission?: BackendApplication["submission"] | null;
+  coordinator?: boolean;
 };
 
 function resolveSubmissionDeadline(project: CuratedProject): number | null {
@@ -214,6 +216,7 @@ function ProjectsPage() {
           status: a.status,
           submissionReviewStatus: a.submission_review_status,
           submission: a.submission,
+          coordinator: Boolean(a.coordinator),
         })));
         // Refresh student XP metrics from backend to ensure real-time UI sync
         auth.refreshCurrentUser().catch(() => null);
@@ -1061,6 +1064,7 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
         status: application.status,
         submissionReviewStatus: application.submission_review_status,
         submission: application.submission,
+        coordinator: Boolean(application.coordinator),
       });
 
       analytics.track("project_commit_xp");
@@ -1242,6 +1246,12 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
   const [taskAssignee, setTaskAssignee] = useState("");
   const [evidenceByTask, setEvidenceByTask] = useState<Record<string, string>>({});
 
+  // Grievance states
+  const [grievanceTitle, setGrievanceTitle] = useState("");
+  const [grievanceDescription, setGrievanceDescription] = useState("");
+  const [submittingGrievance, setSubmittingGrievance] = useState(false);
+  const user = useUser();
+
   const participantId = (participant: BackendProjectRoom["participants"][number]) => {
     const userRef = participant.user;
     return typeof userRef === "string" ? userRef : userRef.id || userRef._id || "";
@@ -1338,6 +1348,29 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
     }
   };
 
+  const handleGrievanceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!grievanceTitle.trim() || !grievanceDescription.trim()) {
+      toast.error("Please fill in both title and description.");
+      return;
+    }
+    try {
+      setSubmittingGrievance(true);
+      const res = await backendProjects.submitGrievance(project.id, {
+        title: grievanceTitle.trim(),
+        description: grievanceDescription.trim(),
+      });
+      setRoom(res.room);
+      setGrievanceTitle("");
+      setGrievanceDescription("");
+      toast.success("Grievance submitted successfully to Scope Admin.");
+    } catch (err) {
+      toast.error("Failed to submit grievance.");
+    } finally {
+      setSubmittingGrievance(false);
+    }
+  };
+
   return (
     <ModalShell onClose={onClose} title={`Project Room: ${project.title}`} subtitle="Coordinate tasks, sync notes, evidence, and final delivery.">
       {loading ? (
@@ -1345,88 +1378,214 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
       ) : !room ? (
         <div className="mt-6 text-sm text-muted-foreground">Room is not available yet.</div>
       ) : (
-        <div className="mt-4 max-h-[72vh] space-y-5 overflow-y-auto pr-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Badge variant={room.status === "locked" ? "secondary" : "outline"} className="capitalize">{room.status}</Badge>
-              <Badge variant="outline" className="capitalize">{application.status}</Badge>
-              <Badge variant="outline">{room.participants.length} participant{room.participants.length === 1 ? "" : "s"}</Badge>
-            </div>
-            <Button size="sm" variant="outline" onClick={onOpenSubmission}>Final submission</Button>
-          </div>
+        <div className="mt-4 max-h-[72vh] flex flex-col pr-1 overflow-hidden">
+          <Tabs defaultValue="workspace" className="w-full flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-2 mb-4 bg-secondary/30 p-1 rounded-lg">
+              <TabsTrigger value="workspace" className="data-[state=active]:bg-background data-[state=active]:text-foreground text-xs py-1.5 font-medium rounded-md">
+                Workspace & Tasks
+              </TabsTrigger>
+              <TabsTrigger value="grievances" className="data-[state=active]:bg-background data-[state=active]:text-foreground text-xs py-1.5 font-medium rounded-md">
+                Team Grievances ({room.grievances?.length || 0})
+              </TabsTrigger>
+            </TabsList>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {room.participants.map((participant) => (
-              <div key={participantId(participant)} className="rounded-lg border border-border/70 p-3">
-                <div className="text-sm font-semibold text-foreground">{participantName(participant)}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{participant.role || "Contributor"} · {participant.progress || 0}% progress · {participant.contributionScore || 0} score</div>
+            <TabsContent value="workspace" className="flex-1 overflow-y-auto space-y-5 pr-1 focus-visible:outline-none focus-visible:ring-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant={room.status === "locked" ? "secondary" : "outline"} className="capitalize">{room.status}</Badge>
+                  <Badge variant="outline" className="capitalize">{application.status}</Badge>
+                  <Badge variant="outline">{room.participants.length} participant{room.participants.length === 1 ? "" : "s"}</Badge>
+                </div>
+                <Button size="sm" variant="outline" onClick={onOpenSubmission}>Final submission</Button>
               </div>
-            ))}
-          </div>
 
-          {flags.length > 0 && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-              <div className="text-sm font-semibold text-foreground">Risk signals</div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {flags.slice(0, 8).map((flag, index) => (
-                  <Badge key={`${flag.flag}-${index}`} variant="secondary" className="capitalize">{String(flag.flag).replaceAll("_", " ")}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <div className="text-sm font-semibold text-foreground">Daily sync</div>
-            <Textarea value={syncNote} onChange={(e) => setSyncNote(e.target.value)} rows={2} placeholder="Today’s sync, blockers, handoffs..." />
-            <Textarea value={meetingNote} onChange={(e) => setMeetingNote(e.target.value)} rows={2} placeholder="Meeting note..." />
-            <Button size="sm" onClick={saveRoomUpdate} disabled={!syncNote.trim() && !meetingNote.trim()}>Save room update</Button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-sm font-semibold text-foreground">Create task</div>
-            <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
-            <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} rows={2} placeholder="Task details and deliverables" />
-            <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-              {room.participants.map((participant) => (
-                <option key={participantId(participant)} value={participantId(participant)}>{participantName(participant)}</option>
-              ))}
-            </select>
-            <Button size="sm" onClick={createTask}>Create task</Button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-sm font-semibold text-foreground">Tasks</div>
-            {tasks.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No tasks yet.</div>
-            ) : tasks.map((task) => {
-              const taskId = task.id || task._id || "";
-              return (
-                <div key={taskId} className="rounded-lg border border-border/70 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{task.title}</div>
-                      {task.description && <div className="mt-1 text-xs text-muted-foreground">{task.description}</div>}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {room.participants.map((participant) => {
+                  const pId = participantId(participant);
+                  const isLeader = room.temporaryCoordinator?.toString() === pId || (application.coordinator && room.participants?.[0] && participantId(room.participants[0]) === pId);
+                  return (
+                    <div key={pId} className="rounded-lg border border-border/70 p-3 bg-background/50 hover:bg-background/80 transition-colors">
+                      <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        {participantName(participant)}
+                        {isLeader && (
+                          <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-[9px] h-4 py-0 px-1 font-semibold flex items-center gap-0.5">
+                            ★ Leader
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{participant.role || "Contributor"} · {participant.progress || 0}% progress · {participant.contributionScore || 0} score</div>
                     </div>
-                    <Badge variant="outline">{task.status}</Badge>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(["In Progress", "Submitted", "Reviewed", "Completed", "Rework Needed"] as BackendProjectTask["status"][]).map((status) => (
-                      <Button key={status} size="sm" variant="outline" onClick={() => updateStatus(task, status)}>{status}</Button>
+                  );
+                })}
+              </div>
+
+              {flags.length > 0 && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="text-sm font-semibold text-foreground">Risk signals</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {flags.slice(0, 8).map((flag, index) => (
+                      <Badge key={`${flag.flag}-${index}`} variant="secondary" className="capitalize">{String(flag.flag).replaceAll("_", " ")}</Badge>
                     ))}
                   </div>
-                  <div className="mt-3 flex gap-2">
-                    <Input value={evidenceByTask[taskId] || ""} onChange={(e) => setEvidenceByTask((current) => ({ ...current, [taskId]: e.target.value }))} placeholder="Evidence link or comment" />
-                    <Button size="sm" onClick={() => addEvidence(task)}>Add</Button>
-                  </div>
-                  {!!task.evidence?.length && (
-                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      {task.evidence.slice(-3).map((item, index) => <div key={item.id || index}>{item.kind}: {item.value}</div>)}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
-          </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-foreground">Daily sync</div>
+                <Textarea value={syncNote} onChange={(e) => setSyncNote(e.target.value)} rows={2} placeholder="Today’s sync, blockers, handoffs..." />
+                <Textarea value={meetingNote} onChange={(e) => setMeetingNote(e.target.value)} rows={2} placeholder="Meeting note..." />
+                <Button size="sm" onClick={saveRoomUpdate} disabled={!syncNote.trim() && !meetingNote.trim()}>Save room update</Button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-foreground">Create task</div>
+                <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
+                <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} rows={2} placeholder="Task details and deliverables" />
+                <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  {room.participants.map((participant) => (
+                    <option key={participantId(participant)} value={participantId(participant)}>{participantName(participant)}</option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={createTask}>Create task</Button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-foreground">Tasks</div>
+                {tasks.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No tasks yet.</div>
+                ) : tasks.map((task) => {
+                  const taskId = task.id || task._id || "";
+                  return (
+                    <div key={taskId} className="rounded-lg border border-border/70 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">{task.title}</div>
+                          {task.description && <div className="mt-1 text-xs text-muted-foreground">{task.description}</div>}
+                        </div>
+                        <Badge variant="outline">{task.status}</Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(["In Progress", "Submitted", "Reviewed", "Completed", "Rework Needed"] as BackendProjectTask["status"][]).map((status) => (
+                          <Button key={status} size="sm" variant="outline" onClick={() => updateStatus(task, status)}>{status}</Button>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Input value={evidenceByTask[taskId] || ""} onChange={(e) => setEvidenceByTask((current) => ({ ...current, [taskId]: e.target.value }))} placeholder="Evidence link or comment" />
+                        <Button size="sm" onClick={() => addEvidence(task)}>Add</Button>
+                      </div>
+                      {!!task.evidence?.length && (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {task.evidence.slice(-3).map((item, index) => <div key={item.id || index}>{item.kind}: {item.value}</div>)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="grievances" className="flex-1 overflow-y-auto space-y-4 pr-1 focus-visible:outline-none focus-visible:ring-0">
+              {/* Leader only submission form */}
+              {(application.coordinator || room.temporaryCoordinator?.toString() === user?.id?.toString()) ? (
+                <div className="rounded-lg border border-border/70 p-4 bg-secondary/15 space-y-3">
+                  <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-brand" />
+                    Submit New Grievance to Scope Admin
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    As the Project Leader, you can lodge grievances or support tickets directly with Scope Admins.
+                  </p>
+                  <form onSubmit={handleGrievanceSubmit} className="space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="grievance-title" className="text-xs font-semibold">Grievance Title *</Label>
+                      <Input
+                        id="grievance-title"
+                        value={grievanceTitle}
+                        onChange={(e) => setGrievanceTitle(e.target.value)}
+                        placeholder="e.g., Asset bottleneck / team member inactive"
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="grievance-desc" className="text-xs font-semibold">Description *</Label>
+                      <Textarea
+                        id="grievance-desc"
+                        value={grievanceDescription}
+                        onChange={(e) => setGrievanceDescription(e.target.value)}
+                        placeholder="Detail the issue, steps taken, and support requested."
+                        rows={3}
+                        className="text-xs"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={submittingGrievance}
+                      className="bg-brand text-brand-foreground hover:bg-brand/90"
+                    >
+                      {submittingGrievance ? "Submitting..." : "Lodge Grievance"}
+                    </Button>
+                  </form>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border/70 p-3 bg-secondary/10 text-xs text-muted-foreground flex items-center gap-2">
+                  <span className="text-base">ℹ</span>
+                  <span>Only the project leader can lodge formal grievances with Scope Admin. Roster members can view lodged grievances below.</span>
+                </div>
+              )}
+
+              {/* Grievances list */}
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-foreground">Lodged Grievances</div>
+                {!room.grievances || room.grievances.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                    All clear! No grievances lodged yet.
+                  </div>
+                ) : (
+                  [...room.grievances].reverse().map((grievance, idx) => (
+                    <div key={grievance._id || grievance.id || idx} className="rounded-lg border border-border p-4 bg-background/50 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-sm text-foreground">{grievance.title}</div>
+                        <Badge
+                          variant={grievance.status === "resolved" ? "outline" : "destructive"}
+                          className={`text-[9px] h-5 ${
+                            grievance.status === "resolved"
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                              : "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {grievance.status === "resolved" ? "Resolved" : "Open"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">{grievance.description}</p>
+                      
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span>Submitted: {new Date(grievance.createdAt).toLocaleDateString()}</span>
+                        <span>·</span>
+                        <span>By: {typeof grievance.createdBy === "object" ? grievance.createdBy?.name : "Leader"}</span>
+                      </div>
+
+                      {grievance.adminResponse ? (
+                        <div className="mt-2 p-3 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-xs space-y-1">
+                          <div className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                            <span>Admin Response</span>
+                            <span className="text-[10px] font-normal text-muted-foreground">(Resolved)</span>
+                          </div>
+                          <p className="text-muted-foreground italic">"{grievance.adminResponse}"</p>
+                        </div>
+                      ) : (
+                        grievance.status === "open" && (
+                          <div className="mt-2 p-2 rounded bg-amber-500/5 border border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-400">
+                            ⏳ Waiting for Scope Admin response...
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </ModalShell>

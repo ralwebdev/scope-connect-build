@@ -27,6 +27,8 @@ import {
   type BackendEvent,
   mapBackendNotification,
   mapBackendProject,
+  backendApplications,
+  type BackendApplication,
 } from "./api/endpoints";
 import { tokenStore, BASE } from "./api/client";
 
@@ -1344,6 +1346,34 @@ export const applications = {
       notifications.push({ icon: "trophy", text: "\ud83c\udfaf First application sent \u2014 your builder journey is live.", dedupKey: `first_application:${u.id}` });
     }
     return app;
+  },
+  async syncFromBackend() {
+    if (!auth.isLoggedIn()) return applications.all();
+    try {
+      const { items } = await backendApplications.listMe();
+      const mapped: Application[] = items.map((app) => {
+        let status: Application["status"] = "Under Review";
+        if (app.status === "shortlisted") status = "Shortlisted";
+        else if (app.status === "accepted") status = "Accepted";
+        else if (app.status === "rejected" || app.status === "withdrawn") status = "Closed";
+        
+        return {
+          id: app.id,
+          projectId: app.project_id,
+          userId: app.user_id,
+          fit: app.message || "",
+          topSkill: "React",
+          availability: "Flexible",
+          status,
+          at: new Date(app.created_at).getTime(),
+        };
+      });
+      writeNow(KEYS.applications, mapped);
+      return mapped;
+    } catch (error) {
+      console.warn("Application sync failed", error);
+      return applications.all();
+    }
   },
 };
 

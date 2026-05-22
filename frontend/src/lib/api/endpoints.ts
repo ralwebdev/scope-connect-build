@@ -329,6 +329,35 @@ export const backendProjects = {
       body: JSON.stringify(body),
     });
   },
+  removeParticipant(id: string, userId: string) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room/participants/${userId}`, {
+      method: "DELETE",
+    });
+  },
+  updateParticipantRole(id: string, userId: string, role: string) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room/participants/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+  },
+  promoteLeader(id: string, userId: string) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room/participants/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isLeader: true }),
+    });
+  },
+  submitGrievance(id: string, body: { title: string; description: string }) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room/grievance`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  respondToGrievance(id: string, grievanceId: string, body: { adminResponse: string; status?: "open" | "resolved" }) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room/grievances/${grievanceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
   tasks(id: string) {
     return api<{ items: BackendProjectTask[] }>(`/api/v1/projects/${id}/tasks`);
   },
@@ -369,6 +398,16 @@ export type BackendProjectRoom = {
   dailySync?: Array<{ notes: string; createdAt?: string; createdBy?: string }>;
   meetingNotes?: Array<{ note: string; createdAt?: string; createdBy?: string }>;
   finalDeliverables?: Array<{ title?: string; url?: string; notes?: string; submittedAt?: string }>;
+  grievances?: Array<{
+    id?: string;
+    _id?: string;
+    title: string;
+    description: string;
+    status: "open" | "resolved";
+    createdBy: string | { _id?: string; id?: string; name?: string; email?: string; role?: string };
+    createdAt: string;
+    adminResponse?: string;
+  }>;
 };
 
 export type BackendProjectTask = {
@@ -432,6 +471,7 @@ export type BackendApplication = {
     admin_comment?: string | null;
   } | null;
   created_at: string;
+  coordinator?: boolean;
 };
 
 export const backendApplications = {
