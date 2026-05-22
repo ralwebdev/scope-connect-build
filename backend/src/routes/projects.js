@@ -959,6 +959,45 @@ applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSche
   application.submission.reviewedBy = req.user._id;
   application.submission.reviewedAt = new Date();
   application.submission.adminComment = req.body.admin_comment;
+
+  if (req.body.submission_review_status === "passed" && application.settlementStatus !== "settled") {
+    // 1. Refund committed stake if reserved
+    if (application.committedXp > 0 && application.commitmentStatus === "reserved") {
+      await refundReservedXp({
+        userId: application.user,
+        institutionId: application.project.institution || null,
+        amount: application.committedXp,
+        sourceType: "project",
+        sourceId: application.project._id,
+        action: XP_ACTIONS.PROJECT_STAKE_REFUNDED,
+        meta: { project_id: application.project._id, application_id: application.id },
+        text: `Project commitment refunded: ${application.project.title}`,
+      }).catch(() => null);
+      application.commitmentStatus = "refunded";
+    }
+
+    // 2. Award reward XP if project has rewardPoolXp
+    const rewardAmount = application.project.rewardPoolXp || 0;
+    if (rewardAmount > 0) {
+      const xpResult = await awardXp({
+        userId: application.user,
+        institutionId: application.project.institution || null,
+        rule: "project_reward_granted",
+        amountOverride: rewardAmount,
+        sourceType: "project",
+        sourceId: application.project._id,
+        action: XP_ACTIONS.PROJECT_REWARD_GRANTED,
+        dedupeKey: `project_reward:${application.id}`,
+        meta: { project_id: application.project._id, application_id: application.id },
+        text: `Project reward granted: ${application.project.title}`,
+      });
+      application.rewardXp = xpResult.awarded;
+    }
+
+    application.rewardEligible = true;
+    application.settlementStatus = "settled";
+  }
+
   await application.save();
 
   await Notification.create({

@@ -59,6 +59,8 @@ type CuratedProject = {
   userVoted?: boolean;
   entryXpRequired?: number;
   xpCommitmentStake?: number;
+  team_members_limit?: number;
+  teams_allowed?: number;
 };
 
 type ProjectApplication = {
@@ -161,6 +163,8 @@ function ProjectsPage() {
             userVoted: p.user_voted || false,
             entryXpRequired: p.minimum_xp_required || 0,
             xpCommitmentStake: p.xp_commitment_stake || 0,
+            team_members_limit: p.team_members_limit,
+            teams_allowed: p.teams_allowed,
           };
 
 
@@ -211,6 +215,8 @@ function ProjectsPage() {
           submissionReviewStatus: a.submission_review_status,
           submission: a.submission,
         })));
+        // Refresh student XP metrics from backend to ensure real-time UI sync
+        auth.refreshCurrentUser().catch(() => null);
       })
       .catch((error) => {
         console.error("Projects Load Error:", error);
@@ -321,7 +327,11 @@ function ProjectsPage() {
         toast.error("Your application has been rejected.");
         return;
       }
-      setRoomTarget(p);
+      if (p.team_members_limit === 1) {
+        setSubmissionTarget(p);
+      } else {
+        setRoomTarget(p);
+      }
       return;
     }
     setApplyTarget(p);
@@ -858,7 +868,13 @@ function ProjectCard({
             {!canParticipate && !applied ? "Restricted" :
              applied && isPending ? "Pending Review" :
              applied && isRejected ? "Rejected" :
-             applied ? (<><Check className="mr-1.5 h-4 w-4" /> Project Room</>) :
+             applied ? (
+               project.team_members_limit === 1 ? (
+                 <><Check className="mr-1.5 h-4 w-4" /> Submit Work</>
+               ) : (
+                 <><Check className="mr-1.5 h-4 w-4" /> Project Room</>
+               )
+             ) :
              closed ? "Closed" :
              seatsFull ? "Join Waitlist" : `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP`}
           </Button>
@@ -1465,7 +1481,7 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
           disabled={!applied && !canParticipate}
           className="bg-gradient-brand text-brand-foreground"
         >
-          {applied ? "Open Room" : canParticipate ? `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP` : "Restricted for Admins"}
+          {applied ? (project.team_members_limit === 1 ? "Submit Work" : "Open Room") : canParticipate ? `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP` : "Restricted for Admins"}
         </Button>
       </div>
     </ModalShell>

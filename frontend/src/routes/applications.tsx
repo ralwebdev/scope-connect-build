@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/hooks/use-scope";
+import { auth } from "@/lib/scope-store";
 import { backendApplications, backendProjects, type BackendApplication, type BackendProject } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
@@ -83,6 +84,8 @@ function ApplicationTrackingCenter() {
         projectsRes.value.items.forEach(p => map.set(p.id, p));
         setProjects(map);
       }
+      // Refresh current user stats to synchronize XP UI count immediately
+      auth.refreshCurrentUser().catch(() => null);
     } catch {
       toast.error("Failed to load applications");
     } finally {
