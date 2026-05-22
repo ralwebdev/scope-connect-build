@@ -2800,10 +2800,11 @@ function ScopeProjectsManager() {
                         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                           Set Stake
                         </span>
-                        <div className="flex items-center bg-background border border-border/80 hover:border-brand/40 focus-within:border-brand/50 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all">
+                        <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
                           <input
                             type="number"
                             min={0}
+                            disabled={isActive}
                             value={templateXpStakes[template.title] ?? 50}
                             onChange={(e) => {
                               const val = Math.max(0, Number(e.target.value) || 0);
@@ -2813,7 +2814,7 @@ function ScopeProjectsManager() {
                                 [template.title]: Math.round(val * 1.5),
                               }));
                             }}
-                            className="w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
                           />
                           <span className="text-[9px] font-bold text-muted-foreground shrink-0">
                             XP
@@ -2824,10 +2825,11 @@ function ScopeProjectsManager() {
                         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                           Set Reward
                         </span>
-                        <div className="flex items-center bg-background border border-border/80 hover:border-brand/40 focus-within:border-brand/50 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all">
+                        <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
                           <input
                             type="number"
                             min={0}
+                            disabled={isActive}
                             value={
                               templateRewardXps[template.title] ??
                               Math.round((templateXpStakes[template.title] ?? 50) * 1.5)
@@ -2836,7 +2838,7 @@ function ScopeProjectsManager() {
                               const val = Math.max(0, Number(e.target.value) || 0);
                               setTemplateRewardXps((prev) => ({ ...prev, [template.title]: val }));
                             }}
-                            className="w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
                           />
                           <span className="text-[9px] font-bold text-muted-foreground shrink-0">
                             XP
