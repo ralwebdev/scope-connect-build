@@ -118,7 +118,7 @@ function OpportunitiesPage() {
                 </div>
                 {minXpRequired > 0 && (
                   <div className="mt-3 flex items-center gap-2">
-                    <Badge variant={isLocked ? "secondary" : "outline"}>{minXpRequired} XP unlock</Badge>
+                    <Badge variant={isLocked ? "secondary" : "outline"}>{minXpRequired} XP required</Badge>
                     {isLocked && <span className="text-xs text-muted-foreground">{xpShortfall} XP to go</span>}
                   </div>
                 )}
@@ -139,7 +139,7 @@ function OpportunitiesPage() {
                 )}
                 {isLocked && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Build more XP before this opportunity unlocks for you.
+                    Build more XP before this opportunity becomes eligible for you.
                   </p>
                 )}
                 <div className="mt-4 flex gap-2">
@@ -150,7 +150,7 @@ function OpportunitiesPage() {
                       size="sm"
                       className="flex-1 bg-brand text-brand-foreground shadow-lg shadow-brand/20"
                     >
-                      Unlock for {minXpRequired} XP
+                      Check eligibility
                     </Button>
                   ) : (
                     <Button

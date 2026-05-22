@@ -31,6 +31,7 @@ const profileSchema = new mongoose.Schema(
     primaryDomain: { type: String, index: true },
     specialization: String,
     xp: { type: Number, default: 0 },
+    reservedXp: { type: Number, default: 0, min: 0 },
     level: { type: Number, default: 1 },
     streakDays: { type: Number, default: 0 },
     achievements: { type: [String], default: ["early_adopter"] },

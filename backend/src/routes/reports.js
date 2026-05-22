@@ -19,6 +19,7 @@ import { sendSuccess } from "../utils/response.js";
 import { serializeUser } from "../utils/serializers.js";
 import { hasPermission } from "../utils/roles.js";
 import { validate } from "../utils/validate.js";
+import { XP_CONSTANTS } from "../utils/xp-constants.js";
 
 export const reportsRouter = express.Router();
 
@@ -28,9 +29,15 @@ const reportSchema = z.object({
   project_id: z.string().optional().nullable(),
   assignment_id: z.string().max(120).optional(),
   day_key: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  tasks_done: z.string().min(3).max(5000),
+  tasks_done: z.string().min(3).max(5000).optional(),
+  today_work: z.string().min(3).max(5000).optional(),
+  deliverables: z.array(z.string().max(500)).max(30).optional().default([]),
   hours_spent: z.number().min(0).max(24).optional().default(0),
   blockers: z.string().max(2000).optional().default(""),
+  tomorrow_plan: z.string().max(3000).optional().default(""),
+}).refine((body) => Boolean(body.tasks_done || body.today_work), {
+  path: ["today_work"],
+  message: "today_work is required",
 });
 
 const recoverySchema = z.object({
@@ -65,8 +72,11 @@ function serializeDailyReport(report) {
     day_key: report.dayKey,
     content: {
       tasks_done: report.tasksDone,
+      today_work: report.tasksDone,
+      deliverables: report.deliverables || [],
       hours_spent: report.hoursSpent,
       blockers: report.blockers || "",
+      tomorrow_plan: report.tomorrowPlan || "",
     },
     submitted_at: report.submittedAt,
     created_at: report.createdAt,
@@ -110,9 +120,27 @@ async function activeAssignmentsFor(userId) {
       project_id: application.project.id,
       title: application.project.title,
       status: application.project.status,
+      daily_reporting_required: application.project.dailyReportingRequired || false,
       starts_on: application.project.startsOn || null,
       ends_on: application.project.endsOn || null,
     }));
+}
+
+async function missedReportingStatus(userId, assignments, today) {
+  const statuses = [];
+  for (const assignment of assignments.filter((item) => item.daily_reporting_required)) {
+    const latest = await DailyReport.findOne({ user: userId, assignmentKey: assignment.id }).sort({ dayKey: -1 }).select("dayKey");
+    const missed = !latest || latest.dayKey !== today;
+    statuses.push({
+      assignment_id: assignment.id,
+      project_id: assignment.project_id,
+      missed,
+      action: missed ? "warning" : "clear",
+      penalty: false,
+      warning_days: XP_CONSTANTS.INACTIVITY_WARNING_DAYS,
+    });
+  }
+  return statuses;
 }
 
 reportsRouter.get("/my", asyncHandler(async (req, res) => {
@@ -127,11 +155,14 @@ reportsRouter.get("/my", asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(20);
 
+  const missed_reporting = await missedReportingStatus(req.user._id, assignments, today);
+
   sendSuccess(res, {
     today,
     assignments,
     reports: reports.map(serializeDailyReport),
     recoveries: recoveries.map(serializeRecovery),
+    missed_reporting,
     can_submit: !reports.some((report) => report.dayKey === today),
   });
 }));
@@ -157,9 +188,11 @@ reportsRouter.post("/", validate(reportSchema), asyncHandler(async (req, res) =>
       project: projectId,
       assignmentKey,
       dayKey,
-      tasksDone: req.body.tasks_done,
+      tasksDone: req.body.today_work || req.body.tasks_done,
+      deliverables: req.body.deliverables || [],
       hoursSpent: req.body.hours_spent,
       blockers: req.body.blockers || "",
+      tomorrowPlan: req.body.tomorrow_plan || "",
       submittedAt: new Date(),
     });
 

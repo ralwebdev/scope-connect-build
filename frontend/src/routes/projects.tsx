@@ -56,6 +56,7 @@ type CuratedProject = {
   endsAt?: number;
   votes?: number;
   userVoted?: boolean;
+  xpCommitmentStake?: number;
 };
 
 type ProjectApplication = {
@@ -155,6 +156,7 @@ function ProjectsPage() {
             endsAt: p.ends_on ? new Date(p.ends_on).getTime() : undefined,
             votes: p.votes || 0,
             userVoted: p.user_voted || false,
+            xpCommitmentStake: p.xp_commitment_stake || 0,
           };
 
 
@@ -497,7 +499,7 @@ function ProjectsPage() {
         <Section
           eyebrow="🌍 Open Projects"
           title="Open to every verified builder"
-          subtitle="Apply from any campus. Open access opportunities curated by Scope."
+          subtitle="Commit XP from any campus. Open access opportunities curated by Scope."
         >
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {openProjects.map((p) => (
@@ -829,7 +831,7 @@ function ProjectCard({
              applied && isRejected ? "Rejected" :
              applied ? (<><Check className="mr-1.5 h-4 w-4" /> Submit Work</>) :
              closed ? "Closed" :
-             seatsFull ? "Join Waitlist" : "Apply Now"}
+             seatsFull ? "Join Waitlist" : "Commit XP"}
           </Button>
           <Button size="sm" variant="outline" onClick={onSave} aria-label="Save">
             {saved ? <BookmarkCheck className="h-4 w-4 text-brand" /> : <Bookmark className="h-4 w-4" />}
@@ -911,18 +913,18 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
           submissionReviewStatus: application.submission_review_status,
           submission: application.submission,
         });
-        analytics.track("project_apply");
-        toast.success("Application sent.");
+        analytics.track("project_commit_xp");
+        toast.success("XP committed. Project room is ready.");
         onSubmitted();
       })
       .catch((error) => {
-        toast.error(error instanceof Error ? error.message : "Application failed.");
+        toast.error(error instanceof Error ? error.message : "Could not commit XP.");
         onClose();
       });
   };
 
   return (
-    <ModalShell onClose={onClose} title={`Apply: ${project.title}`} subtitle="A short pitch goes a long way.">
+    <ModalShell onClose={onClose} title={`Commit XP: ${project.title}`} subtitle="Reserve your XP stake and join the project room.">
       <div className="mt-4 space-y-3">
         <div>
           <Label htmlFor="fit">Why are you a fit?</Label>
@@ -947,7 +949,7 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
         <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground">
-          {submitting ? "Sending…" : "Send Application (+100 XP)"}
+          {submitting ? "Committing..." : `Commit XP${project.xpCommitmentStake ? ` (${project.xpCommitmentStake} XP)` : ""}`}
         </Button>
       </div>
     </ModalShell>
@@ -1002,7 +1004,7 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
           disabled={!applied && !canParticipate}
           className="bg-gradient-brand text-brand-foreground"
         >
-          {applied ? "Open Submission" : canParticipate ? "Apply Now" : "Restricted for Admins"}
+          {applied ? "Open Submission" : canParticipate ? "Commit XP" : "Restricted for Admins"}
         </Button>
       </div>
     </ModalShell>

@@ -1,6 +1,15 @@
 import express from "express";
 import { z } from "zod";
-import { Project, Application, Notification, ProfileActivity } from "../models/index.js";
+import {
+  Project,
+  Application,
+  Notification,
+  ProfileActivity,
+  Profile,
+  ProjectRoom,
+  ProjectTask,
+  DailyReport,
+} from "../models/index.js";
 import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -10,8 +19,9 @@ import { validate } from "../utils/validate.js";
 import { hasPermission } from "../utils/roles.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { serializeProject, serializeApplication } from "../utils/serializers.js";
-import { awardXp } from "../utils/xp-engine.js";
+import { awardXp, forfeitReservedXp, refundReservedXp, reserveXp } from "../utils/xp-engine.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
+import { CONTRIBUTION_WEIGHTS, XP_ACTIONS, XP_CONSTANTS } from "../utils/xp-constants.js";
 
 
 export const projectsRouter = express.Router();
@@ -22,8 +32,15 @@ async function logProfileActivity(userId, kind, text, meta = {}) {
 
 const projectSchema = z.object({
   title: z.string().min(1).max(200),
+  project_title: z.string().min(1).max(200).optional(),
+  project_type: z.string().max(80).optional(),
   summary: z.string().max(500).optional(),
   description: z.string().max(20000).optional(),
+  project_description: z.string().max(20000).optional(),
+  expected_outcomes: z.array(z.string().max(500)).max(30).optional(),
+  duration: z.string().max(120).optional(),
+  deadline: z.string().date().optional(),
+  difficulty: z.enum(["Beginner", "Intermediate", "Advanced", "Easy", "Medium", "Hard"]).optional(),
   domain: z.string().max(80).optional(),
   tags: z.array(z.string().max(40)).max(20).optional().default([]),
   capacity: z.number().int().min(1).max(100).optional().default(1),
@@ -33,14 +50,81 @@ const projectSchema = z.object({
   ends_on: z.string().date().optional(),
   cover_url: z.string().url().regex(/^https?:\/\//).optional(),
   visibility: z.enum(["public", "institution", "private"]).optional().default("public"),
+  participants_needed: z.number().int().min(1).max(1000).optional(),
+  minimum_xp_required: z.number().int().min(0).max(1000000).optional(),
+  xp_commitment_stake: z.number().int().min(0).max(1000000).optional(),
+  maximum_participants: z.number().int().min(1).max(1000).optional(),
+  allowed_institutions: z.array(z.string().min(1)).max(100).optional(),
+  required_skills: z.array(z.string().max(80)).max(50).optional(),
+  role_requirements: z.array(z.object({
+    role: z.string().min(1).max(80),
+    count: z.number().int().min(1).max(100).optional().default(1),
+    skills: z.array(z.string().max(80)).max(20).optional().default([]),
+  })).max(30).optional(),
+  deliverables: z.array(z.string().max(500)).max(50).optional(),
+  responsibilities: z.array(z.string().max(500)).max(50).optional(),
+  success_criteria: z.array(z.string().max(500)).max(50).optional(),
+  daily_reporting_required: z.boolean().optional(),
+  minimum_contribution_score: z.number().min(0).max(100).optional(),
+  review_frequency: z.string().max(80).optional(),
+  mentor_review_required: z.boolean().optional(),
+  reward_pool_xp: z.number().int().min(0).max(1000000).optional(),
+  stake_refund_policy: z.enum(["enabled", "disabled", "partial"]).optional(),
+  performance_multiplier: z.number().min(0).max(10).optional(),
+  dropout_penalty: z.number().int().min(0).max(1000000).optional(),
+  inactive_penalty: z.number().int().min(0).max(1000000).optional(),
   status: z.enum(["draft", "open", "in_review", "in_progress", "completed", "cancelled"]).optional().default("draft"),
   institution_id: z.string().optional().nullable(),
   meta: z.record(z.string()).optional(),
 });
 
-const applySchema = z.object({ message: z.string().max(2000).optional() });
+const applySchema = z.object({
+  message: z.string().max(2000).optional(),
+  project_role: z.string().max(80).optional(),
+});
 const applicationPatchSchema = z.object({
   status: z.enum(["pending", "shortlisted", "accepted", "rejected", "withdrawn"]),
+});
+const taskSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(5000).optional().default(""),
+  assigned_to: z.array(z.string().min(1)).max(50).optional().default([]),
+  deadline: z.string().datetime().optional().nullable(),
+  deliverables: z.array(z.string().max(500)).max(50).optional().default([]),
+  dependencies: z.array(z.string().min(1)).max(50).optional().default([]),
+  priority: z.enum(["Low", "Medium", "High", "Critical"]).optional().default("Medium"),
+});
+const taskStatusSchema = z.object({
+  status: z.enum(["Assigned", "In Progress", "Submitted", "Reviewed", "Completed", "Rework Needed"]),
+});
+const taskEvidenceSchema = z.object({
+  kind: z.enum(["link", "file", "screenshot", "comment"]),
+  value: z.string().min(1).max(2000),
+});
+const roomUpdateSchema = z.object({
+  daily_sync_notes: z.string().max(10000).optional(),
+  meeting_note: z.string().max(5000).optional(),
+  participant_progress: z.array(z.object({
+    user_id: z.string().min(1),
+    progress: z.number().min(0).max(100),
+  })).max(100).optional(),
+});
+const scoreSchema = z.object({
+  scores: z.array(z.object({
+    application_id: z.string().min(1),
+    deliverables: z.number().min(0).max(100).optional().default(0),
+    reporting: z.number().min(0).max(100).optional().default(0),
+    peer_review: z.number().min(0).max(100).optional().default(0),
+    mentor_review: z.number().min(0).max(100).optional().default(0),
+    attendance: z.number().min(0).max(100).optional().default(0),
+  })).min(1).max(200),
+});
+const completeSchema = z.object({
+  final_deliverables: z.array(z.object({
+    title: z.string().max(200).optional(),
+    url: z.string().max(2000).optional(),
+    notes: z.string().max(2000).optional(),
+  })).max(50).optional().default([]),
 });
 const submissionSchema = z.object({
   live_url: z.string().url().regex(/^https?:\/\//, "Must be a valid http(s) URL"),
@@ -114,9 +198,14 @@ projectsRouter.post("/", authMiddleware, requirePermission("create_project"), va
   const project = await Project.create({
     createdBy: req.user._id,
     institution: institutionId,
-    title: req.body.title,
+    title: req.body.project_title || req.body.title,
+    projectType: req.body.project_type,
     summary: req.body.summary,
-    description: req.body.description,
+    description: req.body.project_description || req.body.description,
+    expectedOutcomes: req.body.expected_outcomes,
+    duration: req.body.duration,
+    deadline: req.body.deadline,
+    difficulty: req.body.difficulty,
     domain: req.body.domain,
     tags: req.body.tags,
     capacity: req.body.capacity,
@@ -126,6 +215,25 @@ projectsRouter.post("/", authMiddleware, requirePermission("create_project"), va
     endsOn: req.body.ends_on,
     coverUrl: req.body.cover_url,
     visibility: req.body.visibility,
+    participantsNeeded: req.body.participants_needed || req.body.capacity || 1,
+    minimumXpRequired: req.body.minimum_xp_required || 0,
+    xpCommitmentStake: req.body.xp_commitment_stake || 0,
+    maximumParticipants: req.body.maximum_participants || req.body.capacity || 1,
+    allowedInstitutions: req.body.allowed_institutions || [],
+    requiredSkills: req.body.required_skills || [],
+    roleRequirements: req.body.role_requirements || [],
+    deliverables: req.body.deliverables || [],
+    responsibilities: req.body.responsibilities || [],
+    successCriteria: req.body.success_criteria || [],
+    dailyReportingRequired: req.body.daily_reporting_required || false,
+    minimumContributionScore: req.body.minimum_contribution_score ?? XP_CONSTANTS.MIN_PROJECT_CONTRIBUTION_SCORE,
+    reviewFrequency: req.body.review_frequency || XP_CONSTANTS.DEFAULT_REPORTING_FREQUENCY,
+    mentorReviewRequired: req.body.mentor_review_required || false,
+    rewardPoolXp: req.body.reward_pool_xp || 0,
+    stakeRefundPolicy: req.body.stake_refund_policy || (XP_CONSTANTS.PROJECT_STAKE_REFUND ? "enabled" : "disabled"),
+    performanceMultiplier: req.body.performance_multiplier ?? 1,
+    dropoutPenalty: req.body.dropout_penalty || 0,
+    inactivePenalty: req.body.inactive_penalty || 0,
     status: req.body.status,
     meta: req.body.meta,
   });
@@ -138,6 +246,52 @@ projectsRouter.post("/", authMiddleware, requirePermission("create_project"), va
   sendSuccess(res, { project: serializeProject(project, req.user?._id) }, "Project created", 201);
 }));
 
+function projectPatchFromBody(body, canChangeInstitution) {
+  return {
+    ...(body.title !== undefined && { title: body.title }),
+    ...(body.project_title !== undefined && { title: body.project_title }),
+    ...(body.project_type !== undefined && { projectType: body.project_type }),
+    ...(body.summary !== undefined && { summary: body.summary }),
+    ...(body.description !== undefined && { description: body.description }),
+    ...(body.project_description !== undefined && { description: body.project_description }),
+    ...(body.expected_outcomes !== undefined && { expectedOutcomes: body.expected_outcomes }),
+    ...(body.duration !== undefined && { duration: body.duration }),
+    ...(body.deadline !== undefined && { deadline: body.deadline }),
+    ...(body.difficulty !== undefined && { difficulty: body.difficulty }),
+    ...(body.domain !== undefined && { domain: body.domain }),
+    ...(body.tags !== undefined && { tags: body.tags }),
+    ...(body.capacity !== undefined && { capacity: body.capacity }),
+    ...(body.teams_allowed !== undefined && { teamsAllowed: body.teams_allowed }),
+    ...(body.team_members_limit !== undefined && { teamMembersLimit: body.team_members_limit }),
+    ...(body.starts_on !== undefined && { startsOn: body.starts_on }),
+    ...(body.ends_on !== undefined && { endsOn: body.ends_on }),
+    ...(body.cover_url !== undefined && { coverUrl: body.cover_url }),
+    ...(body.visibility !== undefined && { visibility: body.visibility }),
+    ...(body.participants_needed !== undefined && { participantsNeeded: body.participants_needed }),
+    ...(body.minimum_xp_required !== undefined && { minimumXpRequired: body.minimum_xp_required }),
+    ...(body.xp_commitment_stake !== undefined && { xpCommitmentStake: body.xp_commitment_stake }),
+    ...(body.maximum_participants !== undefined && { maximumParticipants: body.maximum_participants }),
+    ...(body.allowed_institutions !== undefined && { allowedInstitutions: body.allowed_institutions }),
+    ...(body.required_skills !== undefined && { requiredSkills: body.required_skills }),
+    ...(body.role_requirements !== undefined && { roleRequirements: body.role_requirements }),
+    ...(body.deliverables !== undefined && { deliverables: body.deliverables }),
+    ...(body.responsibilities !== undefined && { responsibilities: body.responsibilities }),
+    ...(body.success_criteria !== undefined && { successCriteria: body.success_criteria }),
+    ...(body.daily_reporting_required !== undefined && { dailyReportingRequired: body.daily_reporting_required }),
+    ...(body.minimum_contribution_score !== undefined && { minimumContributionScore: body.minimum_contribution_score }),
+    ...(body.review_frequency !== undefined && { reviewFrequency: body.review_frequency }),
+    ...(body.mentor_review_required !== undefined && { mentorReviewRequired: body.mentor_review_required }),
+    ...(body.reward_pool_xp !== undefined && { rewardPoolXp: body.reward_pool_xp }),
+    ...(body.stake_refund_policy !== undefined && { stakeRefundPolicy: body.stake_refund_policy }),
+    ...(body.performance_multiplier !== undefined && { performanceMultiplier: body.performance_multiplier }),
+    ...(body.dropout_penalty !== undefined && { dropoutPenalty: body.dropout_penalty }),
+    ...(body.inactive_penalty !== undefined && { inactivePenalty: body.inactive_penalty }),
+    ...(body.status !== undefined && { status: body.status }),
+    ...(body.meta !== undefined && { meta: body.meta }),
+    ...(canChangeInstitution && body.institution_id !== undefined && { institution: body.institution_id }),
+  };
+}
+
 projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
@@ -147,23 +301,7 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
 
   const oldStatus = project.status;
 
-  Object.assign(project, {
-    ...(req.body.title !== undefined && { title: req.body.title }),
-    ...(req.body.summary !== undefined && { summary: req.body.summary }),
-    ...(req.body.description !== undefined && { description: req.body.description }),
-    ...(req.body.domain !== undefined && { domain: req.body.domain }),
-    ...(req.body.tags !== undefined && { tags: req.body.tags }),
-    ...(req.body.capacity !== undefined && { capacity: req.body.capacity }),
-    ...(req.body.teams_allowed !== undefined && { teamsAllowed: req.body.teams_allowed }),
-    ...(req.body.team_members_limit !== undefined && { teamMembersLimit: req.body.team_members_limit }),
-    ...(req.body.starts_on !== undefined && { startsOn: req.body.starts_on }),
-    ...(req.body.ends_on !== undefined && { endsOn: req.body.ends_on }),
-    ...(req.body.cover_url !== undefined && { coverUrl: req.body.cover_url }),
-    ...(req.body.visibility !== undefined && { visibility: req.body.visibility }),
-    ...(req.body.status !== undefined && { status: req.body.status }),
-    ...(req.body.meta !== undefined && { meta: req.body.meta }),
-    ...(isAdmin && req.body.institution_id !== undefined && { institution: req.body.institution_id }),
-  });
+  Object.assign(project, projectPatchFromBody(req.body, isAdmin));
   await project.save();
 
   // If status changes to open, notify the creator
@@ -227,7 +365,171 @@ projectsRouter.post("/:id/vote", authMiddleware, asyncHandler(async (req, res) =
   sendSuccess(res, { voted, votes: project.votes });
 }));
 
-projectsRouter.post("/:id/apply", authMiddleware, requirePermission("apply_to_project"), validate(applySchema), asyncHandler(async (req, res) => {
+async function evaluateProjectEligibility({ req, project, profile }) {
+  const failures = [];
+  const minimumXp = project.minimumXpRequired || 0;
+  const currentXp = profile?.xp || 0;
+  const activeProjects = await Application.countDocuments({
+    user: req.user._id,
+    status: "accepted",
+    commitmentStatus: { $in: ["reserved", "none"] },
+  });
+
+  if (req.user.role !== "student") failures.push("verified_student");
+  const profileComplete = !!(profile?.profileComplete || profile?.headline || profile?.bio || profile?.skills?.length);
+  if (!profileComplete) failures.push("profile_complete");
+  if (currentXp < minimumXp) failures.push("minimum_xp");
+  if (project.allowedInstitutions?.length) {
+    const institutionId = req.user.institution?.toString?.() || "";
+    if (!institutionId || !project.allowedInstitutions.map(String).includes(institutionId)) failures.push("institution_eligibility");
+  }
+  if (project.roleRequirements?.length && req.body.project_role) {
+    const wanted = project.roleRequirements.some((item) => item.role === req.body.project_role);
+    if (!wanted) failures.push("role_fit");
+  }
+  if (project.meta?.challenge_prerequisite) failures.push("challenge_prerequisite");
+  if (activeProjects >= XP_CONSTANTS.MAX_CONCURRENT_PROJECTS) failures.push("max_project_limit");
+
+  return {
+    eligible: failures.length === 0,
+    failures,
+    checks: {
+      verified_student: req.user.role === "student",
+      profile_complete: profileComplete,
+      minimum_xp: currentXp >= minimumXp,
+      institution_eligibility: !failures.includes("institution_eligibility"),
+      role_fit: !failures.includes("role_fit"),
+      challenge_prerequisite: !failures.includes("challenge_prerequisite"),
+      max_project_limit: activeProjects < XP_CONSTANTS.MAX_CONCURRENT_PROJECTS,
+    },
+  };
+}
+
+async function ensureProjectRoom(project, application, projectRole = "") {
+  let room = await ProjectRoom.findOne({ project: project._id });
+  const acceptedCount = await Application.countDocuments({ project: project._id, status: "accepted" });
+  const maxParticipants = project.maximumParticipants || project.capacity || 1;
+
+  if (!room) {
+    room = await ProjectRoom.create({
+      project: project._id,
+      status: acceptedCount >= maxParticipants ? "locked" : "open",
+      temporaryCoordinator: application.user,
+      participants: [{
+        user: application.user,
+        role: projectRole || application.projectRole || "participant",
+        progress: 0,
+        contributionScore: 0,
+      }],
+    });
+    application.coordinator = true;
+    await application.save();
+    return room;
+  }
+
+  const alreadyInRoom = room.participants.some((participant) => participant.user.toString() === application.user.toString());
+  if (!alreadyInRoom) {
+    room.participants.push({
+      user: application.user,
+      role: projectRole || application.projectRole || "participant",
+      progress: 0,
+      contributionScore: 0,
+    });
+  }
+  if (acceptedCount >= maxParticipants && XP_CONSTANTS.PROJECT_ROOM_LOCK) room.status = "locked";
+  await room.save();
+  return room;
+}
+
+async function joinProject(req, res) {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  if (project.status !== "open") throw new AppError(422, "BUSINESS_RULE_VIOLATION", "Project is not open");
+  const existing = await Application.findOne({ project: project._id, user: req.user._id, status: { $ne: "withdrawn" } });
+  if (existing) throw new AppError(409, "ALREADY_JOINED", "You have already joined or requested this project");
+
+  const acceptedCount = await Application.countDocuments({ project: project._id, status: "accepted" });
+  const maxParticipants = project.maximumParticipants || project.capacity || 1;
+  if (acceptedCount >= maxParticipants) throw new AppError(409, "PROJECT_FULL", "This project room is already locked");
+
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+  const eligibility = await evaluateProjectEligibility({ req, project, profile });
+  if (!eligibility.eligible) {
+    throw new AppError(403, "PROJECT_ELIGIBILITY_FAILED", "You are not eligible to commit XP to this project yet", eligibility);
+  }
+
+  const stake = project.xpCommitmentStake || 0;
+  const application = await Application.create({
+    project: project._id,
+    user: req.user._id,
+    message: req.body.message,
+    status: "accepted",
+    projectRole: req.body.project_role || "",
+    committedXp: stake,
+    commitmentStatus: stake > 0 ? "reserved" : "none",
+  });
+
+  let xpResult = { reserved: 0, xp: profile.xp, reserved_xp: profile.reservedXp || 0 };
+  if (stake > 0) {
+    try {
+      xpResult = await reserveXp({
+        userId: req.user._id,
+        institutionId: req.user.institution || null,
+        amount: stake,
+        sourceType: "project",
+        sourceId: project._id,
+        action: XP_ACTIONS.PROJECT_STAKE_RESERVED,
+        dedupeKey: `project_stake:${application.id}`,
+        meta: { project_id: project.id, application_id: application.id },
+        text: `Committed ${stake} XP to project: ${project.title}`,
+      });
+    } catch (error) {
+      await Application.deleteOne({ _id: application._id }).catch(() => null);
+      throw error;
+    }
+  }
+
+  const room = await ensureProjectRoom(project, application, req.body.project_role);
+  await logProfileActivity(req.user._id, "project_joined", `Committed XP to project: ${project.title}`, {
+    project_id: project.id,
+    application_id: application.id,
+    committed_xp: stake,
+    room_id: room.id,
+  });
+  await Notification.create({
+    user: project.createdBy,
+    kind: "application_received",
+    title: "New project participant",
+    body: "A student committed XP and joined your project.",
+    link: `/projects/${project.id}`,
+    dedupeKey: `app:${application.id}:received`,
+  }).catch(() => null);
+
+  sendSuccess(res, {
+    application: serializeApplication(application),
+    room_id: room.id,
+    committed_xp: stake,
+    reserved_xp: xpResult.reserved_xp,
+    current_xp: xpResult.xp,
+    commitment_language: "Commit XP",
+  }, "XP committed and project joined", 201);
+}
+
+projectsRouter.get("/:id/eligibility", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+  const eligibility = await evaluateProjectEligibility({ req, project, profile });
+  sendSuccess(res, eligibility);
+}));
+
+projectsRouter.post("/:id/join", authMiddleware, requirePermission("apply_to_project"), validate(applySchema), asyncHandler(joinProject));
+projectsRouter.post("/:id/apply", authMiddleware, requirePermission("apply_to_project"), validate(applySchema), asyncHandler(joinProject));
+
+projectsRouter.post("/:id/apply-legacy-disabled", authMiddleware, requirePermission("apply_to_project"), validate(applySchema), asyncHandler(async (req, res) => {
+  throw new AppError(410, "LEGACY_APPLICATION_DISABLED", "Use Commit XP to join projects");
   const project = await Project.findById(req.params.id);
   if (!project) throw notFound("Project not found");
   if (project.status !== "open") throw new AppError(422, "BUSINESS_RULE_VIOLATION", "Project is not open");
@@ -256,6 +558,242 @@ projectsRouter.post("/:id/apply", authMiddleware, requirePermission("apply_to_pr
     xp_awarded: xpResult.awarded,
     current_xp: xpResult.xp,
   }, "Application submitted", 201);
+}));
+
+function canCoordinateProject(req, project, room) {
+  const isCreator = project.createdBy.toString() === req.user.id;
+  const isCoordinator = room?.temporaryCoordinator?.toString() === req.user.id;
+  return isCreator || isCoordinator || hasPermission(req.user, "manage_projects") || hasPermission(req.user, "review_application");
+}
+
+projectsRouter.get("/:id/room", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const room = await ProjectRoom.findOne({ project: project._id }).populate("participants.user", "name email role");
+  if (!room) throw notFound("Project room not found");
+  const isParticipant = room.participants.some((participant) => participant.user?._id?.toString?.() === req.user.id || participant.user?.toString?.() === req.user.id);
+  if (!isParticipant && !canCoordinateProject(req, project, room)) throw forbidden();
+  sendSuccess(res, { room });
+}));
+
+projectsRouter.patch("/:id/room", authMiddleware, validate(roomUpdateSchema), asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!room) throw notFound("Project room not found");
+  if (!canCoordinateProject(req, project, room)) throw forbidden();
+
+  if (req.body.daily_sync_notes !== undefined) room.dailySync.push({ notes: req.body.daily_sync_notes, createdBy: req.user._id });
+  if (req.body.meeting_note) room.meetingNotes.push({ note: req.body.meeting_note, createdBy: req.user._id });
+  for (const update of req.body.participant_progress || []) {
+    const participant = room.participants.find((item) => item.user.toString() === update.user_id);
+    if (participant) participant.progress = update.progress;
+  }
+  await room.save();
+  sendSuccess(res, { room });
+}));
+
+projectsRouter.get("/:id/tasks", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const tasks = await ProjectTask.find({ project: project._id }).sort({ createdAt: -1 });
+  sendSuccess(res, { items: tasks });
+}));
+
+projectsRouter.post("/:id/tasks", authMiddleware, validate(taskSchema), asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!canCoordinateProject(req, project, room)) throw forbidden();
+
+  const task = await ProjectTask.create({
+    project: project._id,
+    room: room?._id || null,
+    title: req.body.title,
+    description: req.body.description,
+    assignedTo: req.body.assigned_to || [],
+    deadline: req.body.deadline || null,
+    deliverables: req.body.deliverables || [],
+    dependencies: req.body.dependencies || [],
+    priority: req.body.priority || "Medium",
+    createdBy: req.user._id,
+  });
+  sendSuccess(res, { task }, "Task created", 201);
+}));
+
+projectsRouter.patch("/:id/tasks/:taskId", authMiddleware, validate(taskStatusSchema), asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const task = await ProjectTask.findOne({ _id: req.params.taskId, project: project._id });
+  if (!task) throw notFound("Task not found");
+  const isAssigned = task.assignedTo.some((id) => id.toString() === req.user.id);
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!isAssigned && !canCoordinateProject(req, project, room)) throw forbidden();
+  task.status = req.body.status;
+  if (["Reviewed", "Completed", "Rework Needed"].includes(req.body.status)) {
+    task.reviewedBy = req.user._id;
+    task.reviewedAt = new Date();
+  }
+  await task.save();
+  sendSuccess(res, { task });
+}));
+
+projectsRouter.post("/:id/tasks/:taskId/evidence", authMiddleware, validate(taskEvidenceSchema), asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const task = await ProjectTask.findOne({ _id: req.params.taskId, project: project._id });
+  if (!task) throw notFound("Task not found");
+  const isAssigned = task.assignedTo.some((id) => id.toString() === req.user.id);
+  if (!isAssigned) throw forbidden();
+  task.evidence.push({ kind: req.body.kind, value: req.body.value, createdBy: req.user._id });
+  task.status = "Submitted";
+  await task.save();
+  sendSuccess(res, { task }, "Task evidence submitted");
+}));
+
+function weightedContribution(raw) {
+  return Math.round(
+    ((raw.deliverables || 0) * CONTRIBUTION_WEIGHTS.deliverables
+      + (raw.reporting || 0) * CONTRIBUTION_WEIGHTS.reporting
+      + (raw.peer_review || 0) * CONTRIBUTION_WEIGHTS.peer_review
+      + (raw.mentor_review || 0) * CONTRIBUTION_WEIGHTS.mentor_review
+      + (raw.attendance || 0) * CONTRIBUTION_WEIGHTS.attendance) / 100,
+  );
+}
+
+projectsRouter.post("/:id/contribution-scores", authMiddleware, validate(scoreSchema), asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!canCoordinateProject(req, project, room)) throw forbidden();
+
+  const updates = [];
+  for (const score of req.body.scores) {
+    const application = await Application.findOne({ _id: score.application_id, project: project._id, status: "accepted" });
+    if (!application) continue;
+    const total = weightedContribution(score);
+    application.contributionScore = { ...score, total };
+    application.rewardEligible = total >= (project.minimumContributionScore || XP_CONSTANTS.MIN_PROJECT_CONTRIBUTION_SCORE);
+    await application.save();
+    if (room) {
+      const participant = room.participants.find((item) => item.user.toString() === application.user.toString());
+      if (participant) participant.contributionScore = total;
+    }
+    updates.push(serializeApplication(application));
+  }
+  if (room) await room.save();
+  sendSuccess(res, { items: updates });
+}));
+
+projectsRouter.post("/:id/complete", authMiddleware, validate(completeSchema), asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const room = await ProjectRoom.findOne({ project: project._id });
+  const canVerify = project.createdBy.toString() === req.user.id || hasPermission(req.user, "manage_projects") || hasPermission(req.user, "review_application");
+  if (!canVerify) throw forbidden();
+
+  const participants = await Application.find({ project: project._id, status: "accepted" });
+  const eligible = participants.filter((item) => item.rewardEligible || (item.contributionScore?.total || 0) >= (project.minimumContributionScore || XP_CONSTANTS.MIN_PROJECT_CONTRIBUTION_SCORE));
+  const perUserReward = eligible.length ? Math.floor((project.rewardPoolXp || 0) / eligible.length) : 0;
+  const settled = [];
+
+  for (const application of participants) {
+    const score = application.contributionScore?.total || 0;
+    const isEligible = eligible.some((item) => item.id === application.id);
+    if (application.committedXp > 0 && application.commitmentStatus === "reserved") {
+      if (isEligible || project.stakeRefundPolicy === "enabled") {
+        await refundReservedXp({
+          userId: application.user,
+          institutionId: req.user.institution || null,
+          amount: application.committedXp,
+          sourceType: "project",
+          sourceId: project._id,
+          action: XP_ACTIONS.PROJECT_STAKE_REFUNDED,
+          dedupeKey: `project_refund:${application.id}`,
+          meta: { project_id: project.id, application_id: application.id },
+          text: `Project commitment refunded: ${project.title}`,
+        });
+        application.commitmentStatus = "refunded";
+      } else {
+        const penalty = Math.min(application.committedXp, project.inactivePenalty || Math.ceil(application.committedXp / 2));
+        await forfeitReservedXp({
+          userId: application.user,
+          institutionId: req.user.institution || null,
+          amount: penalty,
+          sourceType: "project",
+          sourceId: project._id,
+          action: XP_ACTIONS.PROJECT_STAKE_FORFEITED,
+          dedupeKey: `project_forfeit:${application.id}`,
+          meta: { project_id: project.id, application_id: application.id, score },
+          text: `Project commitment partially forfeited: ${project.title}`,
+        });
+        if (application.committedXp > penalty) {
+          await refundReservedXp({
+            userId: application.user,
+            institutionId: req.user.institution || null,
+            amount: application.committedXp - penalty,
+            sourceType: "project",
+            sourceId: project._id,
+            action: XP_ACTIONS.PROJECT_STAKE_REFUNDED,
+            dedupeKey: `project_partial_refund:${application.id}`,
+            meta: { project_id: project.id, application_id: application.id, score },
+            text: `Project commitment partial refund: ${project.title}`,
+          });
+        }
+        application.commitmentStatus = "forfeited";
+      }
+    }
+
+    if (isEligible && perUserReward > 0) {
+      const multiplier = score >= 90 ? (project.performanceMultiplier || 1) : 1;
+      const reward = Math.floor(perUserReward * multiplier);
+      const xpResult = await awardXp({
+        userId: application.user,
+        institutionId: req.user.institution || null,
+        rule: "project_reward_granted",
+        amountOverride: reward,
+        sourceType: "project",
+        sourceId: project._id,
+        action: XP_ACTIONS.PROJECT_REWARD_GRANTED,
+        dedupeKey: `project_reward:${application.id}`,
+        meta: { project_id: project.id, application_id: application.id, score, multiplier },
+        text: `Project reward granted: ${project.title}`,
+      });
+      application.rewardXp = xpResult.awarded;
+    }
+    application.rewardEligible = isEligible;
+    application.settlementStatus = "settled";
+    await application.save();
+    settled.push(serializeApplication(application));
+  }
+
+  project.status = "completed";
+  await project.save();
+  if (room) {
+    room.status = "completed";
+    room.finalDeliverables = req.body.final_deliverables || [];
+    await room.save();
+  }
+  sendSuccess(res, { project: serializeProject(project, req.user._id), room, participants: settled }, "Project completed and XP settled");
+}));
+
+projectsRouter.get("/:id/abuse-check", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+  const room = await ProjectRoom.findOne({ project: project._id });
+  if (!canCoordinateProject(req, project, room)) throw forbidden();
+  const participants = await Application.find({ project: project._id, status: "accepted" });
+  const since = new Date(Date.now() - XP_CONSTANTS.INACTIVITY_WARNING_DAYS * 24 * 60 * 60 * 1000);
+  const flags = [];
+  for (const application of participants) {
+    const reports = await DailyReport.countDocuments({ project: project._id, user: application.user, createdAt: { $gte: since } });
+    const completedTasks = await ProjectTask.countDocuments({ project: project._id, assignedTo: application.user, status: "Completed" });
+    const totalTasks = await ProjectTask.countDocuments({ project: project._id, assignedTo: application.user });
+    if (project.dailyReportingRequired && reports === 0) flags.push({ user_id: application.user, flag: "no_reporting", severity: "warning" });
+    if (totalTasks > 0 && completedTasks === 0) flags.push({ user_id: application.user, flag: "low_deliverables", severity: "warning" });
+    if ((application.contributionScore?.total || 0) < 40) flags.push({ user_id: application.user, flag: "low_contribution_score", severity: "review" });
+  }
+  sendSuccess(res, { flags });
 }));
 
 applicationsRouter.use(authMiddleware);

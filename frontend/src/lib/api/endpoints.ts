@@ -247,6 +247,12 @@ export type BackendProject = {
   meta?: Record<string, string>;
   votes?: number;
   user_voted?: boolean;
+  minimum_xp_required?: number;
+  xp_commitment_stake?: number;
+  maximum_participants?: number;
+  daily_reporting_required?: boolean;
+  minimum_contribution_score?: number;
+  reward_pool_xp?: number;
   created_at: string;
   updated_at?: string;
 };
@@ -287,11 +293,14 @@ export const backendProjects = {
       }),
     });
   },
-  apply(id: string, message: string) {
-    return api<{ application: BackendApplication }>(`/api/v1/projects/${id}/apply`, {
+  join(id: string, message: string, projectRole?: string) {
+    return api<{ application: BackendApplication; room_id?: string; committed_xp?: number; current_xp?: number; commitment_language?: string }>(`/api/v1/projects/${id}/join`, {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, project_role: projectRole }),
     });
+  },
+  apply(id: string, message: string) {
+    return this.join(id, message);
   },
   update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string }>) {
     return api<{ project: BackendProject }>(`/api/v1/projects/${id}`, {

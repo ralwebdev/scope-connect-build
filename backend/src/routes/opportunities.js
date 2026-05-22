@@ -9,7 +9,6 @@ import { validate } from "../utils/validate.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { hasPermission } from "../utils/roles.js";
 import { serializeOpportunityApplication } from "../utils/serializers.js";
-import { awardXp } from "../utils/xp-engine.js";
 
 export const opportunitiesRouter = express.Router();
 
@@ -58,8 +57,34 @@ function serializeOpportunityForViewer(opportunity, profile = null) {
     ...opportunity.toJSON(),
     min_xp_required: minXpRequired,
     unlocked: isAlreadyUnlocked || currentXp >= minXpRequired,
-    is_xp_purchase: minXpRequired > 0,
+    is_xp_purchase: false,
     xp_shortfall: Math.max(0, minXpRequired - currentXp),
+  };
+}
+
+function evaluateOpportunityEligibility(opportunity, profile, user) {
+  const failures = [];
+  const currentXp = profile?.xp || 0;
+  const requiredSkills = opportunity.requiredSkills || [];
+  const profileSkills = new Set((profile?.skills || []).map((skill) => String(skill).toLowerCase()));
+
+  if (currentXp < (opportunity.minXpRequired || 0)) failures.push("minimum_xp");
+  if (requiredSkills.length && !requiredSkills.every((skill) => profileSkills.has(String(skill).toLowerCase()))) {
+    failures.push("skills");
+  }
+  if (opportunity.category !== "General" && !profile?.opportunitiesVerified && !profile?.institutionVerified) {
+    failures.push("verification");
+  }
+
+  return {
+    eligible: failures.length === 0,
+    failures,
+    checks: {
+      minimum_xp: currentXp >= (opportunity.minXpRequired || 0),
+      skills: !failures.includes("skills"),
+      institution: !!(profile?.institution || user?.institution),
+      verification: !failures.includes("verification"),
+    },
   };
 }
 
@@ -118,32 +143,35 @@ opportunitiesRouter.post("/:id/unlock", asyncHandler(async (req, res) => {
     return sendSuccess(res, { opportunity: serializeOpportunityForViewer(opportunity, profile) }, "Already unlocked");
   }
 
+  const eligibility = evaluateOpportunityEligibility(opportunity, profile, req.user);
   const cost = opportunity.minXpRequired || 0;
-  if (profile.xp < cost) {
-    throw new AppError(403, "INSUFFICIENT_XP", "Not enough XP to unlock this opportunity", {
+  if (!eligibility.eligible) {
+    throw new AppError(403, "OPPORTUNITY_ELIGIBILITY_FAILED", "You are not eligible to unlock this opportunity yet", {
       current_xp: profile.xp,
-      cost,
-      shortfall: cost - profile.xp
+      min_xp_required: cost,
+      shortfall: Math.max(0, cost - profile.xp),
+      ...eligibility,
     });
   }
 
-  // Deduct XP
-  profile.xp -= cost;
+  if (!profile.unlockedOpportunities) profile.unlockedOpportunities = [];
   profile.unlockedOpportunities.push(opportunity._id);
   await profile.save();
 
-  // Update institution stats if applicable
-  if (req.user.institution) {
-    const { Institution } = await import("../models/index.js");
-    await Institution.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: -cost } }).catch(() => null);
-  }
-
-  await logProfileActivity(req.user._id, "xp_spent", `Unlocked opportunity: ${opportunity.title}`, { amount: cost, opportunity_id: opportunity._id });
+  await logProfileActivity(req.user._id, "opportunity_unlocked", `Unlocked opportunity by eligibility: ${opportunity.title}`, { min_xp_required: cost, opportunity_id: opportunity._id });
 
   sendSuccess(res, { 
     opportunity: serializeOpportunityForViewer(opportunity, profile),
     current_xp: profile.xp 
   }, "Opportunity unlocked successfully");
+}));
+
+opportunitiesRouter.get("/:id/eligibility", asyncHandler(async (req, res) => {
+  const opportunity = await Opportunity.findById(req.params.id);
+  if (!opportunity) throw notFound("Opportunity not found");
+  const profile = await Profile.findOne({ user: req.user._id });
+  if (!profile) throw notFound("Profile not found");
+  sendSuccess(res, evaluateOpportunityEligibility(opportunity, profile, req.user));
 }));
 
 opportunitiesRouter.get("/applications", asyncHandler(async (req, res) => {
@@ -221,6 +249,12 @@ opportunitiesRouter.post("/:id/apply", validate(opportunityApplySchema), asyncHa
       xp_shortfall: minXpRequired - currentXp,
     });
   }
+  if (!isAlreadyUnlocked) {
+    const eligibility = evaluateOpportunityEligibility(opportunity, profile, req.user);
+    if (!eligibility.eligible) {
+      throw new AppError(403, "OPPORTUNITY_ELIGIBILITY_FAILED", "You are not eligible for this opportunity yet", eligibility);
+    }
+  }
 
   const existing = await OpportunityApplication.findOne({
     opportunity: opportunity._id,
@@ -253,23 +287,11 @@ opportunitiesRouter.post("/:id/apply", validate(opportunityApplySchema), asyncHa
     resumeUrl: req.body.resume_url || "",
   });
 
-  // Deduct XP and add to unlockedOpportunities if not unlocked yet
-  if (!isAlreadyUnlocked && minXpRequired > 0) {
-    profile.xp -= minXpRequired;
-    if (!profile.unlockedOpportunities) {
-      profile.unlockedOpportunities = [];
-    }
+  if (!isAlreadyUnlocked) {
+    if (!profile.unlockedOpportunities) profile.unlockedOpportunities = [];
     profile.unlockedOpportunities.push(opportunity._id);
     await profile.save();
-
-    // Log profile activity
-    await logProfileActivity(req.user._id, "xp_spent", `Applied to opportunity: ${opportunity.title}`, { amount: minXpRequired, opportunity_id: opportunity._id });
-
-    // Update institution stats if applicable
-    if (req.user.institution) {
-      const { Institution } = await import("../models/index.js");
-      await Institution.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: -minXpRequired } }).catch(() => null);
-    }
+    await logProfileActivity(req.user._id, "opportunity_unlocked", `Unlocked opportunity by eligibility: ${opportunity.title}`, { min_xp_required: minXpRequired, opportunity_id: opportunity._id });
   }
 
   await Notification.create({

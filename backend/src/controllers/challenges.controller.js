@@ -7,6 +7,19 @@ export async function listChallenges(req, res) {
 }
 
 export async function createChallenge(req, res) {
-  const challenge = await Challenge.create(req.body);
+  const challenge = await Challenge.create({
+    scope: req.body.scope,
+    title: req.body.title,
+    category: req.body.category,
+    difficulty: req.body.difficulty,
+    seatsTotal: req.body.seatsTotal,
+    reward: req.body.reward,
+    duration: req.body.duration,
+    stakeXp: req.body.stake_xp || 0,
+    rewardPool: req.body.reward_pool || 0,
+    evaluationMethod: req.body.evaluation_method,
+    submissionFormat: req.body.submission_format,
+    leaderboard: req.body.leaderboard ?? true,
+  });
   sendSuccess(res, { challenge }, "Challenge created", 201);
 }

@@ -26,3 +26,7 @@ export { Challenge } from "./Challenge.js";
 export { PlatformConfig } from "./PlatformConfig.js";
 export { DailyReport } from "./DailyReport.js";
 export { ReportRecoveryRequest } from "./ReportRecoveryRequest.js";
+export { XpTransaction } from "./XpTransaction.js";
+export { ProjectRoom } from "./ProjectRoom.js";
+export { ProjectTask } from "./ProjectTask.js";
+export { ChallengeParticipation } from "./ChallengeParticipation.js";

@@ -12,9 +12,9 @@ import { validate } from "../utils/validate.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
 import { serializeUser } from "../utils/serializers.js";
-import { Institution as InstitutionModel } from "../models/Institution.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
 import { awardXp } from "../utils/xp-engine.js";
+import { XP_ACTIONS } from "../utils/xp-constants.js";
 
 export const usersRouter = express.Router();
 export const adminUsersRouter = express.Router();
@@ -467,8 +467,19 @@ usersRouter.post("/me/dashboard-points", validate(dashboardPointsSchema), asyncH
     if (alreadyAwarded) continue;
     const amount = rewards[segment] || 0;
     if (!amount) continue;
-    profile.xp = (profile.xp || 0) + amount;
-    awarded += amount;
+    const xpResult = await awardXp({
+      userId: req.user._id,
+      institutionId: req.user.institution || null,
+      rule: `dashboard_${segment}`,
+      amountOverride: amount,
+      sourceType: "dashboard",
+      sourceId: segment,
+      action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+      dedupeKey: `dashboard_segment:${req.user.id}:${segment}`,
+      meta: { segment },
+      text: `${labels[segment]} +${amount} XP`,
+    });
+    awarded += xpResult.awarded;
     awardedSegments.push(segment);
     await ProfileActivity.create({
       user: req.user._id,
@@ -483,10 +494,6 @@ usersRouter.post("/me/dashboard-points", validate(dashboardPointsSchema), asyncH
     });
   }
 
-    if (awarded > 0) await profile.save();
-    if (awarded > 0 && req.user.institution) {
-      await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: awarded } });
-    }
     sendSuccess(res, {
       awarded,
       awarded_segments: awardedSegments,
@@ -503,16 +510,19 @@ usersRouter.post(
     if (!profile) throw notFound("Profile not found");
 
     const amount = req.body.amount;
-    profile.xp = (profile.xp || 0) + amount;
-    await profile.save();
+    const xpResult = await awardXp({
+      userId: req.user._id,
+      institutionId: req.user.institution || null,
+      rule: "manual_adjustment",
+      amountOverride: amount,
+      sourceType: "user",
+      sourceId: req.user._id,
+      action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+      meta: { reason: req.body.reason || "XP synchronized" },
+      text: req.body.reason || `Earned ${amount} XP`,
+    });
 
-    if (req.user.institution) {
-      await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: amount } });
-    }
-
-    await logProfileActivity(req.user._id, "xp_earned", req.body.reason || `Earned ${amount} XP`, { amount });
-
-    sendSuccess(res, { xp: profile.xp }, "XP synchronized");
+    sendSuccess(res, { xp: xpResult.xp }, "XP synchronized");
   }),
 );
 
@@ -548,12 +558,19 @@ usersRouter.post(
     // Reward XP for streak (if > 1)
     if (profile.streakDays > 1) {
       const amount = 50;
-      profile.xp = (profile.xp || 0) + amount;
-      await profile.save();
-      if (req.user.institution) {
-        await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: amount } });
-      }
-      await logProfileActivity(req.user._id, "streak_bonus", `Maintained a ${profile.streakDays} day streak!`, { amount, days: profile.streakDays });
+      const xpResult = await awardXp({
+        userId: req.user._id,
+        institutionId: req.user.institution || null,
+        rule: "streak_bonus",
+        amountOverride: amount,
+        sourceType: "streak",
+        sourceId: today.toISOString().slice(0, 10),
+        action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+        dedupeKey: `streak:${req.user.id}:${today.toISOString().slice(0, 10)}`,
+        meta: { days: profile.streakDays },
+        text: `Maintained a ${profile.streakDays} day streak!`,
+      });
+      profile.xp = xpResult.xp;
     }
 
     sendSuccess(res, { streak: profile.streakDays, xp: profile.xp }, "Streak updated");
@@ -603,12 +620,18 @@ usersRouter.post("/me/weekly-mission-claim", asyncHandler(async (req, res) => {
   const profile = await Profile.findOne({ user: req.user._id });
   if (!profile) throw notFound("Profile not found");
 
-  profile.xp = (profile.xp || 0) + safeAmount;
-  await profile.save();
-
-  if (req.user.institution) {
-    await InstitutionModel.findByIdAndUpdate(req.user.institution, { $inc: { totalStudentXp: safeAmount } });
-  }
+  const xpResult = await awardXp({
+    userId: req.user._id,
+    institutionId: req.user.institution || null,
+    rule: "weekly_mission_claimed",
+    amountOverride: safeAmount,
+    sourceType: "weekly_mission",
+    sourceId: weekKey,
+    action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+    dedupeKey: `weekly_mission:${req.user.id}:${weekKey}`,
+    meta: { weekKey, mission_title },
+    text: `Completed Weekly Mission: ${mission_title} +${safeAmount} XP`,
+  });
 
   await ProfileActivity.create({
     user: req.user._id,
@@ -617,7 +640,7 @@ usersRouter.post("/me/weekly-mission-claim", asyncHandler(async (req, res) => {
     meta: { weekKey, amount: safeAmount, mission_title },
   });
 
-  sendSuccess(res, { already_claimed: false, xp: profile.xp }, "Weekly mission reward claimed");
+  sendSuccess(res, { already_claimed: false, xp: xpResult.xp }, "Weekly mission reward claimed");
 }));
 
 // ── Saved Projects ────────────────────────────────────────────────────────────
@@ -688,8 +711,17 @@ usersRouter.post("/me/xp", asyncHandler(async (req, res) => {
   const profile = await Profile.findOne({ user: req.user._id });
   if (!profile) throw notFound("Profile not found");
 
-  profile.xp = (profile.xp || 0) + amount;
-  await profile.save();
+  const xpResult = await awardXp({
+    userId: req.user._id,
+    institutionId: req.user.institution || null,
+    rule: "manual_adjustment",
+    amountOverride: amount,
+    sourceType: "user",
+    sourceId: req.user._id,
+    action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+    meta: { reason },
+    text: `${reason} +${amount} XP`,
+  });
 
   await ProfileActivity.create({
     user: req.user._id,
@@ -697,7 +729,7 @@ usersRouter.post("/me/xp", asyncHandler(async (req, res) => {
     text: `${reason} · +${amount} XP`,
   });
 
-  sendSuccess(res, { xp: profile.xp, user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
+  sendSuccess(res, { xp: xpResult.xp, user: await serializeUser(await findHydratedUser(req.user._id), { includePrivate: true }) });
 }));
 
 usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, res) => {
