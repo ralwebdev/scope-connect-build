@@ -1,6 +1,43 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Building2, Calendar, FileText, Rocket, Trophy, MapPin, Phone, Mail, Plus, ChevronRight, CheckCircle2, Circle, Download, Send, Star, ArrowRight, Target, Activity, Trash2, BookOpen, Layers, Zap, Clock, Users, Gift, ShieldAlert, Upload, FileUp, MoreVertical, ExternalLink, BarChart2, TrendingUp, Globe2, ArrowUpRight, MessageSquare, Flame } from "lucide-react";
+import {
+  Building2,
+  Calendar,
+  FileText,
+  Rocket,
+  Trophy,
+  MapPin,
+  Phone,
+  Mail,
+  Plus,
+  ChevronRight,
+  CheckCircle2,
+  Circle,
+  Download,
+  Send,
+  Star,
+  ArrowRight,
+  Target,
+  Activity,
+  Trash2,
+  BookOpen,
+  Layers,
+  Zap,
+  Clock,
+  Users,
+  Gift,
+  ShieldAlert,
+  Upload,
+  FileUp,
+  MoreVertical,
+  ExternalLink,
+  BarChart2,
+  TrendingUp,
+  Globe2,
+  ArrowUpRight,
+  MessageSquare,
+  Flame,
+} from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { AccessDenied } from "@/components/site/AccessDenied";
@@ -10,23 +47,68 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { crm, PIPELINE_STAGES, type Institution, type PipelineStage } from "@/lib/crm-store";
-import { backendAdminUsers, backendEvents, type BackendEvent, backendProjects, type BackendProject, backendApplications, type BackendApplication, backendInstitutions, backendDocuments, backendAnalytics, backendUsers, backendOpportunityApplications, type BackendOpportunityApplication, backendProposals, type BackendProposal } from "@/lib/api/endpoints";
+import {
+  backendAdminUsers,
+  backendEvents,
+  type BackendEvent,
+  backendProjects,
+  type BackendProject,
+  backendApplications,
+  type BackendApplication,
+  backendInstitutions,
+  backendDocuments,
+  backendAnalytics,
+  backendUsers,
+  backendOpportunityApplications,
+  type BackendOpportunityApplication,
+  backendProposals,
+  type BackendProposal,
+} from "@/lib/api/endpoints";
 import { toast } from "sonner";
 import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
 import { FeedComposer } from "@/components/site/FeedComposer";
 import { opportunities, type ScopeUser } from "@/lib/scope-store";
 import { normalizeSkills } from "@/lib/skill-matching";
-import { BadgeCheck, Github, Linkedin, Globe, Search, SlidersHorizontal, Archive, Ban, Award, Check, X, FileSpreadsheet } from "lucide-react";
-
+import {
+  BadgeCheck,
+  Github,
+  Linkedin,
+  Globe,
+  Search,
+  SlidersHorizontal,
+  Archive,
+  Ban,
+  Award,
+  Check,
+  X,
+  FileSpreadsheet,
+  Edit2,
+} from "lucide-react";
 
 export const Route = createFileRoute("/scope-admin")({
-  head: () => ({ meta: [{ title: "Scope Admin · Territory CRM" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [{ title: "Scope Admin · Territory CRM" }, { name: "robots", content: "noindex" }],
+  }),
   validateSearch: (search: Record<string, unknown>) => ({
     tab: (search.tab as string) || "crm",
   }),
@@ -52,7 +134,8 @@ function ScopeAdminPortal() {
   const navigate = Route.useNavigate();
   const role = useRole();
   const user = useUser();
-  const isAllowed = role === "scope_admin" || role === "scope_super_admin" || role === "super_admin";
+  const isAllowed =
+    role === "scope_admin" || role === "scope_super_admin" || role === "super_admin";
 
   const all = useStoreValue(() => crm.all());
   useEffect(() => {
@@ -63,25 +146,44 @@ function ScopeAdminPortal() {
     });
   }, [isAllowed]);
 
-  const myAdminId = role === "scope_admin" ? user?.id ?? null : null;
+  const myAdminId = role === "scope_admin" ? (user?.id ?? null) : null;
   const institutions = useMemo(
-    () => myAdminId ? all.institutions.filter(i => !i.ownerId || i.ownerId === myAdminId) : all.institutions,
+    () =>
+      myAdminId
+        ? all.institutions.filter((i) => !i.ownerId || i.ownerId === myAdminId)
+        : all.institutions,
     [all.institutions, myAdminId],
   );
   const visits = useMemo(
-    () => myAdminId ? all.visits.filter(v => !v.ownerId || v.ownerId === myAdminId) : all.visits,
+    () =>
+      myAdminId ? all.visits.filter((v) => !v.ownerId || v.ownerId === myAdminId) : all.visits,
     [all.visits, myAdminId],
   );
 
   const kpis = useMemo(() => {
-    const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
+    const month = new Date();
+    month.setDate(1);
+    month.setHours(0, 0, 0, 0);
     const monthMs = month.getTime();
-    const meetingsThisMonth = visits.filter(v => new Date(v.date).getTime() >= monthMs).length;
-    const proposals = institutions.filter(i => ["Proposal Sent", "Negotiation", "MoU Draft Shared"].includes(i.stage)).length;
-    const mous = institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage)).length;
-    const live = institutions.filter(i => i.stage === "Live Chapter").length;
-    const potential = institutions.filter(i => !["Live Chapter", "Dormant"].includes(i.stage)).reduce((s, i) => s + i.potentialValue, 0);
-    return { assigned: institutions.length, meetings: meetingsThisMonth, proposals, mous, potential, live };
+    const meetingsThisMonth = visits.filter((v) => new Date(v.date).getTime() >= monthMs).length;
+    const proposals = institutions.filter((i) =>
+      ["Proposal Sent", "Negotiation", "MoU Draft Shared"].includes(i.stage),
+    ).length;
+    const mous = institutions.filter((i) =>
+      ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage),
+    ).length;
+    const live = institutions.filter((i) => i.stage === "Live Chapter").length;
+    const potential = institutions
+      .filter((i) => !["Live Chapter", "Dormant"].includes(i.stage))
+      .reduce((s, i) => s + i.potentialValue, 0);
+    return {
+      assigned: institutions.length,
+      meetings: meetingsThisMonth,
+      proposals,
+      mous,
+      potential,
+      live,
+    };
   }, [institutions, visits]);
 
   if (!isAllowed) {
@@ -104,9 +206,13 @@ function ScopeAdminPortal() {
         <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <Badge variant="outline" className="mb-2"><Building2 className="mr-1 h-3 w-3" /> Scope Admin Portal</Badge>
+              <Badge variant="outline" className="mb-2">
+                <Building2 className="mr-1 h-3 w-3" /> Scope Admin Portal
+              </Badge>
               <h1 className="text-3xl font-bold tracking-tight">Territory Command</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Every visit can create a chapter. Turn meetings into movements.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Every visit can create a chapter. Turn meetings into movements.
+              </p>
             </div>
             <NewLeadDialog ownerId={myAdminId ?? user?.id ?? ""} />
           </header>
@@ -120,11 +226,19 @@ function ScopeAdminPortal() {
             <KpiCard label="Meetings (mo)" value={kpis.meetings} icon={Calendar} />
             <KpiCard label="Proposals" value={kpis.proposals} icon={FileText} />
             <KpiCard label="MoUs Signed" value={kpis.mous} icon={CheckCircle2} accent />
-            <KpiCard label="Potential ₹" value={`₹${(kpis.potential / 100000).toFixed(1)}L`} icon={Target} />
+            <KpiCard
+              label="Potential ₹"
+              value={`₹${(kpis.potential / 100000).toFixed(1)}L`}
+              icon={Target}
+            />
             <KpiCard label="Live Chapters" value={kpis.live} icon={Rocket} accent />
           </div>
 
-          <Tabs value={tab} onValueChange={(v) => navigate({ search: { tab: v } })} className="mt-8">
+          <Tabs
+            value={tab}
+            onValueChange={(v) => navigate({ search: { tab: v } })}
+            className="mt-8"
+          >
             <TabsList className="flex-wrap">
               <TabsTrigger value="crm">Territory CRM</TabsTrigger>
               <TabsTrigger value="visits">Visit Planner</TabsTrigger>
@@ -137,7 +251,10 @@ function ScopeAdminPortal() {
               <TabsTrigger value="ideas">Student Ideas</TabsTrigger>
               {/* <TabsTrigger value="verification"><BadgeCheck className="mr-1.5 h-3.5 w-3.5 inline" />Student Verification</TabsTrigger> */}
               {/* <TabsTrigger value="feedback">User Feedback</TabsTrigger> */}
-              <TabsTrigger value="analytics"><BarChart2 className="mr-1.5 h-3.5 w-3.5 inline" />Analytics</TabsTrigger>
+              <TabsTrigger value="analytics">
+                <BarChart2 className="mr-1.5 h-3.5 w-3.5 inline" />
+                Analytics
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="crm" className="mt-6">
@@ -146,17 +263,51 @@ function ScopeAdminPortal() {
                 <PipelineBoard institutions={institutions} />
               </div>
             </TabsContent>
-            <TabsContent value="visits" className="mt-6"><VisitPlanner visits={visits} institutions={institutions} ownerId={myAdminId ?? user?.id ?? ""} /></TabsContent>
-            <TabsContent value="proposals" className="mt-6"><ProposalCenter institutions={institutions} /></TabsContent>
-            <TabsContent value="launch" className="mt-6"><LaunchTracker institutions={institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage))} /></TabsContent>
-            <TabsContent value="performance" className="mt-6"><PerformanceScorecard institutions={institutions} visits={visits} admins={all.admins} /></TabsContent>
-            <TabsContent value="events" className="mt-6"><ScopeEventsManager /></TabsContent>
-            <TabsContent value="projects" className="mt-6"><ScopeProjectsManager /></TabsContent>
-            <TabsContent value="opportunities" className="mt-6"><ScopeOpportunitiesManager /></TabsContent>
-            <TabsContent value="ideas" className="mt-6"><StudentIdeasManager /></TabsContent>
-            <TabsContent value="feedback" className="mt-6"><FeedbackManager /></TabsContent>
-            <TabsContent value="verification" className="mt-6"><StudentVerificationCenter /></TabsContent>
-            <TabsContent value="analytics" className="mt-6"><ScopeAnalyticsDashboard institutions={institutions} /></TabsContent>
+            <TabsContent value="visits" className="mt-6">
+              <VisitPlanner
+                visits={visits}
+                institutions={institutions}
+                ownerId={myAdminId ?? user?.id ?? ""}
+              />
+            </TabsContent>
+            <TabsContent value="proposals" className="mt-6">
+              <ProposalCenter institutions={institutions} />
+            </TabsContent>
+            <TabsContent value="launch" className="mt-6">
+              <LaunchTracker
+                institutions={institutions.filter((i) =>
+                  ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage),
+                )}
+              />
+            </TabsContent>
+            <TabsContent value="performance" className="mt-6">
+              <PerformanceScorecard
+                institutions={institutions}
+                visits={visits}
+                admins={all.admins}
+              />
+            </TabsContent>
+            <TabsContent value="events" className="mt-6">
+              <ScopeEventsManager />
+            </TabsContent>
+            <TabsContent value="projects" className="mt-6">
+              <ScopeProjectsManager />
+            </TabsContent>
+            <TabsContent value="opportunities" className="mt-6">
+              <ScopeOpportunitiesManager />
+            </TabsContent>
+            <TabsContent value="ideas" className="mt-6">
+              <StudentIdeasManager />
+            </TabsContent>
+            <TabsContent value="feedback" className="mt-6">
+              <FeedbackManager />
+            </TabsContent>
+            <TabsContent value="verification" className="mt-6">
+              <StudentVerificationCenter />
+            </TabsContent>
+            <TabsContent value="analytics" className="mt-6">
+              <ScopeAnalyticsDashboard institutions={institutions} />
+            </TabsContent>
           </Tabs>
         </section>
       </RbacSidebar>
@@ -182,13 +333,21 @@ function MiniBar({ value, max, accent }: { value: number; max: number; accent?: 
 
 function SparkLine({ series, color = "#00D1FF" }: { series: AnalyticsSeries; color?: string }) {
   const max = Math.max(...series.map((s) => s.value), 1);
-  const W = 200, H = 48;
-  const pts = series.map((s, i) => {
-    const x = (i / Math.max(series.length - 1, 1)) * W;
-    const y = H - (s.value / max) * (H - 4);
-    return `${x},${y}`;
-  }).join(" ");
-  if (series.length < 2) return <div className="h-12 flex items-center justify-center text-xs text-muted-foreground">No data yet</div>;
+  const W = 200,
+    H = 48;
+  const pts = series
+    .map((s, i) => {
+      const x = (i / Math.max(series.length - 1, 1)) * W;
+      const y = H - (s.value / max) * (H - 4);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  if (series.length < 2)
+    return (
+      <div className="h-12 flex items-center justify-center text-xs text-muted-foreground">
+        No data yet
+      </div>
+    );
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12" preserveAspectRatio="none">
       <polyline fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" points={pts} />
@@ -196,25 +355,51 @@ function SparkLine({ series, color = "#00D1FF" }: { series: AnalyticsSeries; col
   );
 }
 
-function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: boolean }) {
+function StatCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: boolean;
+}) {
   return (
     <Card className={`p-4 ${accent ? "border-brand/30 bg-brand/5" : ""}`}>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-2xl font-bold ${accent ? "text-brand" : "text-foreground"}`}>{value}</div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
+      <div className={`mt-1 text-2xl font-bold ${accent ? "text-brand" : "text-foreground"}`}>
+        {value}
+      </div>
       {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
     </Card>
   );
 }
 
-function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: string; name: string; stage: string }> }) {
+function ScopeAnalyticsDashboard({
+  institutions,
+}: {
+  institutions: Array<{ id: string; name: string; stage: string }>;
+}) {
   const [mode, setMode] = useState<"global" | "institution">("global");
   const [selectedInstId, setSelectedInstId] = useState("");
 
   // ── Global data ──
   const [globalDau, setGlobalDau] = useState<AnalyticsSeries>([]);
   const [globalWau, setGlobalWau] = useState<AnalyticsSeries>([]);
-  const [globalTopEvents, setGlobalTopEvents] = useState<Array<{ event: string; count: number }>>([]);
-  const [globalStats, setGlobalStats] = useState({ dau: 0, wau: 0, memberCount: 0, studentFacultyCount: 0, activityRatePct: 0 });
+  const [globalTopEvents, setGlobalTopEvents] = useState<Array<{ event: string; count: number }>>(
+    [],
+  );
+  const [globalStats, setGlobalStats] = useState({
+    dau: 0,
+    wau: 0,
+    memberCount: 0,
+    studentFacultyCount: 0,
+    activityRatePct: 0,
+  });
   const [globalSummary, setGlobalSummary] = useState<{
     projects: { total: number; open: number; in_progress: number; completed: number };
     applications: number;
@@ -226,17 +411,29 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
   // ── Institution data ──
   const [instDau, setInstDau] = useState<AnalyticsSeries>([]);
   const [instWau, setInstWau] = useState<AnalyticsSeries>([]);
-  const [instStats, setInstStats] = useState({ dau: 0, wau: 0, memberCount: 0, engagementCount: 0, activityRatePct: 0, topEvents: [] as Array<{ event: string; count: number }> });
+  const [instStats, setInstStats] = useState({
+    dau: 0,
+    wau: 0,
+    memberCount: 0,
+    engagementCount: 0,
+    activityRatePct: 0,
+    topEvents: [] as Array<{ event: string; count: number }>,
+  });
   const [instLoading, setInstLoading] = useState(false);
 
   // ── Members roster data ──
   const [instMembers, setInstMembers] = useState<ScopeUser[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
-  const [membersFilter, setMembersFilter] = useState<"all" | "pending" | "active" | "deactivated">("all");
+  const [membersFilter, setMembersFilter] = useState<"all" | "pending" | "active" | "deactivated">(
+    "all",
+  );
   const [membersSearch, setMembersSearch] = useState("");
 
   const liveInstitutions = useMemo(
-    () => institutions.filter((i) => ["Live Chapter", "Launch Pending", "MoU Signed"].includes(i.stage)),
+    () =>
+      institutions.filter((i) =>
+        ["Live Chapter", "Launch Pending", "MoU Signed"].includes(i.stage),
+      ),
     [institutions],
   );
 
@@ -316,10 +513,15 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
     }
   }, [selectedInstId]);
 
-  const handleUpdateStatus = async (userId: string, nextStatus: "active" | "rejected" | "pending_verification") => {
+  const handleUpdateStatus = async (
+    userId: string,
+    nextStatus: "active" | "rejected" | "pending_verification",
+  ) => {
     try {
-      const { user: updatedUser } = await backendUsers.adminUpdate(userId, { student_status: nextStatus });
-      setInstMembers((prev) => prev.map((u) => u.id === userId ? updatedUser : u));
+      const { user: updatedUser } = await backendUsers.adminUpdate(userId, {
+        student_status: nextStatus,
+      });
+      setInstMembers((prev) => prev.map((u) => (u.id === userId ? updatedUser : u)));
       toast.success(`User status updated successfully.`);
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -331,7 +533,7 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
     const [role, role_variant] = selectValue.split(":");
     try {
       const { user: updatedUser } = await backendUsers.adminUpdate(userId, { role, role_variant });
-      setInstMembers((prev) => prev.map((u) => u.id === userId ? updatedUser : u));
+      setInstMembers((prev) => prev.map((u) => (u.id === userId ? updatedUser : u)));
       toast.success(`User role updated successfully.`);
     } catch (error) {
       console.error("Failed to update role:", error);
@@ -343,8 +545,10 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
     return instMembers.filter((m) => {
       // 1. Status Filter
       let matchesFilter = true;
-      if (membersFilter === "pending") matchesFilter = m.student_status === "pending_verification" && !m.disabled_at;
-      else if (membersFilter === "active") matchesFilter = m.student_status === "active" && !m.disabled_at;
+      if (membersFilter === "pending")
+        matchesFilter = m.student_status === "pending_verification" && !m.disabled_at;
+      else if (membersFilter === "active")
+        matchesFilter = m.student_status === "active" && !m.disabled_at;
       else if (membersFilter === "deactivated") matchesFilter = !!m.disabled_at;
 
       if (!matchesFilter) return false;
@@ -369,20 +573,28 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Platform Analytics</h2>
-          <p className="text-sm text-muted-foreground">Global overview or drill into any institution.</p>
+          <p className="text-sm text-muted-foreground">
+            Global overview or drill into any institution.
+          </p>
         </div>
         <div className="flex overflow-hidden rounded-lg border border-border">
           <button
             onClick={() => setMode("global")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${mode === "global" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
+              mode === "global"
+                ? "bg-brand text-brand-foreground"
+                : "bg-background text-muted-foreground hover:bg-secondary"
+            }`}
           >
             <Globe2 className="h-3.5 w-3.5" /> Global Overview
           </button>
           <button
             onClick={() => setMode("institution")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${mode === "institution" ? "bg-brand text-brand-foreground" : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
+              mode === "institution"
+                ? "bg-brand text-brand-foreground"
+                : "bg-background text-muted-foreground hover:bg-secondary"
+            }`}
           >
             <Building2 className="h-3.5 w-3.5" /> Institution Drill-Down
           </button>
@@ -400,10 +612,28 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
             <>
               {/* KPI row */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard label="Daily Active Users" value={globalStats.dau} sub="unique users · last 24 h" accent />
-                <StatCard label="Weekly Active Users" value={globalStats.wau} sub="unique users · last 7 days" />
-                <StatCard label="Total Registered Members" value={globalStats.memberCount} sub={`incl. admins · ${globalStats.studentFacultyCount} students/faculty`} />
-                <StatCard label="Global Activity Rate" value={`${globalStats.activityRatePct}%`} sub="WAU / students &amp; faculty" accent />
+                <StatCard
+                  label="Daily Active Users"
+                  value={globalStats.dau}
+                  sub="unique users · last 24 h"
+                  accent
+                />
+                <StatCard
+                  label="Weekly Active Users"
+                  value={globalStats.wau}
+                  sub="unique users · last 7 days"
+                />
+                <StatCard
+                  label="Total Registered Members"
+                  value={globalStats.memberCount}
+                  sub={`incl. admins · ${globalStats.studentFacultyCount} students/faculty`}
+                />
+                <StatCard
+                  label="Global Activity Rate"
+                  value={`${globalStats.activityRatePct}%`}
+                  sub="WAU / students &amp; faculty"
+                  accent
+                />
               </div>
 
               {/* Charts side by side */}
@@ -411,38 +641,68 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                 <Card className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Daily Active Users</div>
-                      <div className="mt-0.5 text-2xl font-bold text-foreground">{globalStats.dau}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Daily Active Users
+                      </div>
+                      <div className="mt-0.5 text-2xl font-bold text-foreground">
+                        {globalStats.dau}
+                      </div>
                     </div>
                     <TrendingUp className="h-5 w-5 text-brand" />
                   </div>
                   <div className="mt-4">
                     <SparkLine series={globalDau} color="#00D1FF" />
                   </div>
-                  <p className="mt-2 text-[10px] text-muted-foreground">Last 30 days · all users platform-wide</p>
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    Last 30 days · all users platform-wide
+                  </p>
                 </Card>
                 <Card className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Weekly Active Users</div>
-                      <div className="mt-0.5 text-2xl font-bold text-foreground">{globalStats.wau}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Weekly Active Users
+                      </div>
+                      <div className="mt-0.5 text-2xl font-bold text-foreground">
+                        {globalStats.wau}
+                      </div>
                     </div>
                     <BarChart2 className="h-5 w-5 text-emerald-500" />
                   </div>
                   <div className="mt-4">
                     <SparkLine series={globalWau} color="#10b981" />
                   </div>
-                  <p className="mt-2 text-[10px] text-muted-foreground">Last 12 weeks · all users platform-wide</p>
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    Last 12 weeks · all users platform-wide
+                  </p>
                 </Card>
               </div>
 
               {/* Global Success Metrics */}
               {globalSummary && (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatCard label="Total Projects" value={globalSummary.projects.total} sub={`${globalSummary.projects.open} open · ${globalSummary.projects.completed} completed`} />
-                  <StatCard label="Total Applications" value={globalSummary.applications} sub="across all projects" accent />
-                  <StatCard label="Live Campuses" value={liveInstitutions.length} sub={`${institutions.length} total in pipeline`} />
-                  <StatCard label="Active Chapters" value={institutions.filter(i => i.stage === "Live Chapter").length} sub="verified chapters" accent />
+                  <StatCard
+                    label="Total Projects"
+                    value={globalSummary.projects.total}
+                    sub={`${globalSummary.projects.open} open · ${globalSummary.projects.completed} completed`}
+                  />
+                  <StatCard
+                    label="Total Applications"
+                    value={globalSummary.applications}
+                    sub="across all projects"
+                    accent
+                  />
+                  <StatCard
+                    label="Live Campuses"
+                    value={liveInstitutions.length}
+                    sub={`${institutions.length} total in pipeline`}
+                  />
+                  <StatCard
+                    label="Active Chapters"
+                    value={institutions.filter((i) => i.stage === "Live Chapter").length}
+                    sub="verified chapters"
+                    accent
+                  />
                 </div>
               )}
 
@@ -452,7 +712,9 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-bold">Global Builder Growth</div>
-                      <p className="text-xs text-muted-foreground">Cumulative registered students · last 6 months</p>
+                      <p className="text-xs text-muted-foreground">
+                        Cumulative registered students · last 6 months
+                      </p>
                     </div>
                     <TrendingUp className="h-4 w-4 text-brand" />
                   </div>
@@ -461,10 +723,16 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                       <div className="relative h-full w-full pt-2">
                         <div className="flex h-full items-end justify-between gap-1">
                           {globalSummary.growth_trend.map((point, i) => {
-                            const max = Math.max(...globalSummary.growth_trend.map(p => p.value), 1);
+                            const max = Math.max(
+                              ...globalSummary.growth_trend.map((p) => p.value),
+                              1,
+                            );
                             const height = (point.value / max) * 100;
                             return (
-                              <div key={i} className="group relative flex flex-1 flex-col items-center">
+                              <div
+                                key={i}
+                                className="group relative flex flex-1 flex-col items-center"
+                              >
                                 <div
                                   className="w-full rounded-t bg-brand/20 transition-all hover:bg-brand/40"
                                   style={{ height: `${height}%` }}
@@ -473,7 +741,9 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                                     {point.value}
                                   </div>
                                 </div>
-                                <span className="mt-2 text-[10px] font-medium text-muted-foreground">{point.date}</span>
+                                <span className="mt-2 text-[10px] font-medium text-muted-foreground">
+                                  {point.date}
+                                </span>
                               </div>
                             );
                           })}
@@ -491,21 +761,33 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                 <Card className="p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <div className="text-sm font-bold">National Leaderboard</div>
-                    <Badge variant="outline" className="text-[10px]">Top 5</Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      Top 5
+                    </Badge>
                   </div>
                   <div className="space-y-4">
                     {globalSummary?.top_institutions.map((inst, i) => (
                       <div key={inst.id} className="flex items-center gap-3">
-                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${i === 0 ? "bg-yellow-500/20 text-yellow-600" :
-                            i === 1 ? "bg-slate-300/30 text-slate-600" :
-                              i === 2 ? "bg-orange-400/20 text-orange-600" :
-                                "bg-secondary text-muted-foreground"
-                          }`}>
+                        <div
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                            i === 0
+                              ? "bg-yellow-500/20 text-yellow-600"
+                              : i === 1
+                                ? "bg-slate-300/30 text-slate-600"
+                                : i === 2
+                                  ? "bg-orange-400/20 text-orange-600"
+                                  : "bg-secondary text-muted-foreground"
+                          }`}
+                        >
                           {i + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="truncate text-xs font-bold text-foreground">{inst.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{inst.xp.toLocaleString()} XP</div>
+                          <div className="truncate text-xs font-bold text-foreground">
+                            {inst.name}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {inst.xp.toLocaleString()} XP
+                          </div>
                         </div>
                         <div className="text-lg">{inst.logo}</div>
                       </div>
@@ -524,7 +806,9 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-bold">Platform Activity Breakdown</div>
-                    <p className="text-xs text-muted-foreground">All event types across every institution · all time</p>
+                    <p className="text-xs text-muted-foreground">
+                      All event types across every institution · all time
+                    </p>
                   </div>
                   <Badge variant="outline">{globalTopEvents.length} event types</Badge>
                 </div>
@@ -563,7 +847,9 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
               >
                 <option value="">— Choose a live institution —</option>
                 {liveInstitutions.map((inst) => (
-                  <option key={inst.id} value={inst.id}>{inst.name}</option>
+                  <option key={inst.id} value={inst.id}>
+                    {inst.name}
+                  </option>
                 ))}
               </select>
               {selectedInstId && (
@@ -577,14 +863,19 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
           {!selectedInstId && (
             <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/20 text-center">
               <Building2 className="mb-2 h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Select an institution above to view its analytics.</p>
-              <p className="mt-1 text-xs text-muted-foreground">Showing Live Chapter, Launch Pending and MoU Signed institutions.</p>
+              <p className="text-sm text-muted-foreground">
+                Select an institution above to view its analytics.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Showing Live Chapter, Launch Pending and MoU Signed institutions.
+              </p>
             </div>
           )}
 
           {selectedInstId && instLoading && (
             <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-              <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading institution data…
+              <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading institution
+              data…
             </div>
           )}
 
@@ -592,10 +883,28 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
             <>
               {/* KPI row */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard label="Daily Active Users" value={instStats.dau} sub="students &amp; faculty · last 24 h" accent />
-                <StatCard label="Weekly Active Users" value={instStats.wau} sub="students &amp; faculty · last 7 days" />
-                <StatCard label="Total Members" value={instStats.memberCount} sub={`incl. admin · ${instStats.engagementCount} students/faculty`} />
-                <StatCard label="Activity Rate" value={`${instStats.activityRatePct}%`} sub="WAU / students &amp; faculty" accent />
+                <StatCard
+                  label="Daily Active Users"
+                  value={instStats.dau}
+                  sub="students &amp; faculty · last 24 h"
+                  accent
+                />
+                <StatCard
+                  label="Weekly Active Users"
+                  value={instStats.wau}
+                  sub="students &amp; faculty · last 7 days"
+                />
+                <StatCard
+                  label="Total Members"
+                  value={instStats.memberCount}
+                  sub={`incl. admin · ${instStats.engagementCount} students/faculty`}
+                />
+                <StatCard
+                  label="Activity Rate"
+                  value={`${instStats.activityRatePct}%`}
+                  sub="WAU / students &amp; faculty"
+                  accent
+                />
               </div>
 
               {/* Charts */}
@@ -603,24 +912,36 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                 <Card className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Daily Sessions</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Daily Sessions
+                      </div>
                       <div className="mt-0.5 text-2xl font-bold">{instDau.at(-1)?.value ?? 0}</div>
                     </div>
                     <TrendingUp className="h-5 w-5 text-brand" />
                   </div>
-                  <div className="mt-4"><SparkLine series={instDau} /></div>
-                  <p className="mt-2 text-[10px] text-muted-foreground">Last 30 days · students &amp; faculty only</p>
+                  <div className="mt-4">
+                    <SparkLine series={instDau} />
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    Last 30 days · students &amp; faculty only
+                  </p>
                 </Card>
                 <Card className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Weekly Sessions</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Weekly Sessions
+                      </div>
                       <div className="mt-0.5 text-2xl font-bold">{instWau.at(-1)?.value ?? 0}</div>
                     </div>
                     <BarChart2 className="h-5 w-5 text-emerald-500" />
                   </div>
-                  <div className="mt-4"><SparkLine series={instWau} color="#10b981" /></div>
-                  <p className="mt-2 text-[10px] text-muted-foreground">Last 12 weeks · students &amp; faculty only</p>
+                  <div className="mt-4">
+                    <SparkLine series={instWau} color="#10b981" />
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    Last 12 weeks · students &amp; faculty only
+                  </p>
                 </Card>
               </div>
 
@@ -629,13 +950,17 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-bold">Institution Activity Breakdown</div>
-                    <p className="text-xs text-muted-foreground">Student &amp; faculty events only · admin actions excluded</p>
+                    <p className="text-xs text-muted-foreground">
+                      Student &amp; faculty events only · admin actions excluded
+                    </p>
                   </div>
                   <Badge variant="outline">{instStats.topEvents.length} event types</Badge>
                 </div>
                 <div className="space-y-3">
                   {instStats.topEvents.length === 0 && (
-                    <p className="text-sm italic text-muted-foreground">No student/faculty events tracked yet for this institution.</p>
+                    <p className="text-sm italic text-muted-foreground">
+                      No student/faculty events tracked yet for this institution.
+                    </p>
                   )}
                   {instStats.topEvents.map((ev) => (
                     <div key={ev.event}>
@@ -658,7 +983,8 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                       <Users className="h-5 w-5 text-brand" /> Campus Members Roster
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Manage roles, approve credentials, and verify student location or contact details.
+                      Manage roles, approve credentials, and verify student location or contact
+                      details.
                     </p>
                   </div>
 
@@ -668,10 +994,11 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                       <button
                         key={tab}
                         onClick={() => setMembersFilter(tab)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${membersFilter === tab
-                          ? "bg-brand text-brand-foreground shadow-md scale-[1.02]"
-                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/20"
-                          }`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${
+                          membersFilter === tab
+                            ? "bg-brand text-brand-foreground shadow-md scale-[1.02]"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/20"
+                        }`}
                       >
                         {tab}
                       </button>
@@ -699,7 +1026,8 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground font-medium bg-secondary/15 px-3 py-1.5 rounded-full border border-border/20">
-                    Showing <span className="text-foreground font-bold">{filteredMembers.length}</span> of{" "}
+                    Showing{" "}
+                    <span className="text-foreground font-bold">{filteredMembers.length}</span> of{" "}
                     <span className="text-foreground font-bold">{instMembers.length}</span> members
                   </div>
                 </div>
@@ -708,7 +1036,8 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                 <div className="w-full overflow-x-auto rounded-lg border border-border/40 bg-background/10 relative z-10">
                   {membersLoading ? (
                     <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-                      <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading campus roster…
+                      <Activity className="mr-2 h-4 w-4 animate-spin text-brand" /> Loading campus
+                      roster…
                     </div>
                   ) : filteredMembers.length === 0 ? (
                     <div className="py-12 text-center text-sm text-muted-foreground italic">
@@ -728,15 +1057,18 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                       </thead>
                       <tbody className="divide-y divide-border/20 font-medium">
                         {filteredMembers.map((m) => {
-                          const isInstAdmin = m.role === "institution_admin" || m.role_variant === "institutional_admin";
+                          const isInstAdmin =
+                            m.role === "institution_admin" ||
+                            m.role_variant === "institutional_admin";
                           const isDeactivated = !!m.disabled_at;
                           const currentRoleKey = `${m.role}:${m.role_variant ?? m.role}`;
 
                           return (
                             <tr
                               key={m.id}
-                              className={`transition-colors hover:bg-secondary/10 ${isDeactivated ? "opacity-60 bg-red-950/5" : ""
-                                }`}
+                              className={`transition-colors hover:bg-secondary/10 ${
+                                isDeactivated ? "opacity-60 bg-red-950/5" : ""
+                              }`}
                             >
                               {/* Member Info */}
                               <td className="px-4 py-3">
@@ -780,7 +1112,9 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                                   >
                                     <option value="student:student">Student</option>
                                     <option value="student:campus_leader">Campus Leader</option>
-                                    <option value="faculty:faculty_coordinator">Faculty Coordinator</option>
+                                    <option value="faculty:faculty_coordinator">
+                                      Faculty Coordinator
+                                    </option>
                                   </select>
                                 )}
                               </td>
@@ -792,18 +1126,25 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                                     <Phone className="h-3 w-3 text-brand" /> {m.phone}
                                   </span>
                                 ) : (
-                                  <span className="italic text-muted-foreground/50 font-normal">—</span>
+                                  <span className="italic text-muted-foreground/50 font-normal">
+                                    —
+                                  </span>
                                 )}
                               </td>
 
                               {/* Location */}
                               <td className="px-4 py-3 text-muted-foreground max-w-[150px] truncate">
                                 {m.location ? (
-                                  <span className="flex items-center gap-1 font-normal" title={m.location}>
+                                  <span
+                                    className="flex items-center gap-1 font-normal"
+                                    title={m.location}
+                                  >
                                     <MapPin className="h-3 w-3 text-emerald-500" /> {m.location}
                                   </span>
                                 ) : (
-                                  <span className="italic text-muted-foreground/50 font-normal">—</span>
+                                  <span className="italic text-muted-foreground/50 font-normal">
+                                    —
+                                  </span>
                                 )}
                               </td>
 
@@ -831,30 +1172,33 @@ function ScopeAnalyticsDashboard({ institutions }: { institutions: Array<{ id: s
                               {/* Actions */}
                               <td className="px-4 py-3 text-right whitespace-nowrap">
                                 {isInstAdmin ? (
-                                  <span className="text-muted-foreground text-[10px] italic">Locked</span>
+                                  <span className="text-muted-foreground text-[10px] italic">
+                                    Locked
+                                  </span>
                                 ) : (
                                   <div className="flex items-center justify-end gap-1.5">
                                     {/* Verification controls */}
-                                    {!isDeactivated && m.student_status === "pending_verification" && (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 px-2 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 text-[10px] font-bold"
-                                          onClick={() => handleUpdateStatus(m.id, "active")}
-                                        >
-                                          Approve
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 px-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-bold"
-                                          onClick={() => handleUpdateStatus(m.id, "rejected")}
-                                        >
-                                          Reject
-                                        </Button>
-                                      </>
-                                    )}
+                                    {!isDeactivated &&
+                                      m.student_status === "pending_verification" && (
+                                        <>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10 text-[10px] font-bold"
+                                            onClick={() => handleUpdateStatus(m.id, "active")}
+                                          >
+                                            Approve
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2 text-red-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-bold"
+                                            onClick={() => handleUpdateStatus(m.id, "rejected")}
+                                          >
+                                            Reject
+                                          </Button>
+                                        </>
+                                      )}
 
                                     {/* Deactivation controls */}
                                     {isDeactivated ? (
@@ -918,7 +1262,9 @@ function ScopeOpportunitiesManager() {
     try {
       const [allOpps, appRes] = await Promise.all([
         opportunities.syncFromBackend(),
-        backendOpportunityApplications.list().catch(() => ({ items: [] as BackendOpportunityApplication[] })),
+        backendOpportunityApplications
+          .list()
+          .catch(() => ({ items: [] as BackendOpportunityApplication[] })),
       ]);
       setItems(allOpps.map((item: any) => ({ ...item, campus: item.company })));
       setApplications(appRes.items);
@@ -975,20 +1321,38 @@ function ScopeOpportunitiesManager() {
     <div className="grid gap-6 lg:grid-cols-2">
       <Card className="p-5 border-brand/10">
         <h3 className="text-sm font-bold text-foreground">Post New Opportunity</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Publish co-founder matching, internships, or builder sprints directly to student dashboards.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Publish co-founder matching, internships, or builder sprints directly to student
+          dashboards.
+        </p>
         <form onSubmit={submit} className="mt-4 space-y-3.5">
           <div>
             <Label className="text-xs font-semibold">Opportunity Title</Label>
-            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. React Developer — Campus Marketplace" className="mt-1" />
+            <Input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="e.g. React Developer — Campus Marketplace"
+              className="mt-1"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-semibold">Posted By</Label>
-              <Input value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} placeholder="e.g. CampusDAO" className="mt-1" />
+              <Input
+                value={form.by}
+                onChange={(e) => setForm({ ...form, by: e.target.value })}
+                placeholder="e.g. CampusDAO"
+                className="mt-1"
+              />
             </div>
             <div>
               <Label className="text-xs font-semibold">Company Name</Label>
-              <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="e.g. MediMatch AI" className="mt-1" />
+              <Input
+                value={form.company}
+                onChange={(e) => setForm({ ...form, company: e.target.value })}
+                placeholder="e.g. MediMatch AI"
+                className="mt-1"
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -1008,26 +1372,51 @@ function ScopeOpportunitiesManager() {
             </div>
             <div>
               <Label className="text-xs font-semibold">Required Skills</Label>
-              <Input value={form.requiredSkills} onChange={(e) => setForm({ ...form, requiredSkills: e.target.value })} placeholder="e.g. React, APIs, Tailwind CSS" className="mt-1" />
+              <Input
+                value={form.requiredSkills}
+                onChange={(e) => setForm({ ...form, requiredSkills: e.target.value })}
+                placeholder="e.g. React, APIs, Tailwind CSS"
+                className="mt-1"
+              />
             </div>
           </div>
           <div>
             <Label className="text-xs font-semibold">XP Needed To Unlock</Label>
-            <Input value={form.minXpRequired} onChange={(e) => setForm({ ...form, minXpRequired: e.target.value })} placeholder="0" className="mt-1" inputMode="numeric" />
+            <Input
+              value={form.minXpRequired}
+              onChange={(e) => setForm({ ...form, minXpRequired: e.target.value })}
+              placeholder="0"
+              className="mt-1"
+              inputMode="numeric"
+            />
           </div>
           <div>
             <Label className="text-xs font-semibold">Detailed Description</Label>
-            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the role requirements, duration, equity/stipend terms..." rows={4} className="mt-1" />
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Describe the role requirements, duration, equity/stipend terms..."
+              rows={4}
+              className="mt-1"
+            />
           </div>
-          <Button type="submit" disabled={saving} className="w-full bg-gradient-brand text-brand-foreground font-semibold">
+          <Button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-gradient-brand text-brand-foreground font-semibold"
+          >
             {saving ? "Publishing..." : "Publish Opportunity"}
           </Button>
         </form>
       </Card>
 
       <Card className="p-5 border-brand/10">
-        <h3 className="text-sm font-bold text-foreground">Live Dashboard Opportunities ({items.length})</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Real-time student interest tracking powered by MongoDB collections.</p>
+        <h3 className="text-sm font-bold text-foreground">
+          Live Dashboard Opportunities ({items.length})
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Real-time student interest tracking powered by MongoDB collections.
+        </p>
         <div className="mt-4 space-y-3 overflow-y-auto max-h-[500px] pr-1">
           {loading && (
             <div className="flex h-32 items-center justify-center">
@@ -1035,56 +1424,81 @@ function ScopeOpportunitiesManager() {
             </div>
           )}
           {!loading && items.length === 0 && (
-            <p className="text-sm text-muted-foreground italic text-center py-8">No opportunities posted yet.</p>
+            <p className="text-sm text-muted-foreground italic text-center py-8">
+              No opportunities posted yet.
+            </p>
           )}
-          {!loading && items.map((item) => (
-            <div key={item.id} className="relative rounded-lg border border-border p-4 bg-muted/5 transition-colors hover:bg-muted/10">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
-                  <Badge className="bg-gradient-brand text-brand-foreground text-[10px]">
-                    {(item.requiredSkills?.length ?? 0)} skill{(item.requiredSkills?.length ?? 0) === 1 ? "" : "s"} required
-                  </Badge>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {applicationsForOpportunity(item.id).length} applicant{applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px]">
-                    Unlock: {item.minXpRequired ?? 0} XP
-                  </Badge>
+          {!loading &&
+            items.map((item) => (
+              <div
+                key={item.id}
+                className="relative rounded-lg border border-border p-4 bg-muted/5 transition-colors hover:bg-muted/10"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {item.category}
+                    </Badge>
+                    <Badge className="bg-gradient-brand text-brand-foreground text-[10px]">
+                      {item.requiredSkills?.length ?? 0} skill
+                      {(item.requiredSkills?.length ?? 0) === 1 ? "" : "s"} required
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {applicationsForOpportunity(item.id).length} applicant
+                      {applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      Unlock: {item.minXpRequired ?? 0} XP
+                    </Badge>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {applicationsForOpportunity(item.id).length} total applicant
+                    {applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
+                  </span>
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                  {applicationsForOpportunity(item.id).length} total applicant{applicationsForOpportunity(item.id).length === 1 ? "" : "s"}
-                </span>
-              </div>
-              <h4 className="mt-2.5 text-sm font-bold text-foreground">{item.title}</h4>
-              <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
-              {!!item.requiredSkills?.length && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {item.requiredSkills.slice(0, 5).map((skill: string) => (
-                    <Badge key={skill} variant="secondary" className="text-[10px]">{skill}</Badge>
-                  ))}
+                <h4 className="mt-2.5 text-sm font-bold text-foreground">{item.title}</h4>
+                <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">
+                  {item.description}
+                </p>
+                {!!item.requiredSkills?.length && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {item.requiredSkills.slice(0, 5).map((skill: string) => (
+                      <Badge key={skill} variant="secondary" className="text-[10px]">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedOpportunityId(item.id)}
+                  >
+                    View Applicants
+                  </Button>
                 </div>
-              )}
-              <div className="mt-3">
-                <Button size="sm" variant="outline" onClick={() => setSelectedOpportunityId(item.id)}>
-                  View Applicants
-                </Button>
+                <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+                  <span>
+                    by <b className="text-foreground">{item.by}</b> · {item.campus}
+                  </span>
+                  <span>{item.id.startsWith("o_") ? "Seed Data" : "Live DB"}</span>
+                </div>
               </div>
-              <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/40 pt-2">
-                <span>by <b className="text-foreground">{item.by}</b> · {item.campus}</span>
-                <span>{item.id.startsWith("o_") ? "Seed Data" : "Live DB"}</span>
-              </div>
-            </div>
-          ))}
+            ))}
         </div>
       </Card>
 
       <OpportunityApplicantsDialog
         opportunity={items.find((item) => item.id === selectedOpportunityId) ?? null}
-        applications={selectedOpportunityId ? applicationsForOpportunity(selectedOpportunityId) : []}
+        applications={
+          selectedOpportunityId ? applicationsForOpportunity(selectedOpportunityId) : []
+        }
         onClose={() => setSelectedOpportunityId(null)}
         onStatusChange={(updated) => {
-          setApplications((current) => current.map((item) => item.id === updated.id ? updated : item));
+          setApplications((current) =>
+            current.map((item) => (item.id === updated.id ? updated : item)),
+          );
         }}
       />
     </div>
@@ -1104,10 +1518,15 @@ function OpportunityApplicantsDialog({
 }) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const updateStatus = async (applicationId: string, status: BackendOpportunityApplication["status"]) => {
+  const updateStatus = async (
+    applicationId: string,
+    status: BackendOpportunityApplication["status"],
+  ) => {
     setUpdatingId(applicationId);
     try {
-      const { application } = await backendOpportunityApplications.updateStatus(applicationId, { status });
+      const { application } = await backendOpportunityApplications.updateStatus(applicationId, {
+        status,
+      });
       onStatusChange(application);
       toast.success(`Application ${status}.`);
     } catch (error) {
@@ -1118,17 +1537,25 @@ function OpportunityApplicantsDialog({
   };
 
   return (
-    <Dialog open={Boolean(opportunity)} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={Boolean(opportunity)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>{opportunity?.title ?? "Applicants"}</DialogTitle>
           <DialogDescription>
-            Review all applicants for {opportunity?.company ?? opportunity?.campus ?? "this opportunity"}.
+            Review all applicants for{" "}
+            {opportunity?.company ?? opportunity?.campus ?? "this opportunity"}.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[70vh] overflow-y-auto pr-1">
           {applications.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">No applications received yet.</div>
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No applications received yet.
+            </div>
           ) : (
             <div className="space-y-3">
               {applications.map((application) => (
@@ -1137,23 +1564,92 @@ function OpportunityApplicantsDialog({
                     <div>
                       <h4 className="font-semibold text-foreground">{application.user_name}</h4>
                       <p className="text-xs text-muted-foreground">
-                        {application.user_institution || "Institute not set"} · {application.user_email || "No email"}
+                        {application.user_institution || "Institute not set"} ·{" "}
+                        {application.user_email || "No email"}
                       </p>
                     </div>
                     <Badge variant="outline">{application.status}</Badge>
                   </div>
-                  {application.fit_note && <p className="mt-3 text-sm text-muted-foreground">{application.fit_note}</p>}
+                  {application.fit_note && (
+                    <p className="mt-3 text-sm text-muted-foreground">{application.fit_note}</p>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    {application.github_url && <a href={application.github_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">GitHub</a>}
-                    {application.portfolio_url && <a href={application.portfolio_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">Portfolio</a>}
-                    {application.dribbble_url && <a href={application.dribbble_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">Dribbble / Design Link</a>}
-                    {application.other_url && <a href={application.other_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">Other Link</a>}
-                    {application.resume_url && <a href={application.resume_url} target="_blank" rel="noreferrer" className="rounded-full border px-2.5 py-1 hover:bg-muted">CV / Resume</a>}
+                    {application.github_url && (
+                      <a
+                        href={application.github_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border px-2.5 py-1 hover:bg-muted"
+                      >
+                        GitHub
+                      </a>
+                    )}
+                    {application.portfolio_url && (
+                      <a
+                        href={application.portfolio_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border px-2.5 py-1 hover:bg-muted"
+                      >
+                        Portfolio
+                      </a>
+                    )}
+                    {application.dribbble_url && (
+                      <a
+                        href={application.dribbble_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border px-2.5 py-1 hover:bg-muted"
+                      >
+                        Dribbble / Design Link
+                      </a>
+                    )}
+                    {application.other_url && (
+                      <a
+                        href={application.other_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border px-2.5 py-1 hover:bg-muted"
+                      >
+                        Other Link
+                      </a>
+                    )}
+                    {application.resume_url && (
+                      <a
+                        href={application.resume_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border px-2.5 py-1 hover:bg-muted"
+                      >
+                        CV / Resume
+                      </a>
+                    )}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" disabled={updatingId === application.id} onClick={() => updateStatus(application.id, "shortlisted")}>Shortlist</Button>
-                    <Button size="sm" variant="outline" disabled={updatingId === application.id} onClick={() => updateStatus(application.id, "accepted")}>Accept</Button>
-                    <Button size="sm" variant="outline" disabled={updatingId === application.id} onClick={() => updateStatus(application.id, "rejected")}>Reject</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={updatingId === application.id}
+                      onClick={() => updateStatus(application.id, "shortlisted")}
+                    >
+                      Shortlist
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={updatingId === application.id}
+                      onClick={() => updateStatus(application.id, "accepted")}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={updatingId === application.id}
+                      onClick={() => updateStatus(application.id, "rejected")}
+                    >
+                      Reject
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1189,11 +1685,20 @@ function ScopeEventsManager() {
 
   useEffect(() => {
     let cancelled = false;
-    backendEvents.list()
-      .then(({ items }) => { if (!cancelled) setEvents(items); })
-      .catch((error) => { toast.error(error instanceof Error ? error.message : "Could not load events."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    backendEvents
+      .list()
+      .then(({ items }) => {
+        if (!cancelled) setEvents(items);
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Could not load events.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const submit = async (event: FormEvent) => {
@@ -1215,7 +1720,9 @@ function ScopeEventsManager() {
       toast.success("Upcoming event added.");
     } catch (error: any) {
       if (error.details?.issues) {
-        const msg = error.details.issues.map((i: any) => `${i.path?.join(".") || "field"}: ${i.message}`).join(", ");
+        const msg = error.details.issues
+          .map((i: any) => `${i.path?.join(".") || "field"}: ${i.message}`)
+          .join(", ");
         toast.error(`Validation failed: ${msg}`);
       } else {
         toast.error(error instanceof Error ? error.message : "Could not create event.");
@@ -1243,51 +1750,112 @@ function ScopeEventsManager() {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="p-5">
         <h3 className="text-sm font-bold">Add Upcoming Event</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Schema: title, type, date, venue, seats, color.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Schema: title, type, date, venue, seats, color.
+        </p>
         <form onSubmit={submit} className="mt-4 grid gap-3">
-          <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-          <div><Label>Type</Label><Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} /></div>
-          <div><Label>Date & Time</Label><Input type="datetime-local" min={minDatetime} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-          <div><Label>Venue</Label><Input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></div>
-          <div><Label>Seats</Label><Input type="number" min={1} value={form.seats} onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 1 })} /></div>
+          <div>
+            <Label>Title</Label>
+            <Input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Type</Label>
+            <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} />
+          </div>
+          <div>
+            <Label>Date & Time</Label>
+            <Input
+              type="datetime-local"
+              min={minDatetime}
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Venue</Label>
+            <Input
+              value={form.venue}
+              onChange={(e) => setForm({ ...form, venue: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Seats</Label>
+            <Input
+              type="number"
+              min={1}
+              value={form.seats}
+              onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 1 })}
+            />
+          </div>
           <div>
             <Label>Color</Label>
-            <select value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value as "brand" | "cyan" | "primary" })} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <select
+              value={form.color}
+              onChange={(e) =>
+                setForm({ ...form, color: e.target.value as "brand" | "cyan" | "primary" })
+              }
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
               <option value="brand">brand</option>
               <option value="cyan">cyan</option>
               <option value="primary">primary</option>
             </select>
           </div>
-          <Button type="submit" disabled={saving} className="bg-gradient-brand text-brand-foreground">{saving ? "Saving..." : "Add event"}</Button>
+          <Button
+            type="submit"
+            disabled={saving}
+            className="bg-gradient-brand text-brand-foreground"
+          >
+            {saving ? "Saving..." : "Add event"}
+          </Button>
         </form>
       </Card>
       <Card className="p-5">
         <h3 className="text-sm font-bold">Upcoming Events ({events.length})</h3>
         <div className="mt-3 space-y-2">
           {loading && <p className="text-sm text-muted-foreground">Loading events...</p>}
-          {!loading && events.map((item) => (
-            <div key={item.id} className="relative rounded-lg border border-border p-3 group overflow-hidden">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate" title={item.title}>{item.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground truncate" title={`${item.type} · ${item.date}`}>{item.type} · {item.date}</div>
-                  <div className="text-xs text-muted-foreground truncate" title={`${item.venue} · ${item.seats} seats`}>{item.venue} · {item.seats} seats</div>
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <Badge variant="outline">{item.color}</Badge>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                    disabled={deletingId === item.id}
-                    onClick={() => handleDelete(item.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+          {!loading &&
+            events.map((item) => (
+              <div
+                key={item.id}
+                className="relative rounded-lg border border-border p-3 group overflow-hidden"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate" title={item.title}>
+                      {item.title}
+                    </div>
+                    <div
+                      className="mt-1 text-xs text-muted-foreground truncate"
+                      title={`${item.type} · ${item.date}`}
+                    >
+                      {item.type} · {item.date}
+                    </div>
+                    <div
+                      className="text-xs text-muted-foreground truncate"
+                      title={`${item.venue} · ${item.seats} seats`}
+                    >
+                      {item.venue} · {item.seats} seats
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <Badge variant="outline">{item.color}</Badge>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      disabled={deletingId === item.id}
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </Card>
     </div>
@@ -1303,7 +1871,9 @@ function ScopeProjectsManager() {
   const [rosterProject, setRosterProject] = useState<BackendProject | null>(null);
   const { institutions } = useStoreValue(() => crm.all());
   const [activeSubTab, setActiveSubTab] = useState("active");
-  const [projectScopeFilter, setProjectScopeFilter] = useState<"global" | "campus" | "all">("global");
+  const [projectScopeFilter, setProjectScopeFilter] = useState<"global" | "campus" | "all">(
+    "global",
+  );
 
   const [form, setForm] = useState({
     title: "",
@@ -1316,14 +1886,27 @@ function ScopeProjectsManager() {
     visibility: "public" as const,
     status: "open" as "open" | "closed" | "draft",
     institution_id: "" as string,
+    xp_commitment_stake: 50,
+    reward_pool_xp: 0,
   });
+
+  // Per-template XP stake override for library templates (default: 50)
+  const [templateXpStakes, setTemplateXpStakes] = useState<Record<string, number>>({});
+  // Per-template Reward XP override for library templates
+  const [templateRewardXps, setTemplateRewardXps] = useState<Record<string, number>>({});
+  // Track whether a Custom project is individual or a team project
+  const [customIsTeam, setCustomIsTeam] = useState<boolean>(true);
+  // Track project collaboration mode (Individual vs Team) per library template card
+  const [templateIsTeam, setTemplateIsTeam] = useState<Record<string, boolean>>({});
+  // Inline XP edit for active projects
+  const [editingXpProjectId, setEditingXpProjectId] = useState<string | null>(null);
+  const [editingXpValue, setEditingXpValue] = useState<string>("50");
+  const [editingRewardValue, setEditingRewardValue] = useState<string>("75");
+  const [savingXp, setSavingXp] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [pRes, aRes] = await Promise.all([
-        backendProjects.list(),
-        backendApplications.list(),
-      ]);
+      const [pRes, aRes] = await Promise.all([backendProjects.list(), backendApplications.list()]);
       setProjects(pRes.items);
       setApplications(aRes.items);
     } catch (error) {
@@ -1345,10 +1928,29 @@ function ScopeProjectsManager() {
     }
     setSaving(true);
     try {
-      const payload = { ...form, institution_id: form.institution_id || null };
+      const payload = {
+        ...form,
+        institution_id: form.institution_id || null,
+        team_members_limit: customIsTeam ? form.team_members_limit : 1,
+        teams_allowed: customIsTeam ? form.teams_allowed : form.capacity,
+      };
       const { project: created } = await backendProjects.create(payload);
       setProjects((current) => [created, ...current]);
-      setForm({ title: "", summary: "", description: "", domain: "Software", capacity: 5, teams_allowed: 5, team_members_limit: 4, visibility: "public", status: "open", institution_id: "" });
+      setForm({
+        title: "",
+        summary: "",
+        description: "",
+        domain: "Software",
+        capacity: 5,
+        teams_allowed: 5,
+        team_members_limit: 4,
+        visibility: "public",
+        status: "open",
+        institution_id: "",
+        xp_commitment_stake: 50,
+        reward_pool_xp: 0,
+      });
+      setCustomIsTeam(true);
       setActiveSubTab("active");
       toast.success("Project added successfully.");
     } catch (error) {
@@ -1358,30 +1960,67 @@ function ScopeProjectsManager() {
     }
   };
 
-  const activateTemplate = async (template: typeof PROJECT_TEMPLATES[0]) => {
+  // Save XP settings inline edit for an active project
+  const saveXpStake = async (projectId: string) => {
+    const stake = Math.max(0, Number(editingXpValue) || 0);
+    const reward = Math.max(0, Number(editingRewardValue) || 0);
+    setSavingXp(true);
+    try {
+      const { project: updated } = await backendProjects.update(projectId, {
+        xp_commitment_stake: stake,
+        reward_pool_xp: reward,
+      } as any);
+      setProjects((current) =>
+        current.map((p) =>
+          p.id === projectId
+            ? {
+                ...p,
+                xp_commitment_stake: updated.xp_commitment_stake ?? stake,
+                reward_pool_xp: updated.reward_pool_xp ?? reward,
+              }
+            : p,
+        ),
+      );
+      toast.success(`XP settings updated: ${stake} Stake / ${reward} Reward.`);
+      setEditingXpProjectId(null);
+    } catch (error) {
+      toast.error("Could not update XP settings.");
+    } finally {
+      setSavingXp(false);
+    }
+  };
+
+  const activateTemplate = async (template: (typeof PROJECT_TEMPLATES)[0]) => {
+    const stake = Math.max(0, templateXpStakes[template.title] ?? 50);
+    const reward = Math.max(0, templateRewardXps[template.title] ?? Math.round(stake * 1.5));
+    const isTeam = templateIsTeam[template.title] ?? true;
     setSaving(true);
     try {
       const payload = {
         title: template.title,
         domain: template.domain,
         summary: `Level: ${template.level} | Duration: ${template.duration}`,
-        description: `Team: ${template.team_structure}\nDeliverables: ${template.deliverables}\nReporting: ${template.reporting}\nRewards: ${template.rewards}`,
+        description: `Team: ${isTeam ? template.team_structure : "Individual"}\nDeliverables: ${template.deliverables}\nReporting: ${template.reporting}\nRewards: ${template.rewards}`,
         capacity: 10,
+        team_members_limit: isTeam ? 4 : 1,
+        teams_allowed: isTeam ? 5 : 10,
         visibility: "public" as const,
         status: "open" as const,
+        xp_commitment_stake: stake,
+        reward_pool_xp: reward,
         meta: {
           level: template.level,
           duration: template.duration,
-          team_structure: template.team_structure,
+          team_structure: isTeam ? template.team_structure : "Individual",
           deliverables: template.deliverables,
           reporting: template.reporting,
-          rewards: template.rewards
-        }
+          rewards: template.rewards,
+        },
       };
       const { project: created } = await backendProjects.create(payload);
       setProjects((current) => [created, ...current]);
       setActiveSubTab("active");
-      toast.success(`"${template.title}" activated from templates!`);
+      toast.success(`"${template.title}" activated with ${stake} XP stake!`);
     } catch (error) {
       toast.error("Could not activate template.");
     } finally {
@@ -1389,11 +2028,37 @@ function ScopeProjectsManager() {
     }
   };
 
+  const handleTemplateToggle = async (template: (typeof PROJECT_TEMPLATES)[0], checked: boolean) => {
+    if (checked) {
+      await activateTemplate(template);
+    } else {
+      const activeProj = projects.find((p) => p.title === template.title && p.status !== "cancelled");
+      if (activeProj) {
+        if (confirm(`Deactivate "${template.title}"? This will cancel the project.`)) {
+          try {
+            setSaving(true);
+            await backendProjects.remove(activeProj.id);
+            setProjects((current) =>
+              current.map((p) => (p.id === activeProj.id ? { ...p, status: "cancelled" } : p)),
+            );
+            toast.success(`"${template.title}" deactivated.`);
+          } catch (error) {
+            toast.error("Could not deactivate project.");
+          } finally {
+            setSaving(false);
+          }
+        }
+      }
+    }
+  };
+
   const remove = async (id: string) => {
     if (!confirm("Cancel this project?")) return;
     try {
       await backendProjects.remove(id);
-      setProjects(current => current.map(p => p.id === id ? { ...p, status: "cancelled" } : p));
+      setProjects((current) =>
+        current.map((p) => (p.id === id ? { ...p, status: "cancelled" } : p)),
+      );
       toast.success("Project cancelled.");
     } catch (error) {
       toast.error("Failed to cancel project.");
@@ -1406,8 +2071,13 @@ function ScopeProjectsManager() {
   ) => {
     setUpdatingApplicationId(applicationId);
     try {
-      const { application: updated } = await backendApplications.updateStatus(applicationId, status);
-      setApplications((current) => current.map((app) => (app.id === applicationId ? updated : app)));
+      const { application: updated } = await backendApplications.updateStatus(
+        applicationId,
+        status,
+      );
+      setApplications((current) =>
+        current.map((app) => (app.id === applicationId ? updated : app)),
+      );
       toast.success(`Application ${status}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update application.");
@@ -1425,7 +2095,9 @@ function ScopeProjectsManager() {
       const { application: updated } = await backendApplications.reviewSubmission(applicationId, {
         submission_review_status: submissionReviewStatus,
       });
-      setApplications((current) => current.map((app) => (app.id === applicationId ? updated : app)));
+      setApplications((current) =>
+        current.map((app) => (app.id === applicationId ? updated : app)),
+      );
       toast.success(`Submission marked as ${submissionReviewStatus.replace("_", " ")}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update submission review.");
@@ -1435,12 +2107,14 @@ function ScopeProjectsManager() {
   };
 
   const projectsWithStats = useMemo(() => {
-    return projects.map(p => {
-      const projectApps = applications.filter(a => a.project_id === p.id);
-      const participatingInstitutes = new Set(projectApps.map(a => a.user_institution).filter(Boolean));
+    return projects.map((p) => {
+      const projectApps = applications.filter((a) => a.project_id === p.id);
+      const participatingInstitutes = new Set(
+        projectApps.map((a) => a.user_institution).filter(Boolean),
+      );
       return {
         ...p,
-        participantCount: projectApps.filter(a => a.status === "accepted").length,
+        participantCount: projectApps.filter((a) => a.status === "accepted").length,
         applicantCount: projectApps.length,
         institutes: Array.from(participatingInstitutes),
       };
@@ -1448,7 +2122,7 @@ function ScopeProjectsManager() {
   }, [projects, applications]);
 
   const filteredActiveProjects = useMemo(() => {
-    return projectsWithStats.filter(p => {
+    return projectsWithStats.filter((p) => {
       if (projectScopeFilter === "global") return !p.institution_id;
       if (projectScopeFilter === "campus") return !!p.institution_id;
       return true;
@@ -1458,18 +2132,21 @@ function ScopeProjectsManager() {
   // Sync System: Poll for new applications every 15s to keep stats live
   useEffect(() => {
     const interval = setInterval(() => {
-      backendApplications.list().then(res => {
-        setApplications(prev => {
-          if (res.items.length > prev.length) {
-            const newCount = res.items.length - prev.length;
-            toast.info(`${newCount} new project application(s) received!`, {
-              icon: <Zap className="h-4 w-4 text-brand" />,
-              description: "The dashboard has been updated with the latest participation data."
-            });
-          }
-          return res.items;
-        });
-      }).catch(console.warn);
+      backendApplications
+        .list()
+        .then((res) => {
+          setApplications((prev) => {
+            if (res.items.length > prev.length) {
+              const newCount = res.items.length - prev.length;
+              toast.info(`${newCount} new project application(s) received!`, {
+                icon: <Zap className="h-4 w-4 text-brand" />,
+                description: "The dashboard has been updated with the latest participation data.",
+              });
+            }
+            return res.items;
+          });
+        })
+        .catch(console.warn);
     }, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -1480,13 +2157,21 @@ function ScopeProjectsManager() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Scope Projects</h2>
-            <p className="text-muted-foreground">Manage global project templates and monitor student participation.</p>
+            <p className="text-muted-foreground">
+              Manage global project templates and monitor student participation.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <TabsList>
-              <TabsTrigger value="active" className="gap-2"><Rocket className="h-4 w-4" /> Active</TabsTrigger>
-              <TabsTrigger value="library" className="gap-2"><BookOpen className="h-4 w-4" /> Library</TabsTrigger>
-              <TabsTrigger value="new" className="gap-2"><Plus className="h-4 w-4" /> Custom</TabsTrigger>
+              <TabsTrigger value="active" className="gap-2">
+                <Rocket className="h-4 w-4" /> Active
+              </TabsTrigger>
+              <TabsTrigger value="library" className="gap-2">
+                <BookOpen className="h-4 w-4" /> Library
+              </TabsTrigger>
+              <TabsTrigger value="new" className="gap-2">
+                <Plus className="h-4 w-4" /> Custom
+              </TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -1507,38 +2192,45 @@ function ScopeProjectsManager() {
                 <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20">
                   <Layers className="mb-2 h-8 w-8 text-muted-foreground/30" />
                   <p className="text-sm text-muted-foreground">No active projects in the system.</p>
-                  <Button variant="link" size="sm" onClick={() => setActiveSubTab("library")}>Browse the Project Library</Button>
+                  <Button variant="link" size="sm" onClick={() => setActiveSubTab("library")}>
+                    Browse the Project Library
+                  </Button>
                 </div>
               )}
 
               {!loading && projectsWithStats.length > 0 && (
                 <div className="flex flex-col gap-2 rounded-xl border border-brand/10 bg-secondary/20 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Filter by Ownership</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Filter by Ownership
+                  </span>
                   <div className="flex flex-wrap gap-1 rounded-lg bg-background p-1 border border-border">
                     <button
                       onClick={() => setProjectScopeFilter("global")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "global"
-                        ? "bg-brand text-brand-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-secondary"
-                        }`}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        projectScopeFilter === "global"
+                          ? "bg-brand text-brand-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
                     >
-                      Global / Scope ({projectsWithStats.filter(p => !p.institution_id).length})
+                      Global / Scope ({projectsWithStats.filter((p) => !p.institution_id).length})
                     </button>
                     <button
                       onClick={() => setProjectScopeFilter("campus")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "campus"
-                        ? "bg-brand text-brand-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-secondary"
-                        }`}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        projectScopeFilter === "campus"
+                          ? "bg-brand text-brand-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
                     >
-                      Campus Specific ({projectsWithStats.filter(p => !!p.institution_id).length})
+                      Campus Specific ({projectsWithStats.filter((p) => !!p.institution_id).length})
                     </button>
                     <button
                       onClick={() => setProjectScopeFilter("all")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "all"
-                        ? "bg-brand text-brand-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-secondary"
-                        }`}
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+                        projectScopeFilter === "all"
+                          ? "bg-brand text-brand-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
                     >
                       All ({projectsWithStats.length})
                     </button>
@@ -1549,291 +2241,498 @@ function ScopeProjectsManager() {
               {!loading && projectsWithStats.length > 0 && filteredActiveProjects.length === 0 && (
                 <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center">
                   <Layers className="mb-2 h-6 w-6 text-muted-foreground/30" />
-                  <p className="text-sm font-medium text-muted-foreground">No projects found in this category.</p>
-                  <Button variant="link" size="sm" onClick={() => setProjectScopeFilter("all")} className="mt-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    No projects found in this category.
+                  </p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => setProjectScopeFilter("all")}
+                    className="mt-1"
+                  >
                     Show all active projects
                   </Button>
                 </div>
               )}
 
-              {!loading && filteredActiveProjects.map((item) => (
-                <Card key={item.id} className="group relative overflow-hidden border-brand/10 p-0 transition-all hover:border-brand/40 hover:shadow-lg">
-                  <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                  <div className="relative p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
+              {!loading &&
+                filteredActiveProjects.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="group relative overflow-hidden border-brand/10 p-0 transition-all hover:border-brand/40 hover:shadow-lg"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                    <div className="relative p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-bold text-foreground">{item.title}</h4>
+                            {item.institution_id ? (
+                              <Badge variant="secondary" className="bg-secondary/50 text-[10px]">
+                                Campus Specific
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-brand/10 text-brand text-[10px]">Global</Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Zap className="h-3 w-3 text-brand" /> {item.domain}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" /> {item.capacity} slots
+                            </span>
+                            <span>•</span>
+                            <div className="flex items-center gap-1.5">
+                              {editingXpProjectId === item.id ? (
+                                <div className="flex flex-wrap items-center gap-2 bg-background border border-brand/20 rounded px-2 py-1">
+                                  <div className="flex items-center gap-1 border-r border-border pr-2">
+                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                      Stake:
+                                    </span>
+                                    <input
+                                      type="number"
+                                      value={editingXpValue}
+                                      onChange={(e) => setEditingXpValue(e.target.value)}
+                                      className="w-10 h-5 bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 pr-1">
+                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                      Reward:
+                                    </span>
+                                    <input
+                                      type="number"
+                                      value={editingRewardValue}
+                                      onChange={(e) => setEditingRewardValue(e.target.value)}
+                                      className="w-10 h-5 bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 border-l border-border pl-2">
+                                    <button
+                                      onClick={() => saveXpStake(item.id)}
+                                      disabled={savingXp}
+                                      className="text-emerald-500 hover:text-emerald-600 font-bold text-[10px] uppercase tracking-wider px-0.5"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingXpProjectId(null)}
+                                      className="text-muted-foreground hover:text-foreground text-[10px] uppercase tracking-wider px-0.5"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-brand/10 border-brand/20 text-brand text-[10px] font-bold py-0"
+                                  >
+                                    {item.xp_commitment_stake ?? 50} XP Stake
+                                  </Badge>
+                                  {item.reward_pool_xp ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold py-0"
+                                    >
+                                      +{item.reward_pool_xp} XP Reward
+                                    </Badge>
+                                  ) : null}
+                                  <button
+                                    onClick={() => {
+                                      setEditingXpProjectId(item.id);
+                                      setEditingXpValue(String(item.xp_commitment_stake ?? 50));
+                                      setEditingRewardValue(String(item.reward_pool_xp ?? 75));
+                                    }}
+                                    className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                    title="Edit XP Settings"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2">
-                          <h4 className="text-lg font-bold text-foreground">{item.title}</h4>
-                          {item.institution_id ? (
-                            <Badge variant="secondary" className="bg-secondary/50 text-[10px]">Campus Specific</Badge>
-                          ) : (
-                            <Badge className="bg-brand/10 text-brand text-[10px]">Global</Badge>
+                          <Badge
+                            variant={item.status === "cancelled" ? "destructive" : "outline"}
+                            className="capitalize"
+                          >
+                            {item.status}
+                          </Badge>
+                          {item.status !== "cancelled" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 border-destructive/20 hover:border-destructive hover:bg-destructive/5 text-destructive gap-1.5 transition-all text-[11px] font-semibold"
+                              onClick={() => remove(item.id)}
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                              Deactivate
+                            </Button>
                           )}
                         </div>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1"><Zap className="h-3 w-3 text-brand" /> {item.domain}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {item.capacity} slots</span>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={item.status === "cancelled" ? "destructive" : "outline"} className="capitalize">{item.status}</Badge>
-                        {item.status !== "cancelled" && (
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive opacity-0 transition-opacity group-hover:opacity-100" onClick={() => remove(item.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
 
-                    <p className="mt-4 text-sm text-muted-foreground line-clamp-2">{item.summary}</p>
+                      <p className="mt-4 text-sm text-muted-foreground line-clamp-2">
+                        {item.summary}
+                      </p>
 
-                    <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
-                      <div>
-                        <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Teams Allowed</span>
-                        <span className="font-semibold text-foreground">{item.teams_allowed || "No Limit"}</span>
+                      <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
+                            Teams Allowed
+                          </span>
+                          <span className="font-semibold text-foreground">
+                            {item.teams_allowed || "No Limit"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
+                            Members / Team
+                          </span>
+                          <span className="font-semibold text-foreground">
+                            {item.team_members_limit || "1"}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Members / Team</span>
-                        <span className="font-semibold text-foreground">{item.team_members_limit || "1"}</span>
-                      </div>
-                    </div>
 
-                    <div className="mt-6 grid grid-cols-3 gap-6 border-t border-border pt-6">
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Participation Rate</div>
-                        <div className="flex items-end gap-2">
-                          <span className="text-2xl font-bold text-foreground">{item.participantCount}</span>
-                          <span className="mb-1 text-xs text-muted-foreground">/ {item.capacity} students</span>
-                        </div>
-                        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                          <div
-                            className="h-full bg-brand transition-all duration-1000"
-                            style={{ width: `${Math.min((item.participantCount / item.capacity) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Interest</div>
-                        <div className="flex items-end gap-2">
-                          <span className="text-2xl font-bold text-foreground">{item.applicantCount}</span>
-                          <span className="mb-1 text-xs text-muted-foreground">/ {item.capacity} students</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Project Demand</div>
-                        <div className="flex items-end gap-1.5">
-                          <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-full border border-orange-500/20 shadow-[0_0_12px_rgba(249,115,22,0.15)] animate-pulse">
-                            <Flame className="h-4 w-4 fill-orange-500 text-orange-500" />
-                            <span className="text-base font-bold leading-none">{item.votes || 0}</span>
+                      <div className="mt-6 grid grid-cols-3 gap-6 border-t border-border pt-6">
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Participation Rate
                           </div>
-                          <span className="mb-0.5 text-xs text-muted-foreground">upvotes</span>
+                          <div className="flex items-end gap-2">
+                            <span className="text-2xl font-bold text-foreground">
+                              {item.participantCount}
+                            </span>
+                            <span className="mb-1 text-xs text-muted-foreground">
+                              / {item.capacity} students
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                            <div
+                              className="h-full bg-brand transition-all duration-1000"
+                              style={{
+                                width: `${Math.min((item.participantCount / item.capacity) * 100, 100)}%`,
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {item.institutes.length > 0 && (
-                      <div className="mt-6">
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Partnering Institutes</div>
-                        <div className="flex flex-wrap gap-2">
-                          {item.institutes.map((inst, idx) => (
-                            <Badge key={idx} variant="outline" className="bg-background/50 border-brand/20 py-1 text-[10px]">{inst}</Badge>
-                          ))}
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Total Interest
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <span className="text-2xl font-bold text-foreground">
+                              {item.applicantCount}
+                            </span>
+                            <span className="mb-1 text-xs text-muted-foreground">
+                              / {item.capacity} students
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    <div className="mt-6 rounded-xl bg-secondary/30 p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recent Applicants</h5>
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-[10px] text-brand hover:text-brand/80"
-                          onClick={() => setRosterProject(item)}
-                        >
-                          View Full Roster ({applications.filter(a => a.project_id === item.id).length})
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {applications.filter(a => a.project_id === item.id).slice(0, 3).map((app) => (
-                          <div key={app.id} className="rounded-lg border border-border/50 bg-background/60 p-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/20 text-[10px] font-bold text-brand uppercase">
-                                  {app.user_name?.[0] || "S"}
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-semibold">{app.user_name}</span>
-                                  <span className="text-[10px] text-muted-foreground">{app.user_institution}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="h-5 border-brand/30 px-1.5 text-[9px] capitalize">{app.status}</Badge>
-                                {app.submission_review_status && app.submission_review_status !== "not_submitted" && (
-                                  <Badge variant="outline" className="h-5 px-1.5 text-[9px] capitalize">
-                                    {app.submission_review_status.replace("_", " ")}
-                                  </Badge>
-                                )}
-                              </div>
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Project Demand
+                          </div>
+                          <div className="flex items-end gap-1.5">
+                            <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-full border border-orange-500/20 shadow-[0_0_12px_rgba(249,115,22,0.15)] animate-pulse">
+                              <Flame className="h-4 w-4 fill-orange-500 text-orange-500" />
+                              <span className="text-base font-bold leading-none">
+                                {item.votes || 0}
+                              </span>
                             </div>
+                            <span className="mb-0.5 text-xs text-muted-foreground">upvotes</span>
+                          </div>
+                        </div>
+                      </div>
 
-                            {app.submission && (
-                              <div className="mt-3 space-y-2 rounded-md bg-secondary/40 p-3">
-                                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Submission Review</div>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    asChild={Boolean(app.submission.live_url)}
-                                    size="sm"
-                                    variant="outline"
-                                    className={`h-7 px-2 text-[10px] ${app.submission.live_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
-                                    disabled={!app.submission.live_url}
-                                  >
-                                    {app.submission.live_url ? (
-                                      <a href={app.submission.live_url} target="_blank" rel="noreferrer">
-                                        Live URL <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
-                                      </a>
-                                    ) : (
-                                      <span>Live URL <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
-                                    )}
-                                  </Button>
-                                  <Button
-                                    asChild={Boolean(app.submission.github_url)}
-                                    size="sm"
-                                    variant="outline"
-                                    className={`h-7 px-2 text-[10px] ${app.submission.github_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
-                                    disabled={!app.submission.github_url}
-                                  >
-                                    {app.submission.github_url ? (
-                                      <a href={app.submission.github_url} target="_blank" rel="noreferrer">
-                                        GitHub <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
-                                      </a>
-                                    ) : (
-                                      <span>GitHub <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
-                                    )}
-                                  </Button>
-                                  <Button
-                                    asChild={Boolean(app.submission.screenshot_url)}
-                                    size="sm"
-                                    variant="outline"
-                                    className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
-                                    disabled={!app.submission.screenshot_url}
-                                  >
-                                    {app.submission.screenshot_url ? (
-                                      <a href={app.submission.screenshot_url} target="_blank" rel="noreferrer">
-                                        Screenshot <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
-                                      </a>
-                                    ) : (
-                                      <span>Screenshot <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
-                                    )}
-                                  </Button>
+                      {item.institutes.length > 0 && (
+                        <div className="mt-6">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                            Partnering Institutes
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {item.institutes.map((inst, idx) => (
+                              <Badge
+                                key={idx}
+                                variant="outline"
+                                className="bg-background/50 border-brand/20 py-1 text-[10px]"
+                              >
+                                {inst}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-6 rounded-xl bg-secondary/30 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Recent Applicants
+                          </h5>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-[10px] text-brand hover:text-brand/80"
+                            onClick={() => setRosterProject(item)}
+                          >
+                            View Full Roster (
+                            {applications.filter((a) => a.project_id === item.id).length})
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {applications
+                            .filter((a) => a.project_id === item.id)
+                            .slice(0, 3)
+                            .map((app) => (
+                              <div
+                                key={app.id}
+                                className="rounded-lg border border-border/50 bg-background/60 p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand/20 text-[10px] font-bold text-brand uppercase">
+                                      {app.user_name?.[0] || "S"}
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-semibold">{app.user_name}</span>
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {app.user_institution}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant="outline"
+                                      className="h-5 border-brand/30 px-1.5 text-[9px] capitalize"
+                                    >
+                                      {app.status}
+                                    </Badge>
+                                    {app.submission_review_status &&
+                                      app.submission_review_status !== "not_submitted" && (
+                                        <Badge
+                                          variant="outline"
+                                          className="h-5 px-1.5 text-[9px] capitalize"
+                                        >
+                                          {app.submission_review_status.replace("_", " ")}
+                                        </Badge>
+                                      )}
+                                  </div>
                                 </div>
-                                {app.submission.notes && (
-                                  <p className="text-[10px] text-muted-foreground">{app.submission.notes}</p>
+
+                                {app.submission && (
+                                  <div className="mt-3 space-y-2 rounded-md bg-secondary/40 p-3">
+                                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                      Submission Review
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        asChild={Boolean(app.submission.live_url)}
+                                        size="sm"
+                                        variant="outline"
+                                        className={`h-7 px-2 text-[10px] ${app.submission.live_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                        disabled={!app.submission.live_url}
+                                      >
+                                        {app.submission.live_url ? (
+                                          <a
+                                            href={app.submission.live_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            Live URL{" "}
+                                            <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                              ✓
+                                            </span>
+                                          </a>
+                                        ) : (
+                                          <span>
+                                            Live URL{" "}
+                                            <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                              ✗
+                                            </span>
+                                          </span>
+                                        )}
+                                      </Button>
+                                      <Button
+                                        asChild={Boolean(app.submission.github_url)}
+                                        size="sm"
+                                        variant="outline"
+                                        className={`h-7 px-2 text-[10px] ${app.submission.github_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                        disabled={!app.submission.github_url}
+                                      >
+                                        {app.submission.github_url ? (
+                                          <a
+                                            href={app.submission.github_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            GitHub{" "}
+                                            <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                              ✓
+                                            </span>
+                                          </a>
+                                        ) : (
+                                          <span>
+                                            GitHub{" "}
+                                            <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                              ✗
+                                            </span>
+                                          </span>
+                                        )}
+                                      </Button>
+                                      <Button
+                                        asChild={Boolean(app.submission.screenshot_url)}
+                                        size="sm"
+                                        variant="outline"
+                                        className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                        disabled={!app.submission.screenshot_url}
+                                      >
+                                        {app.submission.screenshot_url ? (
+                                          <a
+                                            href={app.submission.screenshot_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            Screenshot{" "}
+                                            <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                              ✓
+                                            </span>
+                                          </a>
+                                        ) : (
+                                          <span>
+                                            Screenshot{" "}
+                                            <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                              ✗
+                                            </span>
+                                          </span>
+                                        )}
+                                      </Button>
+                                    </div>
+                                    {app.submission.notes && (
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {app.submission.notes}
+                                      </p>
+                                    )}
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="h-7 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                                        disabled={updatingApplicationId === app.id}
+                                        onClick={() =>
+                                          updateSubmissionReviewStatus(app.id, "passed")
+                                        }
+                                      >
+                                        Mark Passed
+                                      </Button>
+                                      {app.submission_review_status !== "passed" && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 px-2 text-[10px]"
+                                          disabled={updatingApplicationId === app.id}
+                                          onClick={() =>
+                                            updateSubmissionReviewStatus(app.id, "needs_changes")
+                                          }
+                                        >
+                                          Needs Changes
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    size="sm"
-                                    className="h-7 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
-                                    disabled={updatingApplicationId === app.id}
-                                    onClick={() => updateSubmissionReviewStatus(app.id, "passed")}
-                                  >
-                                    Mark Passed
-                                  </Button>
-                                  {app.submission_review_status !== "passed" && (
+
+                                {app.status === "pending" && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-7 px-2 text-[10px]"
+                                      className="h-6 px-2 text-[10px]"
                                       disabled={updatingApplicationId === app.id}
-                                      onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
+                                      onClick={() => updateApplicationStatus(app.id, "shortlisted")}
                                     >
-                                      Needs Changes
+                                      Shortlist
                                     </Button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
+                                    <Button
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                                      disabled={updatingApplicationId === app.id}
+                                      onClick={() => updateApplicationStatus(app.id, "accepted")}
+                                    >
+                                      Accept
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="h-6 px-2 text-[10px]"
+                                      disabled={updatingApplicationId === app.id}
+                                      onClick={() => updateApplicationStatus(app.id, "rejected")}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                )}
 
-                            {app.status === "pending" && (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 px-2 text-[10px]"
-                                  disabled={updatingApplicationId === app.id}
-                                  onClick={() => updateApplicationStatus(app.id, "shortlisted")}
-                                >
-                                  Shortlist
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
-                                  disabled={updatingApplicationId === app.id}
-                                  onClick={() => updateApplicationStatus(app.id, "accepted")}
-                                >
-                                  Accept
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="h-6 px-2 text-[10px]"
-                                  disabled={updatingApplicationId === app.id}
-                                  onClick={() => updateApplicationStatus(app.id, "rejected")}
-                                >
-                                  Reject
-                                </Button>
+                                {app.status === "shortlisted" && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
+                                      disabled={updatingApplicationId === app.id}
+                                      onClick={() => updateApplicationStatus(app.id, "accepted")}
+                                    >
+                                      Accept
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="h-6 px-2 text-[10px]"
+                                      disabled={updatingApplicationId === app.id}
+                                      onClick={() => updateApplicationStatus(app.id, "rejected")}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-
-                            {app.status === "shortlisted" && (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px] bg-success text-primary-foreground hover:bg-success/90"
-                                  disabled={updatingApplicationId === app.id}
-                                  onClick={() => updateApplicationStatus(app.id, "accepted")}
-                                >
-                                  Accept
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="h-6 px-2 text-[10px]"
-                                  disabled={updatingApplicationId === app.id}
-                                  onClick={() => updateApplicationStatus(app.id, "rejected")}
-                                >
-                                  Reject
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        {applications.filter(a => a.project_id === item.id).length === 0 && (
-                          <div className="py-2 text-center text-[10px] italic text-muted-foreground">No student applications recorded yet.</div>
-                        )}
-                        {applications.filter(a => a.project_id === item.id).length > 3 && (
-                          <p
-                            className="mt-2 text-center text-[10px] font-medium text-brand cursor-pointer hover:underline"
-                            onClick={() => setRosterProject(item)}
-                          >
-                            + {applications.filter(a => a.project_id === item.id).length - 3} more student applications (Click to view)
-                          </p>
-                        )}
+                            ))}
+                          {applications.filter((a) => a.project_id === item.id).length === 0 && (
+                            <div className="py-2 text-center text-[10px] italic text-muted-foreground">
+                              No student applications recorded yet.
+                            </div>
+                          )}
+                          {applications.filter((a) => a.project_id === item.id).length > 3 && (
+                            <p
+                              className="mt-2 text-center text-[10px] font-medium text-brand cursor-pointer hover:underline"
+                              onClick={() => setRosterProject(item)}
+                            >
+                              + {applications.filter((a) => a.project_id === item.id).length - 3}{" "}
+                              more student applications (Click to view)
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))
-              }
+                  </Card>
+                ))}
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="library" className="m-0 p-0">
           <div className="grid gap-6 lg:grid-cols-3">
-            {PROJECT_TEMPLATES.map((template) => (
-              <Card key={template.title} className="group relative overflow-hidden border-border p-0 transition-all hover:border-brand/40 hover:shadow-lg">
+            {PROJECT_TEMPLATES.map((template) => {
+              const isActive = projects.some((p) => p.title === template.title && p.status !== "cancelled");
+              return (
+                <Card
+                key={template.title}
+                className="group relative overflow-hidden border-border p-0 transition-all hover:border-brand/40 hover:shadow-lg"
+              >
                 <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 <div className="relative p-6">
                   <div className="flex items-start justify-between gap-4">
@@ -1843,42 +2742,139 @@ function ScopeProjectsManager() {
                         <Badge className="bg-brand/10 text-brand text-[10px]">Template</Badge>
                       </div>
                       <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Zap className="h-3 w-3 text-brand" /> {template.domain}</span>
+                        <span className="flex items-center gap-1">
+                          <Zap className="h-3 w-3 text-brand" /> {template.domain}
+                        </span>
                         <span>•</span>
-                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {template.level}</span>
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" /> {template.level}
+                        </span>
                       </div>
                     </div>
-                    <Button size="sm" variant="default" onClick={() => activateTemplate(template)} disabled={saving}>
-                      {saving ? "Activating..." : "Activate"}
-                    </Button>
                   </div>
 
-                  <p className="mt-4 text-sm text-muted-foreground line-clamp-2">Deliverables include {template.deliverables.toLowerCase()}. Progress will be monitored via {template.reporting.toLowerCase()}.</p>
+                  <p className="mt-4 text-sm text-muted-foreground line-clamp-2">
+                    Deliverables include {template.deliverables.toLowerCase()}. Progress will be
+                    monitored via {template.reporting.toLowerCase()}.
+                  </p>
 
                   <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
                     <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Duration</span>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
+                        Duration
+                      </span>
                       <span className="font-semibold text-foreground">{template.duration}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Team Size</span>
-                      <span className="font-semibold text-foreground">{template.team_structure}</span>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
+                        Team Size
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {template.team_structure}
+                      </span>
                     </div>
                   </div>
 
                   <div className="mt-6 grid grid-cols-2 gap-6 border-t border-border pt-6">
                     <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Deliverables</div>
-                      <div className="text-sm font-semibold text-foreground">{template.deliverables}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Deliverables
+                      </div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {template.deliverables}
+                      </div>
                     </div>
                     <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Rewards</div>
-                      <div className="text-sm font-semibold text-foreground">{template.rewards}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Rewards
+                      </div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {template.rewards}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-border/60 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Set Stake
+                        </span>
+                        <div className="flex items-center bg-background border border-border/80 hover:border-brand/40 focus-within:border-brand/50 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all">
+                          <input
+                            type="number"
+                            min={0}
+                            value={templateXpStakes[template.title] ?? 50}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value) || 0);
+                              setTemplateXpStakes((prev) => ({ ...prev, [template.title]: val }));
+                              setTemplateRewardXps((prev) => ({
+                                ...prev,
+                                [template.title]: Math.round(val * 1.5),
+                              }));
+                            }}
+                            className="w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-[9px] font-bold text-muted-foreground shrink-0">
+                            XP
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Set Reward
+                        </span>
+                        <div className="flex items-center bg-background border border-border/80 hover:border-brand/40 focus-within:border-brand/50 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all">
+                          <input
+                            type="number"
+                            min={0}
+                            value={
+                              templateRewardXps[template.title] ??
+                              Math.round((templateXpStakes[template.title] ?? 50) * 1.5)
+                            }
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value) || 0);
+                              setTemplateRewardXps((prev) => ({ ...prev, [template.title]: val }));
+                            }}
+                            className="w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-[9px] font-bold text-muted-foreground shrink-0">
+                            XP
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Project Mode
+                        </span>
+                        <div className="flex items-center gap-1.5 h-7 mt-0.5">
+                          <span className={`text-[9px] font-bold transition-colors duration-200 ${!(templateIsTeam[template.title] ?? true) ? "text-foreground" : "text-muted-foreground"}`}>Solo</span>
+                          <Switch
+                            checked={templateIsTeam[template.title] ?? true}
+                            disabled={isActive}
+                            onCheckedChange={(checked) =>
+                              setTemplateIsTeam((prev) => ({ ...prev, [template.title]: checked }))
+                            }
+                          />
+                          <span className={`text-[9px] font-bold transition-colors duration-200 ${(templateIsTeam[template.title] ?? true) ? "text-brand" : "text-muted-foreground"}`}>Team</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className={`text-xs font-semibold ${isActive ? "text-brand" : "text-muted-foreground"}`}>
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                      <Switch
+                        checked={isActive}
+                        onCheckedChange={(checked) => handleTemplateToggle(template, checked)}
+                        disabled={saving}
+                      />
                     </div>
                   </div>
                 </div>
               </Card>
-            ))}
+            );
+            })}
           </div>
         </TabsContent>
 
@@ -1890,11 +2886,19 @@ function ScopeProjectsManager() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Title *</Label>
-                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Project title" />
+                  <Input
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    placeholder="Project title"
+                  />
                 </div>
                 <div>
                   <Label>Domain</Label>
-                  <select value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <select
+                    value={form.domain}
+                    onChange={(e) => setForm({ ...form, domain: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
                     <option value="Software">Software</option>
                     <option value="Hardware">Hardware</option>
                     <option value="Research">Research</option>
@@ -1904,25 +2908,75 @@ function ScopeProjectsManager() {
               </div>
               <div>
                 <Label>Summary *</Label>
-                <Textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="Brief project overview" rows={2} />
+                <Textarea
+                  value={form.summary}
+                  onChange={(e) => setForm({ ...form, summary: e.target.value })}
+                  placeholder="Brief project overview"
+                  rows={2}
+                />
               </div>
               <div>
                 <Label>Description</Label>
-                <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detailed project description" rows={3} />
+                <Textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Detailed project description"
+                  rows={3}
+                />
               </div>
+              <div className="flex items-center justify-between rounded-lg border border-border/85 p-3.5 bg-secondary/5 shadow-sm transition-all hover:bg-secondary/10">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-bold text-foreground">Project Collaboration Mode</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Choose whether students build individually (Solo) or collaborate in teams.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold transition-colors duration-200 ${!customIsTeam ? "text-foreground" : "text-muted-foreground"}`}>Individual</span>
+                  <Switch
+                    checked={customIsTeam}
+                    onCheckedChange={setCustomIsTeam}
+                  />
+                  <span className={`text-xs font-semibold transition-colors duration-200 ${customIsTeam ? "text-brand" : "text-muted-foreground"}`}>Team</span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-4">
-                <div>
+                <div className={customIsTeam ? "" : "col-span-3"}>
                   <Label>Capacity</Label>
-                  <Input type="number" min={1} value={form.capacity} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) || 1 })} />
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.capacity}
+                    onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) || 1 })}
+                  />
                 </div>
-                <div>
-                  <Label>Teams Allowed</Label>
-                  <Input type="number" min={1} value={form.teams_allowed} onChange={(e) => setForm({ ...form, teams_allowed: Number(e.target.value) || 1 })} />
-                </div>
-                <div>
-                  <Label>Members / Team</Label>
-                  <Input type="number" min={1} value={form.team_members_limit} onChange={(e) => setForm({ ...form, team_members_limit: Number(e.target.value) || 1 })} />
-                </div>
+                {customIsTeam && (
+                  <>
+                    <div>
+                      <Label>Teams Allowed</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={form.teams_allowed}
+                        onChange={(e) =>
+                          setForm({ ...form, teams_allowed: Number(e.target.value) || 1 })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Members / Team</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={form.team_members_limit}
+                        onChange={(e) =>
+                          setForm({ ...form, team_members_limit: Number(e.target.value) || 1 })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1934,20 +2988,63 @@ function ScopeProjectsManager() {
                   >
                     <option value="">All Institutions</option>
                     {institutions.map((inst) => (
-                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "open" | "closed" | "draft" })} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <select
+                    value={form.status}
+                    onChange={(e) =>
+                      setForm({ ...form, status: e.target.value as "open" | "closed" | "draft" })
+                    }
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
                     <option value="open">Open</option>
                     <option value="closed">Closed</option>
                     <option value="draft">Draft</option>
                   </select>
                 </div>
               </div>
-              <Button type="submit" disabled={saving} className="bg-gradient-brand text-brand-foreground justify-self-end">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>XP Commitment Stake (Standard: 50 XP) *</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.xp_commitment_stake}
+                    onChange={(e) => {
+                      const val = Math.max(0, Number(e.target.value) || 0);
+                      setForm({
+                        ...form,
+                        xp_commitment_stake: val,
+                        reward_pool_xp: Math.round(val * 1.5),
+                      });
+                    }}
+                    placeholder="e.g. 50"
+                  />
+                </div>
+                <div>
+                  <Label>Reward Pool XP (Recommended: 1.5x stake, custom allowed) *</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.reward_pool_xp}
+                    onChange={(e) =>
+                      setForm({ ...form, reward_pool_xp: Math.max(0, Number(e.target.value) || 0) })
+                    }
+                    placeholder="e.g. 75"
+                  />
+                </div>
+              </div>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-gradient-brand text-brand-foreground justify-self-end"
+              >
                 {saving ? "Saving..." : "Create Project"}
               </Button>
             </form>
@@ -1997,7 +3094,12 @@ function ProjectRosterDialog({
   });
 
   return (
-    <Dialog open={Boolean(project)} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={Boolean(project)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader className="px-1 pt-1">
           <DialogTitle className="flex items-center gap-2 text-lg">
@@ -2050,17 +3152,21 @@ function ProjectRosterDialog({
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-sm truncate">{app.user_name}</span>
-                      <Badge variant="outline" className="h-5 text-[9px] capitalize border-brand/30 px-1.5">
+                      <Badge
+                        variant="outline"
+                        className="h-5 text-[9px] capitalize border-brand/30 px-1.5"
+                      >
                         {app.status}
                       </Badge>
-                      {app.submission_review_status && app.submission_review_status !== "not_submitted" && (
-                        <Badge
-                          variant="outline"
-                          className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-1.5"
-                        >
-                          {app.submission_review_status.replace("_", " ")}
-                        </Badge>
-                      )}
+                      {app.submission_review_status &&
+                        app.submission_review_status !== "not_submitted" && (
+                          <Badge
+                            variant="outline"
+                            className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-1.5"
+                          >
+                            {app.submission_review_status.replace("_", " ")}
+                          </Badge>
+                        )}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
                       {app.user_institution} · {app.user_email || "No email"}
@@ -2079,54 +3185,85 @@ function ProjectRosterDialog({
                             asChild={Boolean(app.submission.live_url)}
                             size="sm"
                             variant="outline"
-                            className={`h-7 px-2 text-[10px] ${app.submission.live_url
-                              ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                              : "opacity-50 cursor-not-allowed bg-muted"
-                              }`}
+                            className={`h-7 px-2 text-[10px] ${
+                              app.submission.live_url
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                : "opacity-50 cursor-not-allowed bg-muted"
+                            }`}
                             disabled={!app.submission.live_url}
                           >
                             {app.submission.live_url ? (
                               <a href={app.submission.live_url} target="_blank" rel="noreferrer">
-                                Live URL <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                                Live URL{" "}
+                                <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                  ✓
+                                </span>
                               </a>
                             ) : (
-                              <span>Live URL <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                              <span>
+                                Live URL{" "}
+                                <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                  ✗
+                                </span>
+                              </span>
                             )}
                           </Button>
                           <Button
                             asChild={Boolean(app.submission.github_url)}
                             size="sm"
                             variant="outline"
-                            className={`h-7 px-2 text-[10px] ${app.submission.github_url
-                              ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                              : "opacity-50 cursor-not-allowed bg-muted"
-                              }`}
+                            className={`h-7 px-2 text-[10px] ${
+                              app.submission.github_url
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                : "opacity-50 cursor-not-allowed bg-muted"
+                            }`}
                             disabled={!app.submission.github_url}
                           >
                             {app.submission.github_url ? (
                               <a href={app.submission.github_url} target="_blank" rel="noreferrer">
-                                GitHub <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                                GitHub{" "}
+                                <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                  ✓
+                                </span>
                               </a>
                             ) : (
-                              <span>GitHub <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                              <span>
+                                GitHub{" "}
+                                <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                  ✗
+                                </span>
+                              </span>
                             )}
                           </Button>
                           <Button
                             asChild={Boolean(app.submission.screenshot_url)}
                             size="sm"
                             variant="outline"
-                            className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url
-                              ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
-                              : "opacity-50 cursor-not-allowed bg-muted"
-                              }`}
+                            className={`h-7 px-2 text-[10px] ${
+                              app.submission.screenshot_url
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                : "opacity-50 cursor-not-allowed bg-muted"
+                            }`}
                             disabled={!app.submission.screenshot_url}
                           >
                             {app.submission.screenshot_url ? (
-                              <a href={app.submission.screenshot_url} target="_blank" rel="noreferrer">
-                                Screenshot <span className="ml-1 text-[9px] text-emerald-500 font-bold">✓</span>
+                              <a
+                                href={app.submission.screenshot_url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Screenshot{" "}
+                                <span className="ml-1 text-[9px] text-emerald-500 font-bold">
+                                  ✓
+                                </span>
                               </a>
                             ) : (
-                              <span>Screenshot <span className="ml-1 text-[9px] text-muted-foreground font-bold">✗</span></span>
+                              <span>
+                                Screenshot{" "}
+                                <span className="ml-1 text-[9px] text-muted-foreground font-bold">
+                                  ✗
+                                </span>
+                              </span>
                             )}
                           </Button>
                         </div>
@@ -2158,7 +3295,9 @@ function ProjectRosterDialog({
                         </div>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground italic">No submission uploaded yet</span>
+                      <span className="text-[10px] text-muted-foreground italic">
+                        No submission uploaded yet
+                      </span>
                     )}
 
                     {/* Action buttons */}
@@ -2227,7 +3366,17 @@ function ProjectRosterDialog({
   );
 }
 
-function KpiCard({ label, value, icon: Icon, accent = false }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; accent?: boolean }) {
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  accent = false,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  accent?: boolean;
+}) {
   return (
     <Card className={`relative overflow-hidden p-4 ${accent ? "border-brand/30" : ""}`}>
       <div className="flex items-center justify-between">
@@ -2243,7 +3392,8 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
   const firstInstitution = institutions[0];
   const [loading, setLoading] = useState(false);
   const [institutionId, setInstitutionId] = useState(firstInstitution?.id ?? "");
-  const selected = institutions.find((institution) => institution.id === institutionId) ?? firstInstitution;
+  const selected =
+    institutions.find((institution) => institution.id === institutionId) ?? firstInstitution;
   const eligible = selected?.stage === "Launch Pending";
   const [form, setForm] = useState({
     name: firstInstitution ? `${firstInstitution.name} Admin` : "",
@@ -2310,9 +3460,15 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-bold">Create Institution Login</h3>
-          <p className="text-xs text-muted-foreground">Creates an institution_admin account linked to an assigned institution.</p>
+          <p className="text-xs text-muted-foreground">
+            Creates an institution_admin account linked to an assigned institution.
+          </p>
         </div>
-        {selected && <Badge variant={eligible ? "default" : "outline"}>{eligible ? "Launch Pending" : `${selected.stage}: locked`}</Badge>}
+        {selected && (
+          <Badge variant={eligible ? "default" : "outline"}>
+            {eligible ? "Launch Pending" : `${selected.stage}: locked`}
+          </Badge>
+        )}
       </div>
       <form onSubmit={submit} className="mt-4 grid gap-3 lg:grid-cols-5">
         <div className="lg:col-span-2">
@@ -2324,27 +3480,51 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
           >
             {institutions.length === 0 && <option value="">No institutions</option>}
             {institutions.map((institution) => (
-              <option key={institution.id} value={institution.id}>{institution.name}</option>
+              <option key={institution.id} value={institution.id}>
+                {institution.name}
+              </option>
             ))}
           </select>
         </div>
         <div>
           <Label>Admin name</Label>
-          <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5" />
+          <Input
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            className="mt-1.5"
+          />
         </div>
         <div>
           <Label>Username / email</Label>
-          <Input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1.5" />
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(event) => setForm({ ...form, email: event.target.value })}
+            className="mt-1.5"
+          />
         </div>
         <div>
           <Label>Password</Label>
-          <Input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1.5" />
+          <Input
+            type="password"
+            value={form.password}
+            onChange={(event) => setForm({ ...form, password: event.target.value })}
+            className="mt-1.5"
+          />
         </div>
         <div className="lg:col-span-5">
-          <Button type="submit" disabled={loading || !selected || !eligible} className="bg-gradient-brand text-brand-foreground">
+          <Button
+            type="submit"
+            disabled={loading || !selected || !eligible}
+            className="bg-gradient-brand text-brand-foreground"
+          >
             {loading ? "Creating..." : "Create linked account"}
           </Button>
-          {!eligible && selected && <p className="mt-2 text-xs text-muted-foreground">Institution login unlocks only when the institution reaches Launch Pending.</p>}
+          {!eligible && selected && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Institution login unlocks only when the institution reaches Launch Pending.
+            </p>
+          )}
         </div>
       </form>
     </Card>
@@ -2353,23 +3533,42 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
 
 function PipelineBoard({ institutions }: { institutions: Institution[] }) {
   const [filter, setFilter] = useState<PipelineStage | "all">("all");
-  const filtered = filter === "all" ? institutions : institutions.filter(i => i.stage === filter);
+  const filtered = filter === "all" ? institutions : institutions.filter((i) => i.stage === filter);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>All ({institutions.length})</Button>
-        {PIPELINE_STAGES.map(s => {
-          const count = institutions.filter(i => i.stage === s).length;
+        <Button
+          size="sm"
+          variant={filter === "all" ? "default" : "outline"}
+          onClick={() => setFilter("all")}
+        >
+          All ({institutions.length})
+        </Button>
+        {PIPELINE_STAGES.map((s) => {
+          const count = institutions.filter((i) => i.stage === s).length;
           if (count === 0) return null;
-          return <Button key={s} size="sm" variant={filter === s ? "default" : "outline"} onClick={() => setFilter(s)}>{s} ({count})</Button>;
+          return (
+            <Button
+              key={s}
+              size="sm"
+              variant={filter === s ? "default" : "outline"}
+              onClick={() => setFilter(s)}
+            >
+              {s} ({count})
+            </Button>
+          );
         })}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map(i => <InstitutionCard key={i.id} inst={i} />)}
+        {filtered.map((i) => (
+          <InstitutionCard key={i.id} inst={i} />
+        ))}
         {filtered.length === 0 && (
-          <Card className="col-span-full p-8 text-center text-sm text-muted-foreground">No institutions in this stage yet.</Card>
+          <Card className="col-span-full p-8 text-center text-sm text-muted-foreground">
+            No institutions in this stage yet.
+          </Card>
         )}
       </div>
     </div>
@@ -2391,23 +3590,67 @@ function InstitutionCard({ inst }: { inst: Institution }) {
         <Badge className={STAGE_COLORS[stage]}>{stage}</Badge>
       </div>
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> {inst.phone}</div>
-        <div className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> {inst.email}</div>
-        <div className="flex items-center gap-1.5"><Star className="h-3 w-3 text-brand" /> Priority {inst.priority} · ₹{(inst.potentialValue / 1000).toFixed(0)}k potential</div>
+        <div className="flex items-center gap-1.5">
+          <Phone className="h-3 w-3" /> {inst.phone}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Mail className="h-3 w-3" /> {inst.email}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Star className="h-3 w-3 text-brand" /> Priority {inst.priority} · ₹
+          {(inst.potentialValue / 1000).toFixed(0)}k potential
+        </div>
       </div>
-      {inst.notes && <p className="mt-2 line-clamp-2 rounded-md bg-secondary/40 p-2 text-xs">{inst.notes}</p>}
+      {inst.notes && (
+        <p className="mt-2 line-clamp-2 rounded-md bg-secondary/40 p-2 text-xs">{inst.notes}</p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Select value={stage} onValueChange={(v) => { setStage(v as PipelineStage); crm.moveStage(inst.id, v as PipelineStage); toast.success(`Moved to ${v}`); }}>
-          <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>{PIPELINE_STAGES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
+        <Select
+          value={stage}
+          onValueChange={(v) => {
+            setStage(v as PipelineStage);
+            crm.moveStage(inst.id, v as PipelineStage);
+            toast.success(`Moved to ${v}`);
+          }}
+        >
+          <SelectTrigger className="h-8 flex-1 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PIPELINE_STAGES.map((s) => (
+              <SelectItem key={s} value={s} className="text-xs">
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
         <Dialog>
-          <DialogTrigger asChild><Button size="sm" variant="outline" className="h-8">Notes</Button></DialogTrigger>
+          <DialogTrigger asChild>
+            <Button size="sm" variant="outline" className="h-8">
+              Notes
+            </Button>
+          </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>{inst.name}</DialogTitle></DialogHeader>
-            <p className="whitespace-pre-wrap text-sm text-muted-foreground">{inst.notes || "No notes yet."}</p>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note..." />
-            <Button onClick={() => { crm.addNote(inst.id, note); setNote(""); toast.success("Note added"); }}>Add note</Button>
+            <DialogHeader>
+              <DialogTitle>{inst.name}</DialogTitle>
+            </DialogHeader>
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+              {inst.notes || "No notes yet."}
+            </p>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add a note..."
+            />
+            <Button
+              onClick={() => {
+                crm.addNote(inst.id, note);
+                setNote("");
+                toast.success("Note added");
+              }}
+            >
+              Add note
+            </Button>
           </DialogContent>
         </Dialog>
       </div>
@@ -2417,14 +3660,35 @@ function InstitutionCard({ inst }: { inst: Institution }) {
 
 function NewLeadDialog({ ownerId }: { ownerId: string }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", city: "", state: "West Bengal", contactPerson: "", phone: "", email: "" });
+  const [form, setForm] = useState({
+    name: "",
+    city: "",
+    state: "West Bengal",
+    contactPerson: "",
+    phone: "",
+    email: "",
+  });
   const submit = () => {
-    if (!form.name || !form.city) { toast.error("Name and city required"); return; }
+    if (!form.name || !form.city) {
+      toast.error("Name and city required");
+      return;
+    }
     crm.upsertInstitution({
       id: `i${Date.now()}`,
-      name: form.name, type: "Other", city: form.city, state: form.state,
-      contactPerson: form.contactPerson, designation: "", phone: form.phone, email: form.email,
-      ownerId, priority: 3, potentialValue: 100000, stage: "Prospect", notes: "", updatedAt: Date.now(),
+      name: form.name,
+      type: "Other",
+      city: form.city,
+      state: form.state,
+      contactPerson: form.contactPerson,
+      designation: "",
+      phone: form.phone,
+      email: form.email,
+      ownerId,
+      priority: 3,
+      potentialValue: 100000,
+      stage: "Prospect",
+      notes: "",
+      updatedAt: Date.now(),
     });
     toast.success("Lead added");
     setOpen(false);
@@ -2432,57 +3696,154 @@ function NewLeadDialog({ ownerId }: { ownerId: string }) {
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button className="bg-gradient-brand text-brand-foreground"><Plus className="mr-1 h-4 w-4" /> Add Lead</Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <Button className="bg-gradient-brand text-brand-foreground">
+          <Plus className="mr-1 h-4 w-4" /> Add Lead
+        </Button>
+      </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>New institution lead</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>New institution lead</DialogTitle>
+        </DialogHeader>
         <div className="grid gap-3">
-          <div><Label>Institution name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
-            <div><Label>State</Label><Input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
+          <div>
+            <Label>Institution name</Label>
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
-          <div><Label>Contact person</Label><Input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+            <div>
+              <Label>City</Label>
+              <Input
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>State</Label>
+              <Input
+                value={form.state}
+                onChange={(e) => setForm({ ...form, state: e.target.value })}
+              />
+            </div>
           </div>
-          <Button onClick={submit} className="bg-gradient-brand text-brand-foreground">Save lead</Button>
+          <div>
+            <Label>Contact person</Label>
+            <Input
+              value={form.contactPerson}
+              onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Phone</Label>
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+          </div>
+          <Button onClick={submit} className="bg-gradient-brand text-brand-foreground">
+            Save lead
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function VisitPlanner({ visits, institutions, ownerId }: { visits: ReturnType<typeof crm.visits>; institutions: Institution[]; ownerId: string }) {
+function VisitPlanner({
+  visits,
+  institutions,
+  ownerId,
+}: {
+  visits: ReturnType<typeof crm.visits>;
+  institutions: Institution[];
+  ownerId: string;
+}) {
   const today = new Date().toISOString().slice(0, 10);
-  const todayVisits = visits.filter(v => v.date === today && (v.status === "scheduled" || v.status === "checked_in"));
-  const upcoming = visits.filter(v => v.date > today).sort((a, b) => a.date.localeCompare(b.date));
+  const todayVisits = visits.filter(
+    (v) => v.date === today && (v.status === "scheduled" || v.status === "checked_in"),
+  );
+  const upcoming = visits
+    .filter((v) => v.date > today)
+    .sort((a, b) => a.date.localeCompare(b.date));
   const [pickInst, setPickInst] = useState("");
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("10:00");
 
-  const find = (id: string) => institutions.find(i => i.id === id);
+  const find = (id: string) => institutions.find((i) => i.id === id);
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="p-4 lg:col-span-2">
         <h3 className="text-sm font-bold">Today's visits</h3>
         <div className="mt-3 space-y-2">
-          {todayVisits.length === 0 && <p className="text-sm text-muted-foreground">No visits scheduled today.</p>}
-          {todayVisits.map(v => {
+          {todayVisits.length === 0 && (
+            <p className="text-sm text-muted-foreground">No visits scheduled today.</p>
+          )}
+          {todayVisits.map((v) => {
             const i = find(v.institutionId);
             if (!i) return null;
             return (
-              <div key={v.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div
+                key={v.id}
+                className="flex items-center justify-between rounded-lg border border-border p-3"
+              >
                 <div>
                   <div className="text-sm font-semibold">{i.name}</div>
-                  <div className="text-xs text-muted-foreground">{v.time} · {i.city}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {v.time} · {i.city}
+                  </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" asChild><a target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/${encodeURIComponent(i.name + " " + i.city)}`}><MapPin className="mr-1 h-3 w-3" /> Map</a></Button>
-                  <Button size="sm" onClick={() => { crm.setVisitStatus(v.id, "checked_in"); toast.success("Checked in"); }}>Check-in</Button>
-                  <Button size="sm" variant="secondary" onClick={() => { crm.setVisitStatus(v.id, "completed"); toast.success("Marked complete"); }}>Complete</Button>
-                  <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => { if (confirm("Delete this visit?")) { crm.deleteVisit(v.id); toast.success("Visit deleted"); } }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <a
+                      target="_blank"
+                      rel="noreferrer"
+                      href={`https://www.google.com/maps/search/${encodeURIComponent(i.name + " " + i.city)}`}
+                    >
+                      <MapPin className="mr-1 h-3 w-3" /> Map
+                    </a>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      crm.setVisitStatus(v.id, "checked_in");
+                      toast.success("Checked in");
+                    }}
+                  >
+                    Check-in
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      crm.setVisitStatus(v.id, "completed");
+                      toast.success("Marked complete");
+                    }}
+                  >
+                    Complete
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm("Delete this visit?")) {
+                        crm.deleteVisit(v.id);
+                        toast.success("Visit deleted");
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
             );
@@ -2490,23 +3851,42 @@ function VisitPlanner({ visits, institutions, ownerId }: { visits: ReturnType<ty
         </div>
         <h3 className="mt-6 text-sm font-bold">Upcoming</h3>
         <div className="mt-3 space-y-2">
-          {upcoming.slice(0, 6).map(v => {
+          {upcoming.slice(0, 6).map((v) => {
             const i = find(v.institutionId);
             if (!i) return null;
             return (
-              <div key={v.id} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+              <div
+                key={v.id}
+                className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"
+              >
                 <div>
                   <div className="font-semibold">{i.name}</div>
-                  <div className="text-xs text-muted-foreground">{v.date} · {v.time}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {v.date} · {v.time}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{v.status}</Badge>
-                  <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => { if (confirm("Delete this upcoming visit?")) { crm.deleteVisit(v.id); toast.success("Visit deleted"); } }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm("Delete this upcoming visit?")) {
+                        crm.deleteVisit(v.id);
+                        toast.success("Visit deleted");
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
             );
           })}
-          {upcoming.length === 0 && <p className="text-sm text-muted-foreground">No upcoming visits.</p>}
+          {upcoming.length === 0 && (
+            <p className="text-sm text-muted-foreground">No upcoming visits.</p>
+          )}
         </div>
       </Card>
       <Card className="p-4">
@@ -2515,20 +3895,42 @@ function VisitPlanner({ visits, institutions, ownerId }: { visits: ReturnType<ty
           <div>
             <Label>Institution</Label>
             <Select value={pickInst} onValueChange={setPickInst}>
-              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>{institutions.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
+              <SelectTrigger>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {institutions.map((i) => (
+                  <SelectItem key={i.id} value={i.id}>
+                    {i.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label>Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-            <div><Label>Time</Label><Input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></div>
+            <div>
+              <Label>Date</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>Time</Label>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            </div>
           </div>
-          <Button className="bg-gradient-brand text-brand-foreground" onClick={() => {
-            if (!pickInst) { toast.error("Pick institution"); return; }
-            crm.scheduleVisit({ institutionId: pickInst, date, time, ownerId });
-            toast.success("Visit scheduled");
-            setPickInst("");
-          }}>Schedule</Button>
+          <Button
+            className="bg-gradient-brand text-brand-foreground"
+            onClick={() => {
+              if (!pickInst) {
+                toast.error("Pick institution");
+                return;
+              }
+              crm.scheduleVisit({ institutionId: pickInst, date, time, ownerId });
+              toast.success("Visit scheduled");
+              setPickInst("");
+            }}
+          >
+            Schedule
+          </Button>
         </div>
       </Card>
     </div>
@@ -2541,7 +3943,9 @@ function ProposalCenter({ institutions }: { institutions: Institution[] }) {
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="p-5">
         <h3 className="text-sm font-bold">Quick actions</h3>
-        <p className="mt-1 text-xs text-muted-foreground italic mb-4">Upload documents once to send them to any institution.</p>
+        <p className="mt-1 text-xs text-muted-foreground italic mb-4">
+          Upload documents once to send them to any institution.
+        </p>
         <div className="space-y-3">
           <FileUploadAction kind="brochure" label="Upload Brochure" icon={Upload} />
           <FileUploadAction kind="proposal" label="Upload Proposal" icon={FileUp} />
@@ -2549,7 +3953,9 @@ function ProposalCenter({ institutions }: { institutions: Institution[] }) {
           <FileUploadAction kind="mou" label="Upload MoU Draft" icon={FileText} />
         </div>
         <div className="mt-6 border-t border-border pt-4">
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Library (Recent Uploads)</h4>
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Library (Recent Uploads)
+          </h4>
           <div className="mt-2 space-y-1">
             <RecentUploadsList />
           </div>
@@ -2558,11 +3964,13 @@ function ProposalCenter({ institutions }: { institutions: Institution[] }) {
       <Card className="p-5 lg:col-span-2">
         <h3 className="text-sm font-bold">Tracking</h3>
         <div className="mt-3 divide-y divide-border max-h-[500px] overflow-y-auto pr-2">
-          {tracked.map(i => (
+          {tracked.map((i) => (
             <div key={i.id} className="flex items-center justify-between py-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold truncate">{i.name}</div>
-                <div className="text-xs text-muted-foreground truncate">{i.contactPerson} · {i.email}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {i.contactPerson} · {i.email}
+                </div>
                 {i.documents && i.documents.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {i.documents.map((d, idx) => (
@@ -2579,7 +3987,11 @@ function ProposalCenter({ institutions }: { institutions: Institution[] }) {
               </div>
             </div>
           ))}
-          {tracked.length === 0 && <p className="py-4 text-sm text-muted-foreground text-center">No proposals tracked yet.</p>}
+          {tracked.length === 0 && (
+            <p className="py-4 text-sm text-muted-foreground text-center">
+              No proposals tracked yet.
+            </p>
+          )}
         </div>
       </Card>
     </div>
@@ -2589,7 +4001,7 @@ function ProposalCenter({ institutions }: { institutions: Institution[] }) {
 function LaunchTracker({ institutions }: { institutions: Institution[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {institutions.map(i => {
+      {institutions.map((i) => {
         const ck = crm.launch(i.id);
         const steps: { key: keyof Omit<typeof ck, "institutionId">; label: string }[] = [
           { key: "facultyAssigned", label: "Faculty Coordinator Assigned" },
@@ -2599,7 +4011,7 @@ function LaunchTracker({ institutions }: { institutions: Institution[] }) {
           { key: "pageLive", label: "Chapter Page Live" },
           { key: "challengeActivated", label: "First Challenge Activated" },
         ];
-        const done = steps.filter(s => ck[s.key]).length;
+        const done = steps.filter((s) => ck[s.key]).length;
         return (
           <Card key={i.id} className="p-5">
             <div className="flex items-start justify-between">
@@ -2607,20 +4019,36 @@ function LaunchTracker({ institutions }: { institutions: Institution[] }) {
                 <div className="text-sm font-bold">{i.name}</div>
                 <div className="text-xs text-muted-foreground">{i.city}</div>
               </div>
-              <Badge variant="outline">{done}/{steps.length}</Badge>
+              <Badge variant="outline">
+                {done}/{steps.length}
+              </Badge>
             </div>
             <div className="mt-3 space-y-1.5">
-              {steps.map(s => (
-                <button key={s.key} onClick={() => crm.toggleLaunchStep(i.id, s.key)} className="flex w-full items-center gap-2 rounded-md p-1.5 text-left text-sm transition-colors hover:bg-secondary">
-                  {ck[s.key] ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
-                  <span className={ck[s.key] ? "text-foreground" : "text-muted-foreground"}>{s.label}</span>
+              {steps.map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => crm.toggleLaunchStep(i.id, s.key)}
+                  className="flex w-full items-center gap-2 rounded-md p-1.5 text-left text-sm transition-colors hover:bg-secondary"
+                >
+                  {ck[s.key] ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className={ck[s.key] ? "text-foreground" : "text-muted-foreground"}>
+                    {s.label}
+                  </span>
                 </button>
               ))}
             </div>
           </Card>
         );
       })}
-      {institutions.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground md:col-span-2">No active launches yet. Sign your first MoU!</Card>}
+      {institutions.length === 0 && (
+        <Card className="p-8 text-center text-sm text-muted-foreground md:col-span-2">
+          No active launches yet. Sign your first MoU!
+        </Card>
+      )}
     </div>
   );
 }
@@ -2628,22 +4056,26 @@ function LaunchTracker({ institutions }: { institutions: Institution[] }) {
 function PerformanceScorecard({
   institutions,
   visits,
-  admins
+  admins,
 }: {
   institutions: Institution[];
   visits: ReturnType<typeof crm.visits>;
   admins: ReturnType<typeof crm.admins>;
 }) {
   // 1. Personal / Territory Stats
-  const meetings = visits.filter(v => v.status === "completed").length;
-  const closures = institutions.filter(i => ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage)).length;
+  const meetings = visits.filter((v) => v.status === "completed").length;
+  const closures = institutions.filter((i) =>
+    ["MoU Signed", "Launch Pending", "Live Chapter"].includes(i.stage),
+  ).length;
   const rate = institutions.length ? Math.round((closures / institutions.length) * 100) : 0;
-  const reactivated = institutions.filter(i => i.stage === "Live Chapter").length;
+  const reactivated = institutions.filter((i) => i.stage === "Live Chapter").length;
 
   // 2. Team Aggregates
   const totalTeamMeetings = admins.reduce((s, a) => s + a.meetings, 0);
   const totalTeamClosures = admins.reduce((s, a) => s + a.closures, 0);
-  const teamRate = totalTeamMeetings ? Math.round((totalTeamClosures / totalTeamMeetings) * 100) : 0;
+  const teamRate = totalTeamMeetings
+    ? Math.round((totalTeamClosures / totalTeamMeetings) * 100)
+    : 0;
 
   const stats = [
     { label: "My Territory Meetings", value: meetings, icon: Calendar },
@@ -2658,9 +4090,14 @@ function PerformanceScorecard({
     <div className="space-y-6">
       {/* KPI Cards Grid */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map(s => (
-          <Card key={s.label} className={`p-4 relative overflow-hidden ${s.accent ? "border-brand/35 bg-brand/5" : ""}`}>
-            {s.accent && <div className="absolute top-0 right-0 h-1.5 w-12 bg-gradient-brand rounded-bl-lg" />}
+        {stats.map((s) => (
+          <Card
+            key={s.label}
+            className={`p-4 relative overflow-hidden ${s.accent ? "border-brand/35 bg-brand/5" : ""}`}
+          >
+            {s.accent && (
+              <div className="absolute top-0 right-0 h-1.5 w-12 bg-gradient-brand rounded-bl-lg" />
+            )}
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-muted-foreground">{s.label}</span>
               <s.icon className={`h-4 w-4 ${s.accent ? "text-brand" : "text-muted-foreground"}`} />
@@ -2674,7 +4111,9 @@ function PerformanceScorecard({
       <Card className="overflow-hidden border-brand/10 p-0">
         <div className="border-b border-border bg-muted/20 px-6 py-4">
           <h3 className="text-sm font-bold text-foreground">Partnership Team Performance</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Real-time rank and closure tracking connected to backend Mongoose CRM records.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time rank and closure tracking connected to backend Mongoose CRM records.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -2691,14 +4130,21 @@ function PerformanceScorecard({
             <tbody className="divide-y divide-border">
               {admins.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground italic text-xs">
+                  <td
+                    colSpan={6}
+                    className="px-6 py-10 text-center text-muted-foreground italic text-xs"
+                  >
                     No representatives registered in the system.
                   </td>
                 </tr>
               )}
               {admins.map((admin) => {
-                const closurePct = admin.target > 0 ? Math.min(Math.round((admin.closures / admin.target) * 100), 100) : 0;
-                const adminRate = admin.meetings > 0 ? Math.round((admin.closures / admin.meetings) * 100) : 0;
+                const closurePct =
+                  admin.target > 0
+                    ? Math.min(Math.round((admin.closures / admin.target) * 100), 100)
+                    : 0;
+                const adminRate =
+                  admin.meetings > 0 ? Math.round((admin.closures / admin.meetings) * 100) : 0;
 
                 return (
                   <tr key={admin.id} className="transition-colors hover:bg-muted/10">
@@ -2719,14 +4165,14 @@ function PerformanceScorecard({
                         <span className="text-[10px] text-muted-foreground">{admin.focus}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center font-medium">
-                      {admin.meetings}
-                    </td>
+                    <td className="px-6 py-4 text-center font-medium">{admin.meetings}</td>
                     <td className="px-6 py-4 min-w-[180px]">
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-semibold">
                           <span>{admin.closures} closures</span>
-                          <span className="text-[10px] text-muted-foreground">Target: {admin.target}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Target: {admin.target}
+                          </span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
                           <div
@@ -2737,15 +4183,18 @@ function PerformanceScorecard({
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <Badge variant="secondary" className="font-bold">{adminRate}%</Badge>
+                      <Badge variant="secondary" className="font-bold">
+                        {adminRate}%
+                      </Badge>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <Badge
                         variant={admin.status === "active" ? "default" : "outline"}
-                        className={`capitalize px-2 py-0.5 text-[10px] ${admin.status === "active"
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                          : "bg-destructive/10 text-destructive border-destructive/20"
-                          }`}
+                        className={`capitalize px-2 py-0.5 text-[10px] ${
+                          admin.status === "active"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                        }`}
                       >
                         {admin.status}
                       </Badge>
@@ -2761,12 +4210,16 @@ function PerformanceScorecard({
       {/* Territory Identity Card */}
       <Card className="p-5">
         <h3 className="text-sm font-bold">Territory Identity & Zones</h3>
-        <p className="mt-1 text-xs text-muted-foreground">High-performing zones compound faster and gain premium access tags.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          High-performing zones compound faster and gain premium access tags.
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge className="bg-brand/10 text-brand">Kolkata Region</Badge>
           <Badge variant="outline">Engineering Colleges East Zone</Badge>
           <Badge variant="outline">CBSE Partnerships</Badge>
-          <Badge variant="outline" className="border-brand/20">National Outreach Hub</Badge>
+          <Badge variant="outline" className="border-brand/20">
+            National Outreach Hub
+          </Badge>
         </div>
       </Card>
     </div>
@@ -2785,7 +4238,7 @@ function FileUploadAction({ kind, label, icon: Icon }: { kind: string; label: st
     try {
       const res = await fetch("/api/v1/upload", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${localStorage.getItem("scope_access_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("scope_access_token")}` },
         body: formData,
       });
       const data = await res.json();
@@ -2808,10 +4261,19 @@ function FileUploadAction({ kind, label, icon: Icon }: { kind: string; label: st
 
   return (
     <div className="relative">
-      <Button variant="outline" className="w-full justify-start relative overflow-hidden" disabled={uploading}>
+      <Button
+        variant="outline"
+        className="w-full justify-start relative overflow-hidden"
+        disabled={uploading}
+      >
         <Icon className="mr-2 h-4 w-4" />
         {uploading ? "Uploading..." : label}
-        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleUpload} accept=".pdf,.doc,.docx" />
+        <input
+          type="file"
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          onChange={handleUpload}
+          accept=".pdf,.doc,.docx"
+        />
       </Button>
     </div>
   );
@@ -2857,7 +4319,11 @@ function SendDocumentDialog({ institution }: { institution: Institution }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="h-8 gap-1.5 border-brand/30 text-brand hover:bg-brand/5">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 border-brand/30 text-brand hover:bg-brand/5"
+        >
           <Send className="h-3.5 w-3.5" />
           Send Doc
         </Button>
@@ -2867,14 +4333,23 @@ function SendDocumentDialog({ institution }: { institution: Institution }) {
           <DialogTitle>Send document to {institution.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-4">
-          {docs.length === 0 && <p className="text-sm text-muted-foreground text-center italic">No documents uploaded yet. Upload them first using "Quick Actions".</p>}
+          {docs.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center italic">
+              No documents uploaded yet. Upload them first using "Quick Actions".
+            </p>
+          )}
           {docs.map((d) => (
-            <div key={d.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div
+              key={d.id}
+              className="flex items-center justify-between rounded-lg border border-border p-3"
+            >
               <div>
                 <div className="text-sm font-semibold capitalize">{d.kind}</div>
                 <div className="text-xs text-muted-foreground">{d.file_name}</div>
               </div>
-              <Button size="sm" onClick={() => send(d)} disabled={loading}>Send</Button>
+              <Button size="sm" onClick={() => send(d)} disabled={loading}>
+                Send
+              </Button>
             </div>
           ))}
         </div>
@@ -2906,16 +4381,23 @@ function RecentUploadsList() {
     return () => window.removeEventListener("scope:docs-updated", load);
   }, []);
 
-  if (loading) return <p className="text-[10px] text-muted-foreground animate-pulse">Syncing library...</p>;
-  if (docs.length === 0) return <p className="text-[10px] text-muted-foreground italic">No files in your library.</p>;
+  if (loading)
+    return <p className="text-[10px] text-muted-foreground animate-pulse">Syncing library...</p>;
+  if (docs.length === 0)
+    return <p className="text-[10px] text-muted-foreground italic">No files in your library.</p>;
 
   return (
     <div className="space-y-1">
       {docs.map((d) => (
-        <div key={d.id} className="flex items-center justify-between rounded-md bg-secondary/30 px-2 py-1.5 transition-colors hover:bg-secondary/50">
+        <div
+          key={d.id}
+          className="flex items-center justify-between rounded-md bg-secondary/30 px-2 py-1.5 transition-colors hover:bg-secondary/50"
+        >
           <div className="min-w-0 flex-1">
             <div className="truncate text-[11px] font-medium">{d.file_name}</div>
-            <div className="text-[9px] uppercase tracking-tighter text-muted-foreground">{d.kind}</div>
+            <div className="text-[9px] uppercase tracking-tighter text-muted-foreground">
+              {d.kind}
+            </div>
           </div>
           <CheckCircle2 className="h-3 w-3 text-brand opacity-60" />
         </div>
@@ -2995,10 +4477,24 @@ function StudentIdeasManager() {
   }
 
   const STATUS_BADGES: Record<BackendProposal["status"], { label: string; className: string }> = {
-    pending: { label: "Pending", className: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 animate-pulse" },
-    reviewed: { label: "Reviewed", className: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25" },
-    accepted: { label: "Accepted", className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25" },
-    rejected: { label: "Rejected", className: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25" },
+    pending: {
+      label: "Pending",
+      className:
+        "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 animate-pulse",
+    },
+    reviewed: {
+      label: "Reviewed",
+      className: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25",
+    },
+    accepted: {
+      label: "Accepted",
+      className:
+        "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25",
+    },
+    rejected: {
+      label: "Rejected",
+      className: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25",
+    },
   };
 
   return (
@@ -3006,19 +4502,27 @@ function StudentIdeasManager() {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-4 border-border bg-secondary/10">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Suggested</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Total Suggested
+          </div>
           <div className="mt-1 text-2xl font-bold text-foreground">{stats.total}</div>
         </Card>
         <Card className="p-4 border-amber-500/20 bg-amber-500/5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Pending Review</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-600">
+            Pending Review
+          </div>
           <div className="mt-1 text-2xl font-bold text-amber-600">{stats.pending}</div>
         </Card>
         <Card className="p-4 border-emerald-500/20 bg-emerald-500/5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Accepted Ideas</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">
+            Accepted Ideas
+          </div>
           <div className="mt-1 text-2xl font-bold text-emerald-600">{stats.accepted}</div>
         </Card>
         <Card className="p-4 border-rose-500/20 bg-rose-500/5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-600">Rejected / Archived</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-600">
+            Rejected / Archived
+          </div>
           <div className="mt-1 text-2xl font-bold text-rose-600">{stats.rejected}</div>
         </Card>
       </div>
@@ -3027,17 +4531,20 @@ function StudentIdeasManager() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
           💡 Student Suggested Ideas
-          <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs">{filtered.length}</Badge>
+          <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs">
+            {filtered.length}
+          </Badge>
         </h2>
         <div className="flex items-center gap-1.5 rounded-lg bg-secondary/50 p-1">
           {["all", "pending", "reviewed", "accepted", "rejected"].map((st) => (
             <button
               key={st}
               onClick={() => setFilter(st)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${filter === st
-                ? "bg-gradient-brand text-brand-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-secondary"
-                }`}
+              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${
+                filter === st
+                  ? "bg-gradient-brand text-brand-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary"
+              }`}
             >
               {st}
             </button>
@@ -3048,28 +4555,43 @@ function StudentIdeasManager() {
       {/* List of proposed ideas */}
       <div className="grid gap-5 md:grid-cols-2">
         {filtered.map((idea) => {
-          const authorLabel = idea.anonymous ? "Anonymous Student" : idea.user?.name || "Unknown Builder";
+          const authorLabel = idea.anonymous
+            ? "Anonymous Student"
+            : idea.user?.name || "Unknown Builder";
           const authorEmail = idea.anonymous ? null : idea.user?.email || null;
           const statusBadge = STATUS_BADGES[idea.status];
 
           return (
-            <Card key={idea.id} className="group flex flex-col justify-between overflow-hidden border-border bg-card p-5 hover-lift transition-all animate-fade-in">
+            <Card
+              key={idea.id}
+              className="group flex flex-col justify-between overflow-hidden border-border bg-card p-5 hover-lift transition-all animate-fade-in"
+            >
               <div>
                 <div className="flex items-start justify-between gap-3">
                   <Badge className={statusBadge.className}>{statusBadge.label}</Badge>
-                  <span className="text-[10px] text-muted-foreground">{new Date(idea.createdAt).toLocaleDateString()}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(idea.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
 
-                <h3 className="mt-3 text-lg font-bold tracking-tight text-foreground leading-snug">{idea.title}</h3>
-                <p className="mt-1.5 text-xs font-semibold text-brand/80">Submitted by: {authorLabel} {authorEmail ? `(${authorEmail})` : ""}</p>
+                <h3 className="mt-3 text-lg font-bold tracking-tight text-foreground leading-snug">
+                  {idea.title}
+                </h3>
+                <p className="mt-1.5 text-xs font-semibold text-brand/80">
+                  Submitted by: {authorLabel} {authorEmail ? `(${authorEmail})` : ""}
+                </p>
 
                 <div className="mt-4 space-y-3 text-sm text-foreground/90">
                   <div className="rounded-lg bg-secondary/40 p-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Problem Statement</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                      Problem Statement
+                    </span>
                     <p className="line-clamp-4 leading-relaxed">{idea.problem}</p>
                   </div>
                   <div className="rounded-lg bg-secondary/40 p-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Why it matters</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                      Why it matters
+                    </span>
                     <p className="line-clamp-4 leading-relaxed">{idea.why}</p>
                   </div>
                 </div>
@@ -3081,7 +4603,9 @@ function StudentIdeasManager() {
                   </div>
                   <div className="rounded-lg border border-border p-2">
                     <span className="font-bold text-muted-foreground block">Campus Relevance</span>
-                    <span className="truncate block mt-0.5">{idea.campusRelevance || "Global"}</span>
+                    <span className="truncate block mt-0.5">
+                      {idea.campusRelevance || "Global"}
+                    </span>
                   </div>
                 </div>
 
@@ -3094,7 +4618,11 @@ function StudentIdeasManager() {
               </div>
 
               <div className="mt-6 border-t border-border/40 pt-4 flex justify-end">
-                <Button size="sm" onClick={() => openReview(idea)} className="bg-gradient-brand text-brand-foreground shadow-brand">
+                <Button
+                  size="sm"
+                  onClick={() => openReview(idea)}
+                  className="bg-gradient-brand text-brand-foreground shadow-brand"
+                >
                   Review Proposal
                 </Button>
               </div>
@@ -3104,9 +4632,13 @@ function StudentIdeasManager() {
 
         {filtered.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-border p-12 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-3xl">💡</div>
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-3xl">
+              💡
+            </div>
             <h3 className="text-lg font-bold text-foreground">No ideas suggested</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Student proposals in this filter will appear here once submitted.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Student proposals in this filter will appear here once submitted.
+            </p>
           </div>
         )}
       </div>
@@ -3116,7 +4648,9 @@ function StudentIdeasManager() {
         <Dialog open={true} onOpenChange={() => setSelectedIdea(null)}>
           <DialogContent className="max-w-xl">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold">Review Idea: {selectedIdea.title}</DialogTitle>
+              <DialogTitle className="text-lg font-bold">
+                Review Idea: {selectedIdea.title}
+              </DialogTitle>
               <DialogDescription>
                 Provide status updates and direct feedback to the student builder.
               </DialogDescription>
@@ -3127,18 +4661,27 @@ function StudentIdeasManager() {
                 <div className="font-bold text-foreground">Idea Details</div>
                 <div className="mt-2 grid gap-2">
                   <div>
-                    <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider font-bold">Problem Statement</span>
+                    <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider font-bold">
+                      Problem Statement
+                    </span>
                     <p className="mt-0.5 text-foreground leading-relaxed">{selectedIdea.problem}</p>
                   </div>
                   <div className="mt-2">
-                    <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider font-bold">Why it matters</span>
+                    <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider font-bold">
+                      Why it matters
+                    </span>
                     <p className="mt-0.5 text-foreground leading-relaxed">{selectedIdea.why}</p>
                   </div>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="review-status" className="font-bold text-xs uppercase tracking-wider text-muted-foreground block mb-2">Decision Status</Label>
+                <Label
+                  htmlFor="review-status"
+                  className="font-bold text-xs uppercase tracking-wider text-muted-foreground block mb-2"
+                >
+                  Decision Status
+                </Label>
                 <select
                   id="review-status"
                   value={status}
@@ -3152,7 +4695,12 @@ function StudentIdeasManager() {
               </div>
 
               <div>
-                <Label htmlFor="admin-comment" className="font-bold text-xs uppercase tracking-wider text-muted-foreground block mb-2">Scope Team Feedback (Sent to student)</Label>
+                <Label
+                  htmlFor="admin-comment"
+                  className="font-bold text-xs uppercase tracking-wider text-muted-foreground block mb-2"
+                >
+                  Scope Team Feedback (Sent to student)
+                </Label>
                 <Textarea
                   id="admin-comment"
                   value={comment}
@@ -3164,8 +4712,14 @@ function StudentIdeasManager() {
             </div>
 
             <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
-              <Button variant="outline" onClick={() => setSelectedIdea(null)} disabled={submitting}>Cancel</Button>
-              <Button onClick={submitReview} disabled={submitting} className="bg-gradient-brand text-brand-foreground shadow-brand">
+              <Button variant="outline" onClick={() => setSelectedIdea(null)} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button
+                onClick={submitReview}
+                disabled={submitting}
+                className="bg-gradient-brand text-brand-foreground shadow-brand"
+              >
                 {submitting ? "Saving..." : "Save Review Decision"}
               </Button>
             </div>
@@ -3218,7 +4772,7 @@ function FeedbackManager() {
     try {
       await backendAdminUsers.updateFeedbackStatus(id, status);
       toast.success("Status updated.");
-      setItems(prev => prev.map(item => item.id === id ? { ...item, status } : item));
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
     } catch (err) {
       toast.error("Failed to update status.");
     }
@@ -3260,14 +4814,18 @@ function FeedbackManager() {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="p-4 border-border bg-secondary/5 relative overflow-hidden group hover:border-border/80 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Feedbacks</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Total Feedbacks
+          </div>
           <div className="mt-2 text-3xl font-extrabold text-foreground">{stats.total}</div>
           <div className="absolute right-3 bottom-3 text-muted-foreground/10 group-hover:scale-110 transition-transform">
             <MessageSquare className="h-12 w-12" />
           </div>
         </Card>
         <Card className="p-4 border-cyan-500/20 bg-cyan-500/5 relative overflow-hidden group hover:border-cyan-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 dark:text-cyan-400">Average Rating</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 dark:text-cyan-400">
+            Average Rating
+          </div>
           <div className="mt-2 text-3xl font-extrabold text-cyan-500 dark:text-cyan-400 flex items-baseline gap-1">
             {stats.avgRating} <span className="text-xs text-muted-foreground font-normal">/ 5</span>
           </div>
@@ -3276,15 +4834,23 @@ function FeedbackManager() {
           </div>
         </Card>
         <Card className="p-4 border-rose-500/20 bg-rose-500/5 relative overflow-hidden group hover:border-rose-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">Bug Reports</div>
-          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">{stats.bugs}</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">
+            Bug Reports
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">
+            {stats.bugs}
+          </div>
           <div className="absolute right-3 bottom-3 text-rose-500/10 group-hover:scale-110 transition-transform">
             <ShieldAlert className="h-12 w-12" />
           </div>
         </Card>
         <Card className="p-4 border-amber-500/20 bg-amber-500/5 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">Feature Requests</div>
-          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">{stats.features}</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">
+            Feature Requests
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">
+            {stats.features}
+          </div>
           <div className="absolute right-3 bottom-3 text-amber-500/10 group-hover:scale-110 transition-transform">
             <Zap className="h-12 w-12" />
           </div>
@@ -3296,9 +4862,13 @@ function FeedbackManager() {
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             💬 Platform User Feedback
-            <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs px-2.5 py-0.5 rounded-full">{filtered.length}</Badge>
+            <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs px-2.5 py-0.5 rounded-full">
+              {filtered.length}
+            </Badge>
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Read what students, faculty and guest builders suggest for improvement.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Read what students, faculty and guest builders suggest for improvement.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -3348,7 +4918,8 @@ function FeedbackManager() {
           <div className="text-5xl mb-4 grayscale">💬</div>
           <h3 className="text-base font-bold text-foreground">No feedback entries found</h3>
           <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">
-            There are no feedback submissions matching your current search terms or category/rating filters.
+            There are no feedback submissions matching your current search terms or category/rating
+            filters.
           </p>
         </Card>
       ) : (
@@ -3356,8 +4927,9 @@ function FeedbackManager() {
           {filtered.map((item) => (
             <Card
               key={item.id}
-              className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${item.status === "closed" ? "opacity-60 grayscale-[0.5]" : ""
-                }`}
+              className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${
+                item.status === "closed" ? "opacity-60 grayscale-[0.5]" : ""
+              }`}
             >
               <div className="space-y-4">
                 {/* Header details */}
@@ -3369,7 +4941,7 @@ function FeedbackManager() {
                         day: "numeric",
                         year: "numeric",
                         hour: "2-digit",
-                        minute: "2-digit"
+                        minute: "2-digit",
                       })}
                     </span>
                     {item.user && (
@@ -3387,22 +4959,30 @@ function FeedbackManager() {
                     <div className="flex gap-1.5">
                       {item.type && (
                         <Badge
-                          className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${item.type === "Bug report"
-                            ? "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20"
-                            : item.type === "Feature request"
-                              ? "bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20"
-                              : "bg-secondary text-foreground border border-border/40"
-                            }`}
+                          className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${
+                            item.type === "Bug report"
+                              ? "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20"
+                              : item.type === "Feature request"
+                                ? "bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20"
+                                : "bg-secondary text-foreground border border-border/40"
+                          }`}
                         >
                           {item.type}
                         </Badge>
                       )}
-                      <Badge className={`text-[9px] px-2 py-0.5 border border-border/40 rounded-full ${item.status === "new" ? "bg-brand/10 text-brand" :
-                          item.status === "reviewed" ? "bg-amber-500/10 text-amber-500" :
-                            item.status === "verified" ? "bg-emerald-500/10 text-emerald-500" :
-                              item.status === "rejected" ? "bg-rose-500/10 text-rose-500" :
-                                "bg-secondary text-muted-foreground"
-                        }`}>
+                      <Badge
+                        className={`text-[9px] px-2 py-0.5 border border-border/40 rounded-full ${
+                          item.status === "new"
+                            ? "bg-brand/10 text-brand"
+                            : item.status === "reviewed"
+                              ? "bg-amber-500/10 text-amber-500"
+                              : item.status === "verified"
+                                ? "bg-emerald-500/10 text-emerald-500"
+                                : item.status === "rejected"
+                                  ? "bg-rose-500/10 text-rose-500"
+                                  : "bg-secondary text-muted-foreground"
+                        }`}
+                      >
                         {item.status.toUpperCase()}
                       </Badge>
                     </div>
@@ -3418,10 +4998,11 @@ function FeedbackManager() {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
-                        className={`h-3.5 w-3.5 transition-colors ${star <= item.rating
-                          ? "fill-brand text-brand"
-                          : "text-muted-foreground/20 dark:text-muted-foreground/10"
-                          }`}
+                        className={`h-3.5 w-3.5 transition-colors ${
+                          star <= item.rating
+                            ? "fill-brand text-brand"
+                            : "text-muted-foreground/20 dark:text-muted-foreground/10"
+                        }`}
                       />
                     ))}
                   </div>
@@ -3479,7 +5060,7 @@ function StudentVerificationCenter() {
     try {
       const res = await backendAdminUsers.listFeedback();
       const verifications = (res.feedback || []).filter(
-        (item: any) => item.kind === "opportunity_verification"
+        (item: any) => item.kind === "opportunity_verification",
       );
       setItems(verifications);
     } catch (err) {
@@ -3500,11 +5081,9 @@ function StudentVerificationCenter() {
       toast.success(
         status === "verified"
           ? "Student successfully verified and opportunities unlocked!"
-          : "Student verification request marked as rejected."
+          : "Student verification request marked as rejected.",
       );
-      setItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status } : item))
-      );
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
     } catch (err) {
       toast.error("Failed to update verification status.");
     } finally {
@@ -3580,29 +5159,43 @@ function StudentVerificationCenter() {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="p-4 border-border bg-secondary/5 relative overflow-hidden group hover:border-border/80 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Requests</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Total Requests
+          </div>
           <div className="mt-2 text-3xl font-extrabold text-foreground">{stats.total}</div>
           <div className="absolute right-3 bottom-3 text-muted-foreground/10 group-hover:scale-110 transition-transform">
             <BadgeCheck className="h-12 w-12" />
           </div>
         </Card>
         <Card className="p-4 border-amber-500/20 bg-amber-500/5 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">Pending Review</div>
-          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">{stats.pending}</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">
+            Pending Review
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">
+            {stats.pending}
+          </div>
           <div className="absolute right-3 bottom-3 text-amber-500/10 group-hover:scale-110 transition-transform">
             <Clock className="h-12 w-12" />
           </div>
         </Card>
         <Card className="p-4 border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 dark:text-emerald-400">Verified Builders</div>
-          <div className="mt-2 text-3xl font-extrabold text-emerald-500 dark:text-emerald-400">{stats.verified}</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 dark:text-emerald-400">
+            Verified Builders
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-emerald-500 dark:text-emerald-400">
+            {stats.verified}
+          </div>
           <div className="absolute right-3 bottom-3 text-emerald-500/10 group-hover:scale-110 transition-transform">
             <Award className="h-12 w-12 fill-emerald-500/10" />
           </div>
         </Card>
         <Card className="p-4 border-rose-500/20 bg-rose-500/5 relative overflow-hidden group hover:border-rose-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">Rejected Portfolios</div>
-          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">{stats.rejected}</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">
+            Rejected Portfolios
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">
+            {stats.rejected}
+          </div>
           <div className="absolute right-3 bottom-3 text-rose-500/10 group-hover:scale-110 transition-transform">
             <Ban className="h-12 w-12" />
           </div>
@@ -3614,9 +5207,13 @@ function StudentVerificationCenter() {
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             🛡️ Student Verification Center
-            <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs px-2.5 py-0.5 rounded-full">{filtered.length}</Badge>
+            <Badge className="bg-brand/10 text-brand border border-brand/20 text-xs px-2.5 py-0.5 rounded-full">
+              {filtered.length}
+            </Badge>
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Review, verify, and approve student portfolios to grant opportunities page access.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Review, verify, and approve student portfolios to grant opportunities page access.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -3651,24 +5248,27 @@ function StudentVerificationCenter() {
           <BadgeCheck className="h-12 w-12 mb-4 text-muted-foreground/30" />
           <h3 className="text-base font-bold text-foreground">No verification requests found</h3>
           <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">
-            There are no student portfolio submissions matching your search queries or status filters.
+            There are no student portfolio submissions matching your search queries or status
+            filters.
           </p>
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((item) => {
             const l = item.parsedLinks;
-            const hasPortfolio = l.github || l.linkedin || l.website || l.portfolio || l.resume || l.portfolioPdf;
+            const hasPortfolio =
+              l.github || l.linkedin || l.website || l.portfolio || l.resume || l.portfolioPdf;
 
             return (
               <Card
                 key={item.id}
-                className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/45 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${item.status === "verified"
+                className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/45 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${
+                  item.status === "verified"
                     ? "border-emerald-500/20 bg-emerald-950/5"
                     : item.status === "rejected"
                       ? "opacity-60 grayscale-[0.4]"
                       : ""
-                  }`}
+                }`}
               >
                 <div className="space-y-4">
                   {/* Header details */}
@@ -3683,10 +5283,16 @@ function StudentVerificationCenter() {
                           })}
                         </span>
                       </div>
-                      <h3 className="font-bold text-foreground text-base mt-1 truncate max-w-[170px]" title={item.user?.name}>
+                      <h3
+                        className="font-bold text-foreground text-base mt-1 truncate max-w-[170px]"
+                        title={item.user?.name}
+                      >
                         {item.user?.name || "Anonymous Student"}
                       </h3>
-                      <p className="text-[10px] text-brand font-medium truncate max-w-[170px]" title={item.user?.email}>
+                      <p
+                        className="text-[10px] text-brand font-medium truncate max-w-[170px]"
+                        title={item.user?.email}
+                      >
                         {item.user?.email}
                       </p>
                       {item.institution && (
@@ -3699,14 +5305,17 @@ function StudentVerificationCenter() {
 
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <Badge
-                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${item.status === "verified"
+                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${
+                          item.status === "verified"
                             ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                             : item.status === "rejected"
                               ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
                               : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                          }`}
+                        }`}
                       >
-                        {item.status === "new" || item.status === "reviewed" ? "Pending" : item.status}
+                        {item.status === "new" || item.status === "reviewed"
+                          ? "Pending"
+                          : item.status}
                       </Badge>
                       <Badge className="text-[9px] px-2 py-0.5 bg-secondary text-muted-foreground border border-border/30 rounded-full font-semibold">
                         Builder Profile
@@ -3716,7 +5325,9 @@ function StudentVerificationCenter() {
 
                   {/* Portfolio Credentials Grid */}
                   <div className="space-y-2 border-t border-border/40 pt-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Submitted Portfolio Links</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Submitted Portfolio Links
+                    </div>
                     {hasPortfolio ? (
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {l.github && (
@@ -3870,7 +5481,3 @@ function parseVerificationMessage(message: string) {
     return defaultLinks;
   }
 }
-
-
-
-
