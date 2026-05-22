@@ -845,7 +845,7 @@ function ProjectCard({
              applied && isRejected ? "Rejected" :
              applied ? (<><Check className="mr-1.5 h-4 w-4" /> Project Room</>) :
              closed ? "Closed" :
-             seatsFull ? "Join Waitlist" : "Commit XP"}
+             seatsFull ? "Join Waitlist" : `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP`}
           </Button>
           <Button size="sm" variant="outline" onClick={onSave} aria-label="Save">
             {saved ? <BookmarkCheck className="h-4 w-4 text-brand" /> : <Bookmark className="h-4 w-4" />}
@@ -911,34 +911,191 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
   const [topSkill, setTopSkill] = useState(project.skills[0] ?? "");
   const [availability, setAvailability] = useState("10 hrs/week");
   const [submitting, setSubmitting] = useState(false);
+  const [committed, setCommitted] = useState(false);
+  const [xpAfterCommit, setXpAfterCommit] = useState<number | null>(null);
+  const [currentXp, setCurrentXp] = useState<number | null>(null);
+  const [loadingXp, setLoadingXp] = useState(true);
 
-  const submit = () => {
-    if (submitting) return;
+  // Platform minimum XP commitment is 50 XP — use project's stake or default to 50
+  const stakeAmount = Math.max(50, project.xpCommitmentStake || 50);
+
+  useEffect(() => {
+    // Load current user XP balance from both local cache and backend
+    import("@/lib/scope-store").then(({ auth: scopeAuth, xp: xpStore }) => {
+      const user = scopeAuth.getUser();
+      const localXp = xpStore.get();
+      // Prefer stats from user object (backend-synced) over local cache
+      const serverXp = user?.stats?.xp ?? localXp;
+      setCurrentXp(serverXp);
+      setLoadingXp(false);
+    });
+  }, []);
+
+  const hasEnoughXp = currentXp !== null && currentXp >= stakeAmount;
+
+  const submit = async () => {
+    if (submitting || committed) return;
     if (!fit.trim()) { toast.error("Tell us why you're a fit."); return; }
-      if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
-      setSubmitting(true);
-      backendProjects.apply(project.id, fit.trim())
-      .then(async ({ application }) => {
-        await auth.refreshCurrentUser().catch(() => null);
-        onApplied({
-          id: application.id,
-          projectId: application.project_id,
-          status: application.status,
-          submissionReviewStatus: application.submission_review_status,
-          submission: application.submission,
+    if (!topSkill.trim()) { toast.error("Add your top skill."); return; }
+    if (currentXp !== null && currentXp < stakeAmount) {
+      toast.error(`You need at least ${stakeAmount} XP to commit. You currently have ${currentXp} XP.`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await backendProjects.apply(project.id, fit.trim());
+      const { application } = result;
+
+      // Refresh user data from backend so XP balance is accurate post-commit
+      const updatedUser = await auth.refreshCurrentUser().catch(() => null);
+
+      // Determine post-commit XP from backend response or calculate locally
+      const serverNewXp = updatedUser?.stats?.xp;
+      const localEstimate = currentXp !== null ? currentXp - stakeAmount : null;
+      const newXp = typeof serverNewXp === "number" ? serverNewXp : localEstimate;
+
+      // Sync updated XP into scope-store so sidebar/dashboard reflect it immediately.
+      // We write directly to avoid double-counting (xp.add would fire another backend call).
+      if (typeof newXp === "number") {
+        import("@/lib/scope-store").then(({ xp: xpStore }) => {
+          // Read current and only adjust if they differ (avoid redundant writes)
+          const prevXp = xpStore.get();
+          if (prevXp !== newXp) {
+            // Directly write the localStorage key via the internal write helper
+            try {
+              localStorage.setItem("scope_points", JSON.stringify(newXp));
+              window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: ["scope_points"] } }));
+            } catch { /* noop */ }
+          }
         });
-        analytics.track("project_commit_xp");
-        toast.success("XP committed. Project room is ready.");
-        onSubmitted();
-      })
-      .catch((error) => {
-        toast.error(error instanceof Error ? error.message : "Could not commit XP.");
-        onClose();
+        setXpAfterCommit(newXp);
+      }
+
+      // Push an in-app notification about the XP reservation
+      import("@/lib/scope-store").then(({ notifications }) => {
+        notifications.push({
+          icon: "zap",
+          text: `🔒 Committed ${stakeAmount} XP to "${project.title}". Your stake is now reserved.`,
+          category: "milestone",
+          priority: "high",
+        });
       });
+
+      setCommitted(true);
+
+      onApplied({
+        id: application.id,
+        projectId: application.project_id,
+        status: application.status,
+        submissionReviewStatus: application.submission_review_status,
+        submission: application.submission,
+      });
+
+      analytics.track("project_commit_xp");
+
+      // Brief pause to show the success screen, then close
+      setTimeout(() => {
+        toast.success(`⚡ ${stakeAmount} XP committed! Project room is ready.`);
+        onSubmitted();
+      }, 1400);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Could not commit XP.";
+      toast.error(msg);
+      setSubmitting(false);
+    }
   };
+
+  // ── Success screen shown for ~1.4 s after commit ──
+  if (committed) {
+    return (
+      <ModalShell onClose={onClose} title="XP Committed! 🎉" subtitle="You're locked in. Your project room is ready.">
+        <div className="mt-6 space-y-4">
+          <div className="rounded-2xl bg-gradient-to-br from-brand/20 to-cyan/10 border border-brand/30 p-6 text-center">
+            <div className="text-5xl mb-3">⚡</div>
+            <div className="text-2xl font-bold text-foreground">{stakeAmount} XP Reserved</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Locked in for <span className="font-semibold text-foreground">{project.title}</span>
+            </div>
+            {xpAfterCommit !== null && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-xs font-medium text-muted-foreground">
+                <span>Remaining balance:</span>
+                <span className="font-bold text-foreground">{xpAfterCommit.toLocaleString()} XP</span>
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg border border-success/20 bg-success/5 p-4 text-sm">
+            <div className="font-semibold text-success mb-1">✅ What happens next?</div>
+            <ul className="space-y-1 text-xs text-muted-foreground">
+              <li>• Your XP is <em>reserved</em> — not lost — for the project duration</li>
+              <li>• Complete the project to reclaim your stake + earn bonus rewards</li>
+              <li>• Dropping out early may result in a partial stake forfeit</li>
+            </ul>
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell onClose={onClose} title={`Commit XP: ${project.title}`} subtitle="Reserve your XP stake and join the project room.">
+      {/* XP Balance & Stake Panel */}
+      <div className={`mt-4 rounded-xl border p-4 transition-colors ${
+        loadingXp ? "border-border bg-secondary/30" :
+        hasEnoughXp ? "border-brand/30 bg-brand/5" : "border-red-500/30 bg-red-500/5"
+      }`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">XP to Commit</div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-foreground">{stakeAmount}</span>
+              <span className="text-sm font-medium text-muted-foreground">XP</span>
+            </div>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="text-right">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your Balance</div>
+            <div className="mt-1 flex items-baseline gap-1 justify-end">
+              {loadingXp ? (
+                <span className="text-sm text-muted-foreground animate-pulse">Loading...</span>
+              ) : (
+                <>
+                  <span className={`text-2xl font-bold ${
+                    hasEnoughXp ? "text-foreground" : "text-red-500"
+                  }`}>
+                    {currentXp !== null ? currentXp.toLocaleString() : "—"}
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">XP</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Balance progress bar */}
+        {!loadingXp && currentXp !== null && (
+          <div className="mt-3">
+            <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  hasEnoughXp ? "bg-gradient-to-r from-brand to-cyan" : "bg-red-500"
+                }`}
+                style={{ width: `${Math.min(100, (currentXp / stakeAmount) * 100)}%` }}
+              />
+            </div>
+            {!hasEnoughXp ? (
+              <div className="mt-1.5 text-xs font-medium text-red-500">
+                ⚠ Need {(stakeAmount - currentXp).toLocaleString()} more XP — earn XP via events, activities &amp; achievements
+              </div>
+            ) : (
+              <div className="mt-1.5 text-xs text-muted-foreground">
+                After commit: <span className="font-semibold text-foreground">{(currentXp - stakeAmount).toLocaleString()} XP</span> remaining
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 space-y-3">
         <div>
           <Label htmlFor="fit">Why are you a fit?</Label>
@@ -959,11 +1116,30 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
             </select>
           </div>
         </div>
+
+        {/* Stake policy reminder */}
+        <div className="rounded-lg bg-secondary/60 p-3 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">📋 Stake policy: </span>
+          Your {stakeAmount} XP is <em>reserved</em>, not permanently lost. Complete the project to reclaim it plus bonus rewards. Dropping out may result in a partial forfeit.
+        </div>
       </div>
+
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-        <Button onClick={submit} disabled={submitting} className="bg-gradient-brand text-brand-foreground">
-          {submitting ? "Committing..." : `Commit XP${project.xpCommitmentStake ? ` (${project.xpCommitmentStake} XP)` : ""}`}
+        <Button
+          id="xp-commit-btn"
+          onClick={submit}
+          disabled={submitting || loadingXp || !hasEnoughXp}
+          className="bg-gradient-brand text-brand-foreground disabled:opacity-50"
+        >
+          {submitting ? (
+            <span className="flex items-center gap-2">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-foreground/40 border-t-brand-foreground" />
+              Committing XP...
+            </span>
+          ) : (
+            `⚡ Commit ${stakeAmount} XP`
+          )}
         </Button>
       </div>
     </ModalShell>
@@ -1226,7 +1402,7 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
           disabled={!applied && !canParticipate}
           className="bg-gradient-brand text-brand-foreground"
         >
-          {applied ? "Open Room" : canParticipate ? "Commit XP" : "Restricted for Admins"}
+          {applied ? "Open Room" : canParticipate ? `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP` : "Restricted for Admins"}
         </Button>
       </div>
     </ModalShell>

@@ -35,7 +35,8 @@ export type AnalyticsEvent =
   | "nudge_dismissed"
   | "export_results_clicked"
   | "range_selected"
-  | "format_selected";
+  | "format_selected"
+  | "project_commit_xp";
 
 type Counters = Record<string, number>;
 type DayMap = Record<string, number>; // YYYY-MM-DD -> count

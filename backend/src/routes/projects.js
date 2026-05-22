@@ -460,7 +460,10 @@ async function joinProject(req, res) {
     throw new AppError(403, "PROJECT_ELIGIBILITY_FAILED", "You are not eligible to commit XP to this project yet", eligibility);
   }
 
-  const stake = project.xpCommitmentStake || 0;
+  // Platform minimum XP commitment is 50 XP. Use project stake or fall back to 50.
+  const PLATFORM_MIN_STAKE = 50;
+  const stake = Math.max(PLATFORM_MIN_STAKE, project.xpCommitmentStake || 0);
+
   const application = await Application.create({
     project: project._id,
     user: req.user._id,
@@ -468,27 +471,25 @@ async function joinProject(req, res) {
     status: "accepted",
     projectRole: req.body.project_role || "",
     committedXp: stake,
-    commitmentStatus: stake > 0 ? "reserved" : "none",
+    commitmentStatus: "reserved",
   });
 
-  let xpResult = { reserved: 0, xp: profile.xp, reserved_xp: profile.reservedXp || 0 };
-  if (stake > 0) {
-    try {
-      xpResult = await reserveXp({
-        userId: req.user._id,
-        institutionId: req.user.institution || null,
-        amount: stake,
-        sourceType: "project",
-        sourceId: project._id,
-        action: XP_ACTIONS.PROJECT_STAKE_RESERVED,
-        dedupeKey: `project_stake:${application.id}`,
-        meta: { project_id: project.id, application_id: application.id },
-        text: `Committed ${stake} XP to project: ${project.title}`,
-      });
-    } catch (error) {
-      await Application.deleteOne({ _id: application._id }).catch(() => null);
-      throw error;
-    }
+  let xpResult = { reserved: stake, xp: profile.xp, reserved_xp: (profile.reservedXp || 0) + stake };
+  try {
+    xpResult = await reserveXp({
+      userId: req.user._id,
+      institutionId: req.user.institution || null,
+      amount: stake,
+      sourceType: "project",
+      sourceId: project._id,
+      action: XP_ACTIONS.PROJECT_STAKE_RESERVED,
+      dedupeKey: `project_stake:${application.id}`,
+      meta: { project_id: project.id, application_id: application.id },
+      text: `Committed ${stake} XP to project: ${project.title}`,
+    });
+  } catch (error) {
+    await Application.deleteOne({ _id: application._id }).catch(() => null);
+    throw error;
   }
 
   const room = await ensureProjectRoom(project, application, req.body.project_role);
@@ -513,6 +514,7 @@ async function joinProject(req, res) {
     committed_xp: stake,
     reserved_xp: xpResult.reserved_xp,
     current_xp: xpResult.xp,
+    xp_balance_after: xpResult.xp,
     commitment_language: "Commit XP",
   }, "XP committed and project joined", 201);
 }
