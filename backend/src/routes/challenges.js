@@ -9,7 +9,7 @@ import { requirePermission } from "../middleware/rbac.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { hasPermission } from "../utils/roles.js";
-import { awardXp, reserveXp } from "../utils/xp-engine.js";
+import { awardXp, forfeitReservedXp, refundReservedXp, reserveXp } from "../utils/xp-engine.js";
 import { XP_ACTIONS } from "../utils/xp-constants.js";
 
 export const challengesRouter = express.Router();
@@ -27,6 +27,9 @@ const challengeSchema = z.object({
   evaluation_method: z.string().max(120).optional(),
   submission_format: z.string().max(120).optional(),
   leaderboard: z.boolean().optional().default(true),
+  stake_refund_policy: z.enum(["always", "score_threshold", "manual", "forfeit_below_threshold"]).optional().default("score_threshold"),
+  minimum_score_to_refund: z.number().min(0).max(100).optional().default(50),
+  forfeit_on_no_submission: z.boolean().optional().default(true),
 });
 
 const submitSchema = z.object({
@@ -41,6 +44,80 @@ const scoreSchema = z.object({
   xp_reward: z.number().int().min(0).max(1000000).optional().default(0),
   certificate_url: z.string().max(2000).optional().default(""),
 });
+
+const stakeSettlementSchema = z.object({
+  outcome: z.enum(["refund", "forfeit", "partial_refund"]),
+  refund_xp: z.number().int().min(0).max(1000000).optional(),
+  note: z.string().max(2000).optional().default(""),
+});
+
+async function settleChallengeStake({ challenge, participation, actor, outcome, refundXp = 0, note = "" }) {
+  const stake = participation.stakeXp || 0;
+  if (!stake || participation.stakeStatus !== "reserved") return { changed: false, participation };
+
+  if (outcome === "refund") {
+    await refundReservedXp({
+      userId: participation.user,
+      institutionId: actor.institution || null,
+      amount: stake,
+      sourceType: "challenge",
+      sourceId: challenge._id,
+      action: XP_ACTIONS.CHALLENGE_STAKE_REFUNDED,
+      meta: { challenge_id: challenge.id, participation_id: participation.id, note },
+      text: `Challenge stake refunded: ${challenge.title}`,
+    });
+    participation.stakeStatus = "refunded";
+    participation.stakeRefundedXp = stake;
+    participation.stakeForfeitedXp = 0;
+  } else if (outcome === "partial_refund") {
+    const refund = Math.min(stake, Math.max(0, Number(refundXp) || 0));
+    const forfeit = stake - refund;
+    if (refund > 0) {
+      await refundReservedXp({
+        userId: participation.user,
+        institutionId: actor.institution || null,
+        amount: refund,
+        sourceType: "challenge",
+        sourceId: challenge._id,
+        action: XP_ACTIONS.CHALLENGE_STAKE_REFUNDED,
+        meta: { challenge_id: challenge.id, participation_id: participation.id, note },
+        text: `Challenge stake partially refunded: ${challenge.title}`,
+      });
+    }
+    if (forfeit > 0) {
+      await forfeitReservedXp({
+        userId: participation.user,
+        amount: forfeit,
+        sourceType: "challenge",
+        sourceId: challenge._id,
+        action: XP_ACTIONS.CHALLENGE_STAKE_FORFEITED,
+        meta: { challenge_id: challenge.id, participation_id: participation.id, note },
+        text: `Challenge stake partially forfeited: ${challenge.title}`,
+      });
+    }
+    participation.stakeStatus = refund > 0 ? "partial_refund" : "forfeited";
+    participation.stakeRefundedXp = refund;
+    participation.stakeForfeitedXp = forfeit;
+  } else {
+    await forfeitReservedXp({
+      userId: participation.user,
+      amount: stake,
+      sourceType: "challenge",
+      sourceId: challenge._id,
+      action: XP_ACTIONS.CHALLENGE_STAKE_FORFEITED,
+      meta: { challenge_id: challenge.id, participation_id: participation.id, note },
+      text: `Challenge stake forfeited: ${challenge.title}`,
+    });
+    participation.stakeStatus = "forfeited";
+    participation.stakeRefundedXp = 0;
+    participation.stakeForfeitedXp = stake;
+  }
+
+  participation.stakeSettledAt = new Date();
+  participation.stakeSettledBy = actor._id;
+  await participation.save();
+  return { changed: true, participation };
+}
 
 challengesRouter.get("/", authMiddleware, asyncHandler(listChallenges));
 challengesRouter.post("/", authMiddleware, requirePermission("manage_projects"), validate(challengeSchema), asyncHandler(createChallenge));
@@ -58,6 +135,7 @@ challengesRouter.post("/:id/join", authMiddleware, asyncHandler(async (req, res)
     challenge: challenge._id,
     user: req.user._id,
     stakeXp: stake,
+    stakeStatus: stake > 0 ? "reserved" : "none",
     status: "joined",
   });
 
@@ -132,6 +210,17 @@ challengesRouter.patch("/:id/score/:participationId", authMiddleware, requirePer
     });
     participation.xpReward = xpResult.awarded;
   }
+  if (participation.stakeStatus === "reserved" && challenge.stakeRefundPolicy !== "manual") {
+    const threshold = challenge.minimumScoreToRefund ?? 50;
+    const shouldRefund = challenge.stakeRefundPolicy === "always" || participation.score >= threshold;
+    await settleChallengeStake({
+      challenge,
+      participation,
+      actor: req.user,
+      outcome: shouldRefund ? "refund" : "forfeit",
+      note: shouldRefund ? "automatic_score_refund" : "automatic_score_forfeit",
+    });
+  }
   await participation.save();
 
   const ranked = await ChallengeParticipation.find({ challenge: challenge._id, status: "scored" }).sort({ score: -1, scoredAt: 1 });
@@ -141,6 +230,23 @@ challengesRouter.patch("/:id/score/:participationId", authMiddleware, requirePer
   }
   const refreshed = await ChallengeParticipation.findById(participation._id);
   sendSuccess(res, { participation: refreshed }, "Challenge scored");
+}));
+
+challengesRouter.patch("/:id/stake/:participationId", authMiddleware, requirePermission("manage_projects"), validate(stakeSettlementSchema), asyncHandler(async (req, res) => {
+  const challenge = await Challenge.findById(req.params.id);
+  if (!challenge) throw notFound("Challenge not found");
+  if (!hasPermission(req.user, "manage_projects")) throw forbidden();
+  const participation = await ChallengeParticipation.findOne({ _id: req.params.participationId, challenge: challenge._id });
+  if (!participation) throw notFound("Challenge participation not found");
+  const result = await settleChallengeStake({
+    challenge,
+    participation,
+    actor: req.user,
+    outcome: req.body.outcome,
+    refundXp: req.body.refund_xp,
+    note: req.body.note,
+  });
+  sendSuccess(res, { participation: result.participation, changed: result.changed }, "Challenge stake settled");
 }));
 
 challengesRouter.get("/:id/leaderboard", authMiddleware, asyncHandler(async (req, res) => {

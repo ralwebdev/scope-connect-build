@@ -22,7 +22,7 @@ import {
 } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
-import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, backendUsers, type BackendApplication } from "@/lib/api/endpoints";
+import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, backendUsers, type BackendApplication, type BackendProjectRoom, type BackendProjectTask } from "@/lib/api/endpoints";
 import { auth } from "@/lib/scope-store";
 import { useRole } from "@/hooks/use-rbac";
 import { useFeature } from "@/hooks/use-platform";
@@ -90,6 +90,7 @@ function ProjectsPage() {
 
   const [confettiKey, setConfettiKey] = useState(0);
   const [applyTarget, setApplyTarget] = useState<CuratedProject | null>(null);
+  const [roomTarget, setRoomTarget] = useState<CuratedProject | null>(null);
   const [submissionTarget, setSubmissionTarget] = useState<CuratedProject | null>(null);
   const [ideaOpen, setIdeaOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -316,7 +317,7 @@ function ProjectsPage() {
         toast.error("Your application has been rejected.");
         return;
       }
-      setSubmissionTarget(p);
+      setRoomTarget(p);
       return;
     }
     setApplyTarget(p);
@@ -575,6 +576,19 @@ function ProjectsPage() {
         />
       )}
 
+      {roomTarget && (
+        <ProjectRoomModal
+          project={roomTarget}
+          application={appByProjectId.get(roomTarget.id)!}
+          onClose={() => setRoomTarget(null)}
+          onOpenSubmission={() => {
+            const target = roomTarget;
+            setRoomTarget(null);
+            setSubmissionTarget(target);
+          }}
+        />
+      )}
+
       {/* ADMIN ADD MODAL */}
       {showAddModal && (
         <AdminAddProjectModal 
@@ -829,7 +843,7 @@ function ProjectCard({
             {!canParticipate && !applied ? "Restricted" :
              applied && isPending ? "Pending Review" :
              applied && isRejected ? "Rejected" :
-             applied ? (<><Check className="mr-1.5 h-4 w-4" /> Submit Work</>) :
+             applied ? (<><Check className="mr-1.5 h-4 w-4" /> Project Room</>) :
              closed ? "Closed" :
              seatsFull ? "Join Waitlist" : "Commit XP"}
           </Button>
@@ -956,6 +970,214 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
   );
 }
 
+function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
+  project: CuratedProject;
+  application: ProjectApplication;
+  onClose: () => void;
+  onOpenSubmission: () => void;
+}) {
+  const [room, setRoom] = useState<BackendProjectRoom | null>(null);
+  const [tasks, setTasks] = useState<BackendProjectTask[]>([]);
+  const [flags, setFlags] = useState<Array<{ user_id: string; flag: string; severity: string; [key: string]: unknown }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncNote, setSyncNote] = useState("");
+  const [meetingNote, setMeetingNote] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskAssignee, setTaskAssignee] = useState("");
+  const [evidenceByTask, setEvidenceByTask] = useState<Record<string, string>>({});
+
+  const participantId = (participant: BackendProjectRoom["participants"][number]) => {
+    const userRef = participant.user;
+    return typeof userRef === "string" ? userRef : userRef.id || userRef._id || "";
+  };
+  const participantName = (participant: BackendProjectRoom["participants"][number]) => {
+    const userRef = participant.user;
+    return typeof userRef === "string" ? userRef.slice(-6) : userRef.name || userRef.email || userRef.id || userRef._id || "Participant";
+  };
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const [roomRes, taskRes, abuseRes] = await Promise.all([
+        backendProjects.room(project.id),
+        backendProjects.tasks(project.id),
+        backendProjects.abuseCheck(project.id).catch(() => ({ flags: [] })),
+      ]);
+      setRoom(roomRes.room);
+      setTasks(taskRes.items || []);
+      setFlags(abuseRes.flags || []);
+      const firstParticipant = roomRes.room.participants?.[0];
+      if (firstParticipant) setTaskAssignee(participantId(firstParticipant));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load project room.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+  }, [project.id]);
+
+  const saveRoomUpdate = async () => {
+    if (!syncNote.trim() && !meetingNote.trim()) return;
+    try {
+      const response = await backendProjects.updateRoom(project.id, {
+        daily_sync_notes: syncNote.trim() || undefined,
+        meeting_note: meetingNote.trim() || undefined,
+      });
+      setRoom(response.room);
+      setSyncNote("");
+      setMeetingNote("");
+      toast.success("Room updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update room.");
+    }
+  };
+
+  const createTask = async () => {
+    if (!taskTitle.trim()) {
+      toast.error("Add a task title.");
+      return;
+    }
+    try {
+      const response = await backendProjects.createTask(project.id, {
+        title: taskTitle.trim(),
+        description: taskDescription.trim(),
+        assigned_to: taskAssignee ? [taskAssignee] : [],
+        priority: "Medium",
+      });
+      setTasks((current) => [response.task, ...current]);
+      setTaskTitle("");
+      setTaskDescription("");
+      toast.success("Task created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create task.");
+    }
+  };
+
+  const updateStatus = async (task: BackendProjectTask, status: BackendProjectTask["status"]) => {
+    try {
+      const response = await backendProjects.updateTask(project.id, task.id || task._id || "", status);
+      setTasks((current) => current.map((item) => ((item.id || item._id) === (task.id || task._id) ? response.task : item)));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update task.");
+    }
+  };
+
+  const addEvidence = async (task: BackendProjectTask) => {
+    const taskId = task.id || task._id || "";
+    const value = evidenceByTask[taskId]?.trim();
+    if (!value) return;
+    try {
+      const response = await backendProjects.addTaskEvidence(project.id, taskId, {
+        kind: value.startsWith("http") ? "link" : "comment",
+        value,
+      });
+      setTasks((current) => current.map((item) => ((item.id || item._id) === taskId ? response.task : item)));
+      setEvidenceByTask((current) => ({ ...current, [taskId]: "" }));
+      toast.success("Evidence submitted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not submit evidence.");
+    }
+  };
+
+  return (
+    <ModalShell onClose={onClose} title={`Project Room: ${project.title}`} subtitle="Coordinate tasks, sync notes, evidence, and final delivery.">
+      {loading ? (
+        <div className="mt-6 text-sm text-muted-foreground">Loading room...</div>
+      ) : !room ? (
+        <div className="mt-6 text-sm text-muted-foreground">Room is not available yet.</div>
+      ) : (
+        <div className="mt-4 max-h-[72vh] space-y-5 overflow-y-auto pr-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Badge variant={room.status === "locked" ? "secondary" : "outline"} className="capitalize">{room.status}</Badge>
+              <Badge variant="outline" className="capitalize">{application.status}</Badge>
+              <Badge variant="outline">{room.participants.length} participant{room.participants.length === 1 ? "" : "s"}</Badge>
+            </div>
+            <Button size="sm" variant="outline" onClick={onOpenSubmission}>Final submission</Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {room.participants.map((participant) => (
+              <div key={participantId(participant)} className="rounded-lg border border-border/70 p-3">
+                <div className="text-sm font-semibold text-foreground">{participantName(participant)}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{participant.role || "Contributor"} · {participant.progress || 0}% progress · {participant.contributionScore || 0} score</div>
+              </div>
+            ))}
+          </div>
+
+          {flags.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+              <div className="text-sm font-semibold text-foreground">Risk signals</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {flags.slice(0, 8).map((flag, index) => (
+                  <Badge key={`${flag.flag}-${index}`} variant="secondary" className="capitalize">{String(flag.flag).replaceAll("_", " ")}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="text-sm font-semibold text-foreground">Daily sync</div>
+            <Textarea value={syncNote} onChange={(e) => setSyncNote(e.target.value)} rows={2} placeholder="Today’s sync, blockers, handoffs..." />
+            <Textarea value={meetingNote} onChange={(e) => setMeetingNote(e.target.value)} rows={2} placeholder="Meeting note..." />
+            <Button size="sm" onClick={saveRoomUpdate} disabled={!syncNote.trim() && !meetingNote.trim()}>Save room update</Button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-foreground">Create task</div>
+            <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" />
+            <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} rows={2} placeholder="Task details and deliverables" />
+            <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              {room.participants.map((participant) => (
+                <option key={participantId(participant)} value={participantId(participant)}>{participantName(participant)}</option>
+              ))}
+            </select>
+            <Button size="sm" onClick={createTask}>Create task</Button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-foreground">Tasks</div>
+            {tasks.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No tasks yet.</div>
+            ) : tasks.map((task) => {
+              const taskId = task.id || task._id || "";
+              return (
+                <div key={taskId} className="rounded-lg border border-border/70 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{task.title}</div>
+                      {task.description && <div className="mt-1 text-xs text-muted-foreground">{task.description}</div>}
+                    </div>
+                    <Badge variant="outline">{task.status}</Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(["In Progress", "Submitted", "Reviewed", "Completed", "Rework Needed"] as BackendProjectTask["status"][]).map((status) => (
+                      <Button key={status} size="sm" variant="outline" onClick={() => updateStatus(task, status)}>{status}</Button>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Input value={evidenceByTask[taskId] || ""} onChange={(e) => setEvidenceByTask((current) => ({ ...current, [taskId]: e.target.value }))} placeholder="Evidence link or comment" />
+                    <Button size="sm" onClick={() => addEvidence(task)}>Add</Button>
+                  </div>
+                  {!!task.evidence?.length && (
+                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      {task.evidence.slice(-3).map((item, index) => <div key={item.id || index}>{item.kind}: {item.value}</div>)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
 function DetailModal({ project, application, onApply, onClose, canParticipate = true }: {
   project: CuratedProject; application?: ProjectApplication; onApply: () => void; onClose: () => void; canParticipate?: boolean;
 }) {
@@ -1004,7 +1226,7 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
           disabled={!applied && !canParticipate}
           className="bg-gradient-brand text-brand-foreground"
         >
-          {applied ? "Open Submission" : canParticipate ? "Commit XP" : "Restricted for Admins"}
+          {applied ? "Open Room" : canParticipate ? "Commit XP" : "Restricted for Admins"}
         </Button>
       </div>
     </ModalShell>

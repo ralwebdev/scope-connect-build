@@ -108,3 +108,11 @@
 - Added challenge join, stake, submit, score, reward, and leaderboard endpoints without project room/daily reporting coupling.
 - Patched opportunities to unlock by eligibility instead of spending XP and added an eligibility endpoint.
 - Patched frontend project wording/API to use "Commit XP" and opportunity wording to avoid XP purchase language.
+
+## Follow-up Patch Implemented
+- Added frontend project room workspace in `frontend/src/routes/projects.tsx` for accepted participants, including room status, participant progress/score visibility, risk signals, daily sync notes, meeting notes, task creation, task status changes, evidence submission, and access to final submission.
+- Added frontend project room/task API wrappers in `frontend/src/lib/api/endpoints.ts`.
+- Expanded anti-abuse checks in `backend/src/routes/projects.js` to flag max concurrent projects, repeated same-role participation, 24-hour XP spikes, 7-day XP velocity, no reporting, low deliverables, and low contribution score.
+- Added challenge stake refund/forfeit policy fields to `Challenge` and stake settlement fields to `ChallengeParticipation`.
+- Added automatic challenge stake settlement on score based on `stakeRefundPolicy` and `minimumScoreToRefund`.
+- Added manual challenge stake settlement endpoint `PATCH /api/v1/challenges/:id/stake/:participationId` for refund, forfeit, and partial refund outcomes.

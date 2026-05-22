@@ -316,6 +316,70 @@ export const backendProjects = {
       method: "POST",
     });
   },
+  room(id: string) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room`);
+  },
+  updateRoom(id: string, body: { daily_sync_notes?: string; meeting_note?: string; participant_progress?: Array<{ user_id: string; progress: number }> }) {
+    return api<{ room: BackendProjectRoom }>(`/api/v1/projects/${id}/room`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  tasks(id: string) {
+    return api<{ items: BackendProjectTask[] }>(`/api/v1/projects/${id}/tasks`);
+  },
+  createTask(id: string, body: { title: string; description?: string; assigned_to?: string[]; deadline?: string | null; deliverables?: string[]; dependencies?: string[]; priority?: string }) {
+    return api<{ task: BackendProjectTask }>(`/api/v1/projects/${id}/tasks`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateTask(id: string, taskId: string, status: BackendProjectTask["status"]) {
+    return api<{ task: BackendProjectTask }>(`/api/v1/projects/${id}/tasks/${taskId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+  addTaskEvidence(id: string, taskId: string, body: { kind: "link" | "file" | "screenshot" | "comment"; value: string }) {
+    return api<{ task: BackendProjectTask }>(`/api/v1/projects/${id}/tasks/${taskId}/evidence`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  abuseCheck(id: string) {
+    return api<{ flags: Array<{ user_id: string; flag: string; severity: string; [key: string]: unknown }> }>(`/api/v1/projects/${id}/abuse-check`);
+  },
+};
+
+export type BackendProjectRoom = {
+  id: string;
+  status: "open" | "locked" | "completed";
+  temporaryCoordinator?: string | null;
+  participants: Array<{
+    user: string | { _id?: string; id?: string; name?: string; email?: string; role?: string };
+    role?: string;
+    progress?: number;
+    contributionScore?: number;
+    joinedAt?: string;
+  }>;
+  dailySync?: Array<{ notes: string; createdAt?: string; createdBy?: string }>;
+  meetingNotes?: Array<{ note: string; createdAt?: string; createdBy?: string }>;
+  finalDeliverables?: Array<{ title?: string; url?: string; notes?: string; submittedAt?: string }>;
+};
+
+export type BackendProjectTask = {
+  id: string;
+  _id?: string;
+  title: string;
+  description?: string;
+  assignedTo?: string[];
+  deadline?: string | null;
+  deliverables?: string[];
+  dependencies?: string[];
+  priority?: "Low" | "Medium" | "High" | "Critical";
+  status: "Assigned" | "In Progress" | "Submitted" | "Reviewed" | "Completed" | "Rework Needed";
+  evidence?: Array<{ id?: string; kind: string; value: string; createdAt?: string; createdBy?: string }>;
+  createdAt?: string;
 };
 
 export const backendNotifications = {

@@ -20,6 +20,9 @@ export async function createChallenge(req, res) {
     evaluationMethod: req.body.evaluation_method,
     submissionFormat: req.body.submission_format,
     leaderboard: req.body.leaderboard ?? true,
+    stakeRefundPolicy: req.body.stake_refund_policy || "score_threshold",
+    minimumScoreToRefund: req.body.minimum_score_to_refund ?? 50,
+    forfeitOnNoSubmission: req.body.forfeit_on_no_submission ?? true,
   });
   sendSuccess(res, { challenge }, "Challenge created", 201);
 }

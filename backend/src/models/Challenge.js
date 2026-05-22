@@ -12,6 +12,13 @@ const challengeSchema = new mongoose.Schema(
     evaluationMethod: { type: String, trim: true, maxlength: 200, default: "manual_review" },
     submissionFormat: { type: String, trim: true, maxlength: 200, default: "link" },
     leaderboard: { type: Boolean, default: true },
+    stakeRefundPolicy: {
+      type: String,
+      enum: ["always", "score_threshold", "manual", "forfeit_below_threshold"],
+      default: "score_threshold",
+    },
+    minimumScoreToRefund: { type: Number, min: 0, max: 100, default: 50 },
+    forfeitOnNoSubmission: { type: Boolean, default: true },
     seatsTotal: { type: Number, required: true, min: 1, max: 100000 },
     seatsFilled: { type: Number, default: 0, min: 0 },
     reward: { type: String, required: true, trim: true, maxlength: 100 }

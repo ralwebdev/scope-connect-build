@@ -5,6 +5,16 @@ const challengeParticipationSchema = new mongoose.Schema(
     challenge: { type: mongoose.Schema.Types.ObjectId, ref: "Challenge", required: true, index: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     stakeXp: { type: Number, min: 0, default: 0 },
+    stakeStatus: {
+      type: String,
+      enum: ["none", "reserved", "refunded", "forfeited", "partial_refund"],
+      default: "none",
+      index: true,
+    },
+    stakeRefundedXp: { type: Number, min: 0, default: 0 },
+    stakeForfeitedXp: { type: Number, min: 0, default: 0 },
+    stakeSettledAt: Date,
+    stakeSettledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     status: {
       type: String,
       enum: ["joined", "submitted", "scored", "withdrawn"],

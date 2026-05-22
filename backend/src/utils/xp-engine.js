@@ -25,6 +25,8 @@ export const XP_RULES = {
   project_reward_granted: { amount: 0, label: "Project reward granted" },
   project_stake_forfeited: { amount: 0, label: "Project XP commitment forfeited" },
   challenge_stake_reserved: { amount: 0, label: "Challenge XP staked" },
+  challenge_stake_refunded: { amount: 0, label: "Challenge XP stake refunded" },
+  challenge_stake_forfeited: { amount: 0, label: "Challenge XP stake forfeited" },
   challenge_reward_granted: { amount: 0, label: "Challenge reward granted" },
 };
 
