@@ -66,7 +66,26 @@ publicRouter.post("/feedback", optionalAuthMiddleware, validate(feedbackSchema),
 }));
 
 publicRouter.post("/waitlist", validate(waitlistSchema), asyncHandler(async (req, res) => {
-  return res.status(403).json({ success: false, error: "Waitlist registration is currently closed." });
+  const payload = req.body;
+  const existing = await PublicSubmission.findOne({
+    kind: "waitlist",
+    email: payload.email,
+  }).select("_id");
+
+  if (existing) {
+    return sendSuccess(res, { submission_id: existing.id, already_joined: true }, "Already on waitlist");
+  }
+
+  const submission = await PublicSubmission.create({
+    kind: "waitlist",
+    source: payload.source,
+    name: payload.name,
+    email: payload.email,
+    campus: payload.campus,
+    interests: payload.interests,
+  });
+
+  sendSuccess(res, { submission_id: submission.id, already_joined: false }, "Joined waitlist", 201);
 }));
 
 publicRouter.post("/contact", optionalAuthMiddleware, validate(contactSchema), asyncHandler(async (req, res) => {

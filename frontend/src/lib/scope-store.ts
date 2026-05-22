@@ -18,9 +18,13 @@ import {
   backendPortfolio,
   backendProjects,
   backendUsers,
+  backendEvents,
+  backendChallenges,
   backendOpportunities,
   backendOpportunityApplications,
   type BackendOpportunityApplication,
+  type BackendChallenge,
+  type BackendEvent,
   mapBackendNotification,
   mapBackendProject,
 } from "./api/endpoints";
@@ -77,6 +81,7 @@ export type ScopeUser = {
   location?: string | null;
   opportunitiesVerified?: boolean;
   opportunitiesVerificationStatus?: "none" | "pending" | "verified" | "rejected";
+  achievements?: string[];
 };
 
 export type FeedPost = {
@@ -832,13 +837,28 @@ export const projects = {
     notifications.push({ icon: "spark", text: `Builders are viewing "${p.title}".` });
     return p;
   },
-  vote(id: string) {
-    const list = projects.all().map((p) => {
+  async vote(id: string) {
+    const curList = projects.all();
+    const project = curList.find((p) => p.id === id);
+    if (!project) return;
+    const v = !project.userVoted;
+    const list = curList.map((p) => {
       if (p.id !== id) return p;
-      const v = !p.userVoted;
       return { ...p, userVoted: v, votes: p.votes + (v ? 1 : -1) };
     });
-    write(KEYS.projects, list);
+    writeNow(KEYS.projects, list);
+    try {
+      const response = await backendProjects.vote(id);
+      const updatedList = projects.all().map((p) => {
+        if (p.id !== id) return p;
+        return { ...p, userVoted: response.voted, votes: response.votes };
+      });
+      writeNow(KEYS.projects, updatedList);
+      void auth.refreshCurrentUser().catch(() => null);
+    } catch (error) {
+      console.warn("Project vote sync failed", error);
+      writeNow(KEYS.projects, curList);
+    }
   },
 };
 
@@ -856,8 +876,32 @@ const SEED_EVENTS: EventItem[] = upcomingEvents.map((e, i) => ({
 }));
 
 export const events = {
+  async syncFromBackend() {
+    if (!auth.isLoggedIn()) return events.all();
+    try {
+      const { items } = await backendEvents.list(auth.getUser()?.institution?.id);
+      const mapped = items.map((item: BackendEvent): EventItem => ({
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        date: item.date,
+        venue: item.venue,
+        seats: item.seats,
+        color: item.color,
+        startsAt: Number.isNaN(Date.parse(item.date)) ? Date.now() : Date.parse(item.date),
+      }));
+      writeNow("scope_events_backend", mapped);
+      writeNow("scope_events_backend_loaded", true);
+      return mapped;
+    } catch (error) {
+      console.warn("Events sync failed", error);
+      return events.all();
+    }
+  },
   all(): EventItem[] {
-    return SEED_EVENTS;
+    const loaded = read<boolean>("scope_events_backend_loaded", false);
+    const backendItems = read<EventItem[]>("scope_events_backend", []);
+    return loaded ? backendItems : SEED_EVENTS;
   },
   rsvps(): string[] {
     return read<string[]>(KEYS.rsvps, []);
@@ -903,15 +947,17 @@ export const opportunities = {
         min_xp_required: item.min_xp_required ?? 0,
       }));
       writeNow("scope_opportunities_backend", mapped);
-      return [...mapped, ...SEED_OPPS];
+      writeNow("scope_opportunities_backend_loaded", true);
+      return mapped;
     } catch (error) {
       console.warn("Opportunities sync failed", error);
       return opportunities.all();
     }
   },
   all(): Opportunity[] {
+    const loaded = read<boolean>("scope_opportunities_backend_loaded", false);
     const backendItems = read<Opportunity[]>("scope_opportunities_backend", []);
-    return [...backendItems, ...SEED_OPPS];
+    return loaded ? backendItems : SEED_OPPS;
   },
   saved(): string[] {
     return read<string[]>(KEYS.savedOpps, []);
@@ -958,13 +1004,27 @@ export const opportunities = {
 
 export const chapter = {
   joined(): string | null {
-    return read<string | null>(KEYS.joinedChapter, null);
+    const user = auth.getUser();
+    return user?.institution?.name || user?.campus || read<string | null>(KEYS.joinedChapter, null);
   },
-  join(name: string) {
-    write(KEYS.joinedChapter, name);
-    xp.add(40, `Joined ${name}`);
-    const u = auth.getUser();
-    notifications.push({ icon: "users", text: `Welcome to ${name}. Say hi to your chapter.`, dedupKey: `chapter_joined:${u?.id ?? "anon"}:${name}` });
+  async join(institutionId: string) {
+    const response = await backendUsers.joinChapter(institutionId);
+    if (response?.user) {
+      const updatedUser = auth.syncApiUser(response.user);
+      const name = updatedUser.institution?.name || updatedUser.campus || "Chapter";
+      write(KEYS.joinedChapter, name);
+      if (response.awarded_xp > 0) {
+        xp.add(response.awarded_xp, `Joined ${name} Chapter`);
+      } else {
+        // Just trigger event so subscribers re-render
+        writeNow(KEYS.joinedChapter, name);
+      }
+      notifications.push({
+        icon: "users",
+        text: `Welcome to the ${name} Chapter! Your membership is pending verification by the campus coordinator.`,
+        dedupKey: `chapter_joined:${updatedUser.id}:${institutionId}`,
+      });
+    }
   },
 };
 
@@ -1111,6 +1171,8 @@ export type CuratedProject = {
   postedBy: string;
   postedAt: number;
   endsAt?: number;
+  votes?: number;
+  userVoted?: boolean;
 };
 
 export type Application = {
@@ -1155,6 +1217,30 @@ const SEED_OPEN: CuratedProject[] = [
 
 const ALL_CURATED = [...SEED_CURATED, ...SEED_CAMPUS, ...SEED_OPEN];
 
+function mapBackendChallenge(item: BackendChallenge): CuratedProject {
+  const difficulty: Difficulty =
+    item.difficulty === "Easy" ? "Beginner" : item.difficulty === "Hard" ? "Advanced" : "Intermediate";
+  const rewardText = item.reward || "XP reward";
+
+  return {
+    id: item.id,
+    scope: item.scope === "campus" ? "campus" : "scope",
+    title: item.title,
+    category: item.category,
+    difficulty,
+    seatsTotal: item.seatsTotal,
+    seatsFilled: item.seatsFilled ?? 0,
+    timeline: "Flexible",
+    skills: [item.category].filter(Boolean),
+    description: `${item.title} is a live Scope challenge. Apply with proof of work and keep your progress visible.`,
+    rewards: rewardText,
+    status: "live",
+    cover: item.scope === "campus" ? "\ud83c\udfeb" : "\u2728",
+    postedBy: "Scope Official",
+    postedAt: item.createdAt ? new Date(item.createdAt).getTime() : Date.now(),
+  };
+}
+
 function backendProjectsAsCurated(): CuratedProject[] {
   return projects.all()
     .filter((p) => !p.id.startsWith("seed_p_"))
@@ -1175,18 +1261,51 @@ function backendProjectsAsCurated(): CuratedProject[] {
       cover: p.cover,
       postedBy: p.author,
       postedAt: p.createdAt,
+      votes: p.votes || 0,
+      userVoted: p.userVoted || false,
     }));
 }
 
 export const curated = {
-  scopeChallenges(): CuratedProject[] { return SEED_CURATED; },
+  async syncFromBackend() {
+    if (!auth.isLoggedIn()) return curated.all();
+    try {
+      const { items } = await backendChallenges.list();
+      const mapped = items.map(mapBackendChallenge);
+      writeNow("scope_curated_backend", mapped);
+      writeNow("scope_curated_backend_loaded", true);
+      return curated.all();
+    } catch (error) {
+      console.warn("Challenge sync failed", error);
+      return curated.all();
+    }
+  },
+  backendItems(): CuratedProject[] {
+    return read<CuratedProject[]>("scope_curated_backend", []);
+  },
+  hasBackendLoaded(): boolean {
+    return read<boolean>("scope_curated_backend_loaded", false);
+  },
+  scopeChallenges(): CuratedProject[] {
+    const backendItems = curated.backendItems().filter((p) => p.scope === "scope");
+    return curated.hasBackendLoaded() ? backendItems : SEED_CURATED;
+  },
   campusFor(campus: string | null): CuratedProject[] {
+    const backendItems = curated.backendItems().filter((p) => p.scope === "campus");
+    if (curated.hasBackendLoaded()) {
+      return campus ? backendItems.filter((p) => p.campus === campus || !p.campus) : backendItems;
+    }
     if (!campus) return SEED_CAMPUS;
     return SEED_CAMPUS.filter((p) => p.campus === campus);
   },
-  openProjects(): CuratedProject[] { return [...backendProjectsAsCurated(), ...SEED_OPEN]; },
-  byId(id: string): CuratedProject | undefined { return [...backendProjectsAsCurated(), ...ALL_CURATED].find((p) => p.id === id); },
-  all(): CuratedProject[] { return [...backendProjectsAsCurated(), ...ALL_CURATED]; },
+  openProjects(): CuratedProject[] {
+    return curated.hasBackendLoaded() ? backendProjectsAsCurated() : [...backendProjectsAsCurated(), ...SEED_OPEN];
+  },
+  byId(id: string): CuratedProject | undefined { return curated.all().find((p) => p.id === id); },
+  all(): CuratedProject[] {
+    if (curated.hasBackendLoaded()) return [...backendProjectsAsCurated(), ...curated.backendItems()];
+    return [...backendProjectsAsCurated(), ...ALL_CURATED];
+  },
 };
 
 export const applications = {

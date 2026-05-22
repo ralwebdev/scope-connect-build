@@ -54,20 +54,6 @@ export function FeedbackWidget() {
       return;
     }
 
-    try {
-      const list = JSON.parse(localStorage.getItem("scope_feedback") || "[]");
-      list.unshift({
-        rating: Math.max(1, Math.round(score / 2)),
-        type: "Soft launch",
-        text: message,
-        at: Date.now(),
-        score,
-      });
-      localStorage.setItem("scope_feedback", JSON.stringify(list.slice(0, 100)));
-    } catch {
-      // noop
-    }
-
     toast.success("Thanks. Your signal shapes Scope.");
     setOpen(false);
     setScore(null);

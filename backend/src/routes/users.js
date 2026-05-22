@@ -13,6 +13,8 @@ import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
 import { serializeUser } from "../utils/serializers.js";
 import { Institution as InstitutionModel } from "../models/Institution.js";
+import { unlockAchievement } from "../utils/achievement-engine.js";
+import { awardXp } from "../utils/xp-engine.js";
 
 export const usersRouter = express.Router();
 export const adminUsersRouter = express.Router();
@@ -258,6 +260,7 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
   // Trigger notifications
   try {
     if (req.body.student_status === "active") {
+      await unlockAchievement(user._id, "verified_builder");
       await Notification.create({
         user: user._id,
         kind: "achievement",
@@ -307,6 +310,56 @@ usersRouter.get("/me/feedback", asyncHandler(async (req, res) => {
   }).sort({ createdAt: -1 });
 
   sendSuccess(res, { feedback: submissions });
+}));
+
+usersRouter.post("/join-chapter", validate(z.object({ institution_id: z.string().min(1) })), asyncHandler(async (req, res) => {
+  const { institution_id } = req.body;
+  const institution = await Institution.findById(institution_id);
+  if (!institution) throw notFound("Institution not found");
+
+  const user = await User.findById(req.user._id);
+  if (!user) throw notFound("User not found");
+
+  // Update User and Profile institution reference and reset status
+  user.institution = institution._id;
+  user.studentStatus = "pending_verification";
+  await user.save();
+
+  await Profile.findOneAndUpdate(
+    { user: user._id },
+    {
+      institution: institution._id,
+      institutionVerified: false,
+    },
+    { new: true, upsert: true }
+  );
+
+  // Award +40 XP for joining chapter (idempotent via dedupeKey)
+  const xpResult = await awardXp({
+    userId: user._id,
+    institutionId: institution._id,
+    rule: "dashboard_joined_campus",
+    amountOverride: 40,
+    dedupeKey: `joined_campus:${user._id}:${institution._id}`,
+    text: `Joined ${institution.name} chapter · +40 XP`,
+  });
+
+  // Create welcome notification
+  await Notification.create({
+    user: user._id,
+    kind: "system",
+    title: `Joined ${institution.name}!`,
+    body: `Welcome to the chapter. Your membership is pending verification by the campus coordinator.`,
+    link: "/campus",
+    dedupeKey: `chapter_joined:${user._id}:${institution._id}:${Date.now()}`,
+  }).catch(() => null);
+
+  // Hydrate user and return
+  const hydratedUser = await findHydratedUser(user._id);
+  sendSuccess(res, {
+    user: await serializeUser(hydratedUser, { includePrivate: true }),
+    awarded_xp: xpResult.awarded,
+  }, "Chapter joined successfully");
 }));
 
 usersRouter.post("/me/opportunity-verification", asyncHandler(async (req, res) => {
@@ -823,6 +876,7 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
     // Trigger notification
     try {
       if (status === "active") {
+        await unlockAchievement(user._id, "verified_builder");
         await Notification.create({
           user: user._id,
           kind: "achievement",

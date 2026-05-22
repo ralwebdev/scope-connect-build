@@ -11,6 +11,8 @@ import { hasPermission } from "../utils/roles.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { serializeProject, serializeApplication } from "../utils/serializers.js";
 import { awardXp } from "../utils/xp-engine.js";
+import { unlockAchievement } from "../utils/achievement-engine.js";
+
 
 export const projectsRouter = express.Router();
 export const applicationsRouter = express.Router();
@@ -86,7 +88,7 @@ projectsRouter.get("/", optionalAuthMiddleware, asyncHandler(async (req, res) =>
   const pageProjects = hasMore ? projects.slice(0, limit) : projects;
   const last = pageProjects.at(-1);
   sendSuccess(res, {
-    items: pageProjects.map(serializeProject),
+    items: pageProjects.map((p) => serializeProject(p, req.user?._id)),
     next_cursor: hasMore && last ? Buffer.from(JSON.stringify({ id: last.id, [sort.field]: last[sort.field] })).toString("base64url") : null,
     has_more: hasMore,
   });
@@ -100,7 +102,7 @@ projectsRouter.get("/:id", optionalAuthMiddleware, asyncHandler(async (req, res)
   if (project.status === "draft" && (!req.user || (project.createdBy.toString() !== req.user.id && !hasPermission(req.user, "manage_projects")))) {
     throw notFound("Project not found");
   }
-  sendSuccess(res, { project: serializeProject(project) });
+  sendSuccess(res, { project: serializeProject(project, req.user?._id) });
 }));
 
 projectsRouter.post("/", authMiddleware, requirePermission("create_project"), validate(projectSchema), asyncHandler(async (req, res) => {
@@ -128,7 +130,12 @@ projectsRouter.post("/", authMiddleware, requirePermission("create_project"), va
     meta: req.body.meta,
   });
   await logProfileActivity(req.user._id, "project_created", `Created project: ${project.title}`, { project_id: project.id });
-  sendSuccess(res, { project: serializeProject(project) }, "Project created", 201);
+  
+  if (req.user.role === "student" || req.user.role === "viewer") {
+    await unlockAchievement(req.user._id, "first_project");
+  }
+
+  sendSuccess(res, { project: serializeProject(project, req.user?._id) }, "Project created", 201);
 }));
 
 projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), asyncHandler(async (req, res) => {
@@ -171,7 +178,7 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
     }).catch(() => null);
   }
 
-  sendSuccess(res, { project: serializeProject(project) });
+  sendSuccess(res, { project: serializeProject(project, req.user?._id) });
 }));
 
 projectsRouter.delete("/:id", authMiddleware, asyncHandler(async (req, res) => {
@@ -181,6 +188,43 @@ projectsRouter.delete("/:id", authMiddleware, asyncHandler(async (req, res) => {
   project.status = "cancelled";
   await project.save();
   sendSuccess(res, null);
+}));
+
+projectsRouter.post("/:id/vote", authMiddleware, asyncHandler(async (req, res) => {
+  const project = await Project.findById(req.params.id);
+  if (!project) throw notFound("Project not found");
+
+  if (!project.votedBy) {
+    project.votedBy = [];
+  }
+
+  const userId = req.user._id;
+  const userIndex = project.votedBy.findIndex((id) => id.toString() === userId.toString());
+
+  let voted = false;
+  if (userIndex > -1) {
+    // Already voted, remove vote
+    project.votedBy.splice(userIndex, 1);
+    voted = false;
+  } else {
+    // Add vote
+    project.votedBy.push(userId);
+    voted = true;
+  }
+
+  // Update votes count to match actual length
+  project.votes = project.votedBy.length;
+  await project.save();
+
+  // Count distinct projects voted on by the current user
+  const distinctVotesCount = await Project.countDocuments({ votedBy: userId });
+
+  // Unlock "team_player" achievement if count >= 5 and user is a student or viewer
+  if (distinctVotesCount >= 5 && (req.user.role === "student" || req.user.role === "viewer")) {
+    await unlockAchievement(userId, "team_player");
+  }
+
+  sendSuccess(res, { voted, votes: project.votes });
 }));
 
 projectsRouter.post("/:id/apply", authMiddleware, requirePermission("apply_to_project"), validate(applySchema), asyncHandler(async (req, res) => {

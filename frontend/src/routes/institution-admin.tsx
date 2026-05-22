@@ -3,7 +3,7 @@
 // helper. Falls back to a seeded default for demo users.
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
-import { Building2, Users, BarChart3, Megaphone, CheckCircle2, XCircle, TrendingUp, Award, Calendar, FolderKanban, Send, ImageIcon, Sparkles, ChevronRight, ShieldCheck, Download, FileText, Plus, Trash2, Edit, Layers, MapPin, UserPlus } from "lucide-react";
+import { Building2, Users, BarChart3, Megaphone, CheckCircle2, XCircle, TrendingUp, Award, Calendar, FolderKanban, Send, ImageIcon, Sparkles, ChevronRight, ShieldCheck, Download, FileText, Plus, Trash2, Edit, Layers, MapPin, UserPlus, Flame } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { AccessDenied } from "@/components/site/AccessDenied";
@@ -20,7 +20,7 @@ import { useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { useStoreValue } from "@/hooks/use-scope";
 import { crm, type Institution } from "@/lib/crm-store";
-import { backendAnalytics, backendEvents, backendNotifications, backendProjects, backendUsers } from "@/lib/api/endpoints";
+import { backendAnalytics, backendEvents, backendNotifications, backendProjects, backendUsers, backendInstitutions } from "@/lib/api/endpoints";
 import { FeedComposer } from "@/components/site/FeedComposer";
 import type { ScopeUser } from "@/lib/scope-store";
 import { rbac, type PermissionKey } from "@/lib/rbac";
@@ -208,11 +208,11 @@ function InstitutionRouteSwitcher({
 
       <nav className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3">
         <TabLink to="/institution-admin" label="Hub" active={tab === "hub"} />
-        <TabLink to="/institution-admin/departments" label="Departments" active={tab === "departments"} />
+        {/* <TabLink to="/institution-admin/departments" label="Departments" active={tab === "departments"} /> */}
         <TabLink to="/institution-admin/projects" label="Projects" active={tab === "projects"} />
         <TabLink to="/institution-admin/events" label="Events" active={tab === "events"} />
         <TabLink to="/institution-admin/members" label="Members" active={tab === "members"} />
-        <TabLink to="/institution-admin/analytics" label="Analytics" active={tab === "analytics"} />
+        {/* <TabLink to="/institution-admin/analytics" label="Analytics" active={tab === "analytics"} /> */}
         <TabLink to="/institution-admin/reports" label="Reports" active={tab === "reports"} />
         <TabLink to="/institution-admin/communications" label="Communications" active={tab === "communications"} />
       </nav>
@@ -411,71 +411,265 @@ function QuickActionsPanel() {
   );
 }
 
-const PROFILE_KEY = "sc_inst_profile";
 type InstProfile = { logoText: string; description: string; departments: string[]; topSkills: string[] };
-function readProfile(id: string): InstProfile {
-  if (typeof window === "undefined") return { logoText: "", description: "", departments: [], topSkills: [] };
-  try {
-    const raw = localStorage.getItem(`${PROFILE_KEY}:${id}`);
-    return raw ? JSON.parse(raw) : { logoText: "", description: "Building India's most ambitious student community.", departments: ["CSE", "ECE", "ME"], topSkills: ["AI/ML", "Web", "Design"] };
-  } catch { return { logoText: "", description: "", departments: [], topSkills: [] }; }
-}
-function writeProfile(id: string, p: InstProfile) {
-  if (typeof window === "undefined") return;
-  try { localStorage.setItem(`${PROFILE_KEY}:${id}`, JSON.stringify(p)); } catch { /* noop */ }
-}
 
 function InstitutionProfileEditor({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
-  const [p, setP] = useState<InstProfile>(() => readProfile(institutionId));
+  const user = useUser();
+  const cred = useStoreValue(() => crm.credential(institutionId));
+
+  const [p, setP] = useState<InstProfile>({
+    logoText: "",
+    description: "",
+    departments: [],
+    topSkills: [],
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [dept, setDept] = useState("");
   const [skill, setSkill] = useState("");
-  const save = () => { writeProfile(institutionId, p); toast.success("Institution profile saved"); };
+
+  // Load from backend when institutionId changes
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+
+    backendInstitutions.get(institutionId)
+      .then(({ institution }) => {
+        if (!active) return;
+
+        setP({
+          logoText: institution.logo_text || "",
+          description: institution.description || "Building India's most ambitious student community.",
+          departments: institution.departments && institution.departments.length > 0
+            ? institution.departments
+            : ["CSE", "ECE", "ME"],
+          topSkills: institution.top_skills && institution.top_skills.length > 0
+            ? institution.top_skills
+            : ["AI/ML", "Web", "Design"],
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to fetch institution profile:", err);
+        // Fall back to localStorage or standard defaults if backend is unreachable
+        if (active) {
+          try {
+            const raw = localStorage.getItem(`sc_inst_profile:${institutionId}`);
+            if (raw) {
+              setP(JSON.parse(raw));
+            }
+          } catch { }
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [institutionId]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await backendInstitutions.update(institutionId, {
+        logo_text: p.logoText,
+        description: p.description,
+        departments: p.departments,
+        top_skills: p.topSkills,
+      });
+
+      // Synchronize back to the localStorage simulator if needed
+      try {
+        localStorage.setItem(`sc_inst_profile:${institutionId}`, JSON.stringify(p));
+      } catch { }
+
+      // Tick off checklist if active
+      const userEmail = user?.email || cred?.email || "";
+      if (userEmail) {
+        crm.markFirstLoginStep(institutionId, "profileCompletedAt", userEmail);
+      }
+
+      toast.success("Institution profile successfully saved to MongoDB database!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Failed to persist profile updates to MongoDB.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addDepartment = () => {
+    const trimmed = dept.trim();
+    if (!trimmed) return;
+    if (p.departments.includes(trimmed)) {
+      toast.error("Department already listed!");
+      return;
+    }
+    setP({ ...p, departments: [...p.departments, trimmed] });
+    setDept("");
+  };
+
+  const addSkill = () => {
+    const trimmed = skill.trim();
+    if (!trimmed) return;
+    if (p.topSkills.includes(trimmed)) {
+      toast.error("Skill already listed!");
+      return;
+    }
+    setP({ ...p, topSkills: [...p.topSkills, trimmed] });
+    setSkill("");
+  };
+
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold">Institution profile</h3>
-        <Button size="sm" onClick={save} className="bg-gradient-brand text-brand-foreground">Save</Button>
+    <Card className="relative overflow-hidden p-6 transition-all duration-300 hover:shadow-lg border-border bg-card/60 backdrop-blur-sm">
+      {/* Loading Spinner */}
+      {loading && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 gap-3 backdrop-blur-xs transition-opacity duration-300">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+          <span className="text-xs font-semibold text-muted-foreground animate-pulse">Retrieving campus profile from MongoDB...</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-4">
+        <div>
+          <h3 className="text-base font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-transparent">
+            Campus Profile Details
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configure the visual identity, description, departments, and skills for your campus chapter.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={save}
+          disabled={saving || loading}
+          className="bg-gradient-brand text-brand-foreground hover:opacity-90 font-medium px-4 shadow-sm transition-all duration-300"
+        >
+          {saving ? (
+            <>
+              <div className="mr-2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-foreground border-t-transparent" />
+              Saving...
+            </>
+          ) : "Save Changes"}
+        </Button>
       </div>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div>
-          <Label>Logo text / monogram</Label>
-          <div className="mt-1 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-brand text-lg font-bold text-brand-foreground">
-              {(p.logoText || institutionName).slice(0, 2).toUpperCase()}
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Left Column: Monogram & Description */}
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground/80">Campus Monogram / Logo Text</Label>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-lg font-extrabold text-brand-foreground shadow-sm transition-all duration-300 hover:scale-105 animate-in fade-in zoom-in-95">
+                {(p.logoText || institutionName || "SC").slice(0, 3).toUpperCase()}
+              </div>
+              <div className="flex-1">
+                <Input
+                  value={p.logoText}
+                  onChange={(e) => setP({ ...p, logoText: e.target.value })}
+                  placeholder="e.g. ABC"
+                  disabled={loading || saving}
+                  className="bg-background/40 hover:border-brand/40 focus:border-brand transition-all duration-200"
+                />
+                <span className="text-[10px] text-muted-foreground mt-1 block">Max 3 characters recommended for ideal display.</span>
+              </div>
             </div>
-            <Input value={p.logoText} onChange={(e) => setP({ ...p, logoText: e.target.value })} placeholder="e.g. ABC" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground/80">About our Campus Chapter</Label>
+            <Textarea
+              rows={4}
+              value={p.description}
+              onChange={(e) => setP({ ...p, description: e.target.value })}
+              placeholder="Tell students about your campus hub..."
+              disabled={loading || saving}
+              className="bg-background/40 resize-none hover:border-brand/40 focus:border-brand transition-all duration-200"
+            />
           </div>
         </div>
-        <div className="md:row-span-2">
-          <Label>Description</Label>
-          <Textarea rows={5} value={p.description} onChange={(e) => setP({ ...p, description: e.target.value })} />
-        </div>
-        <div>
-          <Label>Departments</Label>
-          <div className="mt-1 flex gap-2">
-            <Input value={dept} onChange={(e) => setDept(e.target.value)} placeholder="Add department" />
-            <Button variant="outline" onClick={() => { if (dept) { setP({ ...p, departments: [...p.departments, dept] }); setDept(""); } }}>Add</Button>
+
+        {/* Right Column: Departments & Top Skills */}
+        <div className="space-y-4">
+          {/* Departments Tag Input */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground/80">Academic Departments</Label>
+            <div className="flex gap-2">
+              <Input
+                value={dept}
+                onChange={(e) => setDept(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDepartment())}
+                placeholder="e.g. CSE, ECE"
+                disabled={loading || saving}
+                className="bg-background/40 hover:border-brand/40 focus:border-brand transition-all duration-200"
+              />
+              <Button
+                variant="outline"
+                onClick={addDepartment}
+                disabled={loading || saving || !dept.trim()}
+                className="hover:bg-secondary/80 shrink-0"
+              >
+                Add
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {p.departments.map((d, i) => (
+                <Badge
+                  key={`dept-${d}-${i}`}
+                  variant="secondary"
+                  className="group cursor-pointer select-none rounded-md px-2 py-0.5 text-[11px] font-medium transition-all duration-200 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                  onClick={() => setP({ ...p, departments: p.departments.filter((_, j) => j !== i) })}
+                >
+                  {d}
+                  <XCircle className="ml-1 h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-destructive shrink-0" />
+                </Badge>
+              ))}
+              {p.departments.length === 0 && (
+                <span className="text-[11px] text-muted-foreground italic">No departments listed yet.</span>
+              )}
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {p.departments.map((d, i) => (
-              <Badge key={i} variant="secondary" className="cursor-pointer" onClick={() => setP({ ...p, departments: p.departments.filter((_, j) => j !== i) })}>
-                {d} <XCircle className="ml-1 h-3 w-3" />
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div>
-          <Label>Top skills</Label>
-          <div className="mt-1 flex gap-2">
-            <Input value={skill} onChange={(e) => setSkill(e.target.value)} placeholder="Add skill" />
-            <Button variant="outline" onClick={() => { if (skill) { setP({ ...p, topSkills: [...p.topSkills, skill] }); setSkill(""); } }}>Add</Button>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {p.topSkills.map((d, i) => (
-              <Badge key={i} className="cursor-pointer bg-gradient-brand text-brand-foreground" onClick={() => setP({ ...p, topSkills: p.topSkills.filter((_, j) => j !== i) })}>
-                {d} <XCircle className="ml-1 h-3 w-3" />
-              </Badge>
-            ))}
+
+          {/* Top Skills Tag Input */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground/80">Top Hot Skills on Campus</Label>
+            <div className="flex gap-2">
+              <Input
+                value={skill}
+                onChange={(e) => setSkill(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSkill())}
+                placeholder="e.g. AI/ML, Figma, React"
+                disabled={loading || saving}
+                className="bg-background/40 hover:border-brand/40 focus:border-brand transition-all duration-200"
+              />
+              <Button
+                variant="outline"
+                onClick={addSkill}
+                disabled={loading || saving || !skill.trim()}
+                className="hover:bg-secondary/80 shrink-0"
+              >
+                Add
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {p.topSkills.map((s, i) => (
+                <Badge
+                  key={`skill-${s}-${i}`}
+                  className="group cursor-pointer select-none rounded-md bg-gradient-brand text-brand-foreground px-2 py-0.5 text-[11px] font-medium transition-all duration-200 hover:from-destructive hover:to-destructive/80 hover:text-destructive-foreground animate-in fade-in-50 slide-in-from-bottom-1"
+                  onClick={() => setP({ ...p, topSkills: p.topSkills.filter((_, j) => j !== i) })}
+                >
+                  {s}
+                  <XCircle className="ml-1 h-3.5 w-3.5 text-brand-foreground/75 transition-colors group-hover:text-destructive-foreground shrink-0" />
+                </Badge>
+              ))}
+              {p.topSkills.length === 0 && (
+                <span className="text-[11px] text-muted-foreground italic">No skills listed yet.</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1732,14 +1926,14 @@ function DepartmentsView({ institutionId }: { institutionId: string }) {
   );
 }
 
-function SubmissionReviewDialog({ 
-  application, 
-  onClose, 
-  onUpdate 
-}: { 
-  application: any; 
-  onClose: () => void; 
-  onUpdate: (appId: string, reviewStatus: string, comment: string) => void; 
+function SubmissionReviewDialog({
+  application,
+  onClose,
+  onUpdate
+}: {
+  application: any;
+  onClose: () => void;
+  onUpdate: (appId: string, reviewStatus: string, comment: string) => void;
 }) {
   const [comment, setComment] = useState("");
   const sub = application.submission || {};
@@ -1853,16 +2047,16 @@ function SubmissionReviewDialog({
   );
 }
 
-function ProjectApplicationsDialog({ 
-  project, 
-  applications, 
-  isOpen, 
+function ProjectApplicationsDialog({
+  project,
+  applications,
+  isOpen,
   onClose,
   onRefresh
-}: { 
-  project: any; 
-  applications: any[]; 
-  isOpen: boolean; 
+}: {
+  project: any;
+  applications: any[];
+  isOpen: boolean;
   onClose: () => void;
   onRefresh: () => void;
 }) {
@@ -1926,7 +2120,7 @@ function ProjectApplicationsDialog({
                         {app.message && <div className="mt-1 text-xs italic text-muted-foreground line-clamp-1">"{app.message}"</div>}
                       </TableCell>
                       <TableCell>
-                        <select 
+                        <select
                           className="flex h-8 w-32 items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                           value={app.status}
                           disabled={loading}
@@ -1944,9 +2138,9 @@ function ProjectApplicationsDialog({
                         ) : (
                           <div className="flex items-center gap-2">
                             <Badge className={
-                              app.submission_review_status === "passed" ? "bg-success/10 text-success" : 
-                              app.submission_review_status === "needs_changes" ? "bg-warning/10 text-warning" : 
-                              "bg-brand/10 text-brand"
+                              app.submission_review_status === "passed" ? "bg-success/10 text-success" :
+                                app.submission_review_status === "needs_changes" ? "bg-warning/10 text-warning" :
+                                  "bg-brand/10 text-brand"
                             }>
                               {app.submission_review_status.replace("_", " ")}
                             </Badge>
@@ -1962,12 +2156,12 @@ function ProjectApplicationsDialog({
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {reviewApp && (
-        <SubmissionReviewDialog 
-          application={reviewApp} 
-          onClose={() => setReviewApp(null)} 
-          onUpdate={handleSubmissionReview} 
+        <SubmissionReviewDialog
+          application={reviewApp}
+          onClose={() => setReviewApp(null)}
+          onUpdate={handleSubmissionReview}
         />
       )}
     </>
@@ -2159,7 +2353,13 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                   return (
                     <>
                       <div className="flex items-start justify-between">
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{project.domain || "General"}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{project.domain || "General"}</Badge>
+                          <div className="flex items-center gap-1 bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded-full text-[10px] font-bold border border-orange-500/20 shadow-[0_0_8px_rgba(249,115,22,0.1)] animate-pulse">
+                            <Flame className="h-3 w-3 fill-orange-500 text-orange-500" />
+                            <span>{project.votes || 0} upvotes</span>
+                          </div>
+                        </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"><Edit className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(project.id)} className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -2195,8 +2395,8 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                       </div>
 
                       <div className="mt-4">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           className="w-full bg-secondary/50 hover:bg-secondary border-border"
                           onClick={() => setManageProject(project)}
                         >
@@ -2256,8 +2456,17 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
     fetchEvents();
   }, [institutionId]);
 
+  const minDatetime = useMemo(() => {
+    const tzoffset = new Date().getTimezoneOffset() * 60000;
+    return new Date(Date.now() - tzoffset).toISOString().slice(0, 16);
+  }, []);
+
   const handleCreate = async () => {
     if (!newEvent.title || !newEvent.date) return toast.error("Title and Date are required");
+    const eventDate = new Date(newEvent.date);
+    if (eventDate < new Date()) {
+      return toast.error("Event date must be in the future.");
+    }
     try {
       const { backendEvents } = await import("@/lib/api/endpoints");
       await backendEvents.create(newEvent as any);
@@ -2272,8 +2481,13 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
         color: "brand"
       });
       fetchEvents();
-    } catch (error) {
-      toast.error("Failed to create event");
+    } catch (error: any) {
+      if (error?.details?.issues) {
+        const msg = error.details.issues.map((i: any) => `${i.path?.join(".") || "field"}: ${i.message}`).join(", ");
+        toast.error(`Validation failed: ${msg}`);
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to create event");
+      }
     }
   };
 
@@ -2347,6 +2561,7 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                 <Label>Date & Time *</Label>
                 <Input
                   type="datetime-local"
+                  min={minDatetime}
                   value={newEvent.date}
                   onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
                 />
@@ -2410,14 +2625,14 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                       )}
                     </div>
                   </div>
-                  <h4 className="mt-3 font-bold text-foreground">{event.title}</h4>
-                  <div className="mt-4 flex items-center justify-between text-[10px] text-muted-foreground">
-                    <div className="flex items-center">
-                      <MapPin className="mr-1 h-3 w-3" />
-                      {event.venue}
+                  <h4 className="mt-3 font-bold text-foreground line-clamp-2 break-words" title={event.title}>{event.title}</h4>
+                  <div className="mt-4 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                    <div className="flex items-center min-w-0" title={event.venue}>
+                      <MapPin className="mr-1 h-3 w-3 shrink-0" />
+                      <span className="truncate">{event.venue}</span>
                     </div>
-                    <div className="flex items-center">
-                      <Calendar className="mr-1 h-3 w-3" />
+                    <div className="flex items-center shrink-0">
+                      <Calendar className="mr-1 h-3 w-3 shrink-0" />
                       {event.date}
                     </div>
                   </div>

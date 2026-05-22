@@ -19,9 +19,9 @@ import {
 import { AppShell } from "@/components/site/AppShell";
 import { useStoreValue, useUser } from "@/hooks/use-scope";
 import { campusPartners } from "@/lib/mock-data";
-import { chapter, events } from "@/lib/scope-store";
+import { chapter, events, auth } from "@/lib/scope-store";
 import { toast } from "sonner";
-import { backendFeed, backendInstitutions, backendUsers, backendProjects, backendEvents, type BackendFeedPost } from "@/lib/api/endpoints";
+import { backendFeed, backendInstitutions, backendUsers, backendProjects, backendEvents, type BackendFeedPost, type BackendInstitution } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/campus")({
   head: () => ({
@@ -44,6 +44,7 @@ function CampusHub() {
   const [campusFeed, setCampusFeed] = useState<BackendFeedPost[]>([]);
   const [summary, setSummary] = useState<{ campus_name: string | null; city: string | null; active_members: number; leaders: number; projects_shipped: number; weekly_growth_pct: number } | null>(null);
   const [campusEvents, setCampusEvents] = useState<any[]>([]);
+  const [topCampuses, setTopCampuses] = useState<Array<{ id: string; name: string; sub: string; value: number }>>([]);
   
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [newProject, setNewProject] = useState({
@@ -56,7 +57,29 @@ function CampusHub() {
     visibility: "institution"
   });
 
+  const [publicCampuses, setPublicCampuses] = useState<BackendInstitution[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoadingCampuses, setIsLoadingCampuses] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+
   const isManagementRole = user?.role === "faculty" || user?.role === "institution_admin";
+  const isPendingVerification = user?.student_status === "pending_verification";
+
+  useEffect(() => {
+    if (user?.institution?.id) return;
+    setIsLoadingCampuses(true);
+    backendInstitutions.publicList()
+      .then(({ items }) => {
+        setPublicCampuses(items);
+      })
+      .catch((err) => {
+        console.error("Failed to load public campuses", err);
+        toast.error("Failed to load campus list");
+      })
+      .finally(() => {
+        setIsLoadingCampuses(false);
+      });
+  }, [user?.institution?.id]);
 
   useEffect(() => {
     if (!user?.institution?.id) return;
@@ -109,6 +132,19 @@ function CampusHub() {
   useEffect(() => {
     if (!user?.institution?.id) return;
     let cancelled = false;
+    backendUsers.listCampusesByMembers()
+      .then(({ items }) => {
+        if (!cancelled) setTopCampuses(items);
+      })
+      .catch(() => {
+        if (!cancelled) setTopCampuses([]);
+      });
+    return () => { cancelled = true; };
+  }, [user?.institution?.id]);
+
+  useEffect(() => {
+    if (!user?.institution?.id) return;
+    let cancelled = false;
     backendEvents.list(user.institution.id)
       .then(({ items }) => {
         if (cancelled) return;
@@ -140,11 +176,114 @@ function CampusHub() {
     return () => { cancelled = true; };
   }, [user?.institution?.id]);
 
-  const join = () => {
+  const join = async (instId: string, name: string) => {
     if (!user) { toast.error("Sign in to join your chapter."); return; }
-    chapter.join(myCampus);
-    toast.success(`Welcome to ${myCampus}. +40 XP awarded.`);
+    setIsJoining(true);
+    try {
+      await chapter.join(instId);
+      toast.success(`Successfully joined the ${name} Chapter! +40 XP awarded.`);
+      void auth.refreshCurrentUser().catch(() => null);
+    } catch (error) {
+      toast.error("Failed to join chapter. Please try again.");
+      console.error(error);
+    } finally {
+      setIsJoining(false);
+    }
   };
+
+  const filteredCampuses = publicCampuses.filter((c) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.city && c.city.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  if (!user?.institution?.id) {
+    return (
+      <AppShell>
+        <section className="bg-gradient-hero py-16 text-primary-foreground relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,209,255,0.15),transparent_45%)]" />
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center relative z-10">
+            <Badge className="bg-cyan/15 text-cyan hover:bg-cyan/20 px-3 py-1 text-xs tracking-wider uppercase mb-4">Connect with Your Campus</Badge>
+            <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-white via-foreground to-white/70">
+              Find Your Campus Chapter
+            </h1>
+            <p className="mt-4 text-lg text-primary-foreground/70 max-w-2xl mx-auto">
+              Join your local student chapter on Scope Connect to collaborate on exclusive campus projects, attend local developer events, and climb the student leaderboards.
+            </p>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-8">
+            <div className="relative flex-1 max-w-md">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground">
+                <Users className="h-4 w-4" />
+              </span>
+              <Input
+                type="text"
+                placeholder="Search campuses by name or city..."
+                className="pl-10 bg-secondary/30 border-border text-foreground placeholder:text-muted-foreground focus:ring-cyan focus:border-cyan"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredCampuses.length} active {filteredCampuses.length === 1 ? 'chapter' : 'chapters'}
+            </div>
+          </div>
+
+          {isLoadingCampuses ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((n) => (
+                <Card key={n} className="border-border bg-secondary/20 p-6 animate-pulse">
+                  <div className="h-12 w-12 rounded-lg bg-secondary mb-4" />
+                  <div className="h-5 bg-secondary rounded w-2/3 mb-2" />
+                  <div className="h-4 bg-secondary rounded w-1/2 mb-4" />
+                  <div className="h-10 bg-secondary rounded w-full" />
+                </Card>
+              ))}
+            </div>
+          ) : filteredCampuses.length === 0 ? (
+            <Card className="border-dashed border-border p-12 text-center bg-secondary/10">
+              <Users className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-semibold text-foreground">No campuses found</h3>
+              <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+                We couldn't find any active campus chapters matching "{searchQuery}". Make sure the spelling is correct or reach out to Scope Support to launch a chapter at your institution.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredCampuses.map((campus) => (
+                <Card key={campus.id} className="border-border bg-secondary/15 hover-lift p-6 flex flex-col justify-between relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-b from-cyan/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                  <div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-brand text-brand-foreground font-extrabold text-lg mb-4 shadow-sm group-hover:scale-105 transition-transform">
+                      {campus.logo_text || campus.name.charAt(0)}
+                    </div>
+                    <h3 className="text-lg font-bold text-foreground line-clamp-1 group-hover:text-cyan transition-colors">{campus.name}</h3>
+                    <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-cyan" /> {campus.city || "Scope Chapter"}{campus.state ? `, ${campus.state}` : ""}
+                    </p>
+                    <p className="mt-3 text-sm text-muted-foreground line-clamp-2">
+                      {campus.description || "Active student developer chapter working on real-world projects, workshops, and startup initiatives."}
+                    </p>
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-border/50">
+                    <Button
+                      onClick={() => join(campus.id, campus.name)}
+                      disabled={isJoining}
+                      className="w-full bg-gradient-brand text-brand-foreground shadow-brand hover:brightness-110"
+                    >
+                      {isJoining ? "Joining..." : "Join Chapter (+40 XP)"}
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      </AppShell>
+    );
+  }
 
   const handleCreateProject = async () => {
     if (!newProject.title) return toast.error("Project title is required");
@@ -245,7 +384,7 @@ function CampusHub() {
                 </DialogContent>
               </Dialog>
             ) : (
-              <Button onClick={join} disabled={joined === myCampus} className={joined === myCampus ? "bg-success text-primary-foreground" : "bg-gradient-brand text-brand-foreground shadow-brand"}>
+              <Button onClick={() => user?.institution?.id && join(user.institution.id, myCampus)} disabled={joined === myCampus} className={joined === myCampus ? "bg-success text-primary-foreground" : "bg-gradient-brand text-brand-foreground shadow-brand"}>
                 {joined === myCampus ? (<><Check className="mr-2 h-4 w-4" /> Joined chapter</>) : (<><Plus className="mr-2 h-4 w-4" /> Join chapter (+40 XP)</>)}
               </Button>
             )}
@@ -271,6 +410,30 @@ function CampusHub() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        {isPendingVerification && (
+          <div className="mb-8 rounded-xl border border-warning/20 bg-warning/5 p-5 backdrop-blur-md relative overflow-hidden shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="absolute inset-0 bg-gradient-to-r from-warning/5 to-transparent pointer-events-none" />
+            <div className="flex items-start gap-4 relative z-10">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning border border-warning/20">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-md font-bold text-foreground flex items-center gap-2">
+                  Pending Coordinator Verification
+                  <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/20">Awaiting Action</Badge>
+                </h4>
+                <p className="mt-1 text-sm text-muted-foreground max-w-2xl">
+                  Welcome to the chapter! Your affiliation with this institution has been registered. A campus coordinator is reviewing your builder profile. Once verified, you will unlock full team collab privileges.
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 relative z-10">
+              <Button variant="outline" size="sm" className="border-warning/30 hover:bg-warning/10 text-foreground" onClick={() => toast.info("Your application is queued. Coordinators are notified daily.")}>
+                Check Status
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <div className="border-b border-border p-5">
@@ -307,11 +470,24 @@ function CampusHub() {
                   <div className="text-sm text-muted-foreground py-4">No upcoming events scheduled.</div>
                 )}
                 {campusEvents.map((e) => (
-                  <li key={e.id} className="rounded-lg border border-border p-3 hover-lift">
-                    <Badge className={`text-xs ${e.color === 'brand' ? 'bg-brand/10 text-brand border-brand/20' : e.color === 'cyan' ? 'bg-cyan/10 text-cyan border-cyan/20' : ''}`}>{e.type}</Badge>
-                    <div className="mt-2 text-sm font-semibold text-foreground">{e.title}</div>
+                  <li key={e.id} className="rounded-lg border border-border p-3 hover-lift w-full overflow-hidden min-w-0">
+                    <Badge
+                      className={`text-xs max-w-full truncate inline-block text-center align-middle ${
+                        e.color === 'brand'
+                          ? 'bg-brand/10 text-brand border-brand/20'
+                          : e.color === 'cyan'
+                          ? 'bg-cyan/10 text-cyan border-cyan/20'
+                          : ''
+                      }`}
+                      title={e.type}
+                    >
+                      {e.type}
+                    </Badge>
+                    <div className="mt-2 text-sm font-semibold text-foreground break-words line-clamp-2" title={e.title}>
+                      {e.title}
+                    </div>
                     <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" /> {e.date}
+                      <Calendar className="h-3 w-3 shrink-0" /> <span className="truncate">{e.date}</span>
                     </div>
                     {rsvps.includes(e.id) && <div className="mt-2 text-xs text-success">✓ You're going</div>}
                   </li>
@@ -322,15 +498,63 @@ function CampusHub() {
             <Card className="p-5">
               <h3 className="font-semibold text-foreground">Other top campuses</h3>
               <ul className="mt-4 space-y-3">
-                {campusPartners.slice(1, 6).map((c, i) => (
-                  <li key={c.name} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-muted-foreground">#{i + 2}</span>
-                      <span className="font-medium text-foreground">{c.name}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{c.members}</span>
-                  </li>
-                ))}
+                {(() => {
+                  const currentCampusName = summary?.campus_name || campusInfo.name;
+                  
+                  // Get the current user's campus rank to avoid rank conflicts
+                  const currentUserCampusRank = topCampuses.findIndex(tc => tc.name === currentCampusName) + 1;
+                  const occupiedRanks = new Set<number>();
+                  if (currentUserCampusRank > 0) {
+                    occupiedRanks.add(currentUserCampusRank);
+                  }
+
+                  // 1. Get all real campuses from database except the current user's campus
+                  const realCampuses = topCampuses
+                    .filter(c => c.name !== currentCampusName)
+                    .map(c => {
+                      const globalRank = topCampuses.findIndex(tc => tc.name === c.name) + 1;
+                      if (globalRank > 0) {
+                        occupiedRanks.add(globalRank);
+                      }
+                      return {
+                        name: c.name,
+                        rank: globalRank > 0 ? globalRank : 2,
+                        members: c.value
+                      };
+                    });
+
+                  // 2. Supplement with mock campuses from campusPartners if we have fewer than 5 items
+                  const displayCampuses = [...realCampuses];
+                  if (displayCampuses.length < 5) {
+                    const existingNames = new Set([currentCampusName, ...realCampuses.map(rc => rc.name)]);
+                    
+                    let nextRank = 2;
+                    for (const partner of campusPartners) {
+                      if (displayCampuses.length >= 5) break;
+                      if (!existingNames.has(partner.name)) {
+                        while (occupiedRanks.has(nextRank)) {
+                          nextRank++;
+                        }
+                        occupiedRanks.add(nextRank);
+                        displayCampuses.push({
+                          name: partner.name,
+                          rank: nextRank,
+                          members: partner.members
+                        });
+                      }
+                    }
+                  }
+                  
+                  return displayCampuses.map((c) => (
+                    <li key={c.name} className="flex items-center justify-between text-sm w-full overflow-hidden min-w-0">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xs font-bold text-muted-foreground shrink-0">#{c.rank}</span>
+                        <span className="font-medium text-foreground truncate" title={c.name}>{c.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0 pl-2">{c.members}</span>
+                    </li>
+                  ));
+                })()}
               </ul>
             </Card>
           </div>
@@ -368,4 +592,3 @@ function CampusHub() {
     </AppShell>
   );
 }
-

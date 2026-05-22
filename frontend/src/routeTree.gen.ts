@@ -28,6 +28,7 @@ import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LeaderboardsRouteImport } from './routes/leaderboards'
 import { Route as InstitutionAdminRouteImport } from './routes/institution-admin'
+import { Route as InnovationLabRouteImport } from './routes/innovation-lab'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as FeedRouteImport } from './routes/feed'
@@ -43,6 +44,7 @@ import { Route as CampusLeaderRouteImport } from './routes/campus-leader'
 import { Route as CampusRouteImport } from './routes/campus'
 import { Route as BrokenLinkRouteImport } from './routes/broken-link'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ApplicationsRouteImport } from './routes/applications'
 import { Route as AnnouncementsRouteImport } from './routes/announcements'
 import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -160,6 +162,11 @@ const InstitutionAdminRoute = InstitutionAdminRouteImport.update({
   path: '/institution-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InnovationLabRoute = InnovationLabRouteImport.update({
+  id: '/innovation-lab',
+  path: '/innovation-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -233,6 +240,11 @@ const BrokenLinkRoute = BrokenLinkRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApplicationsRoute = ApplicationsRouteImport.update({
+  id: '/applications',
+  path: '/applications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnnouncementsRoute = AnnouncementsRouteImport.update({
@@ -350,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
+  '/applications': typeof ApplicationsRoute
   '/auth': typeof AuthRoute
   '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
@@ -365,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/feed': typeof FeedRoute
   '/feedback': typeof FeedbackRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/innovation-lab': typeof InnovationLabRoute
   '/institution-admin': typeof InstitutionAdminRouteWithChildren
   '/leaderboards': typeof LeaderboardsRoute
   '/notifications': typeof NotificationsRoute
@@ -407,6 +421,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRouteWithChildren
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
+  '/applications': typeof ApplicationsRoute
   '/auth': typeof AuthRoute
   '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
@@ -422,6 +437,7 @@ export interface FileRoutesByTo {
   '/feed': typeof FeedRoute
   '/feedback': typeof FeedbackRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/innovation-lab': typeof InnovationLabRoute
   '/institution-admin': typeof InstitutionAdminRouteWithChildren
   '/leaderboards': typeof LeaderboardsRoute
   '/notifications': typeof NotificationsRoute
@@ -465,6 +481,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/ambassador': typeof AmbassadorRoute
   '/announcements': typeof AnnouncementsRoute
+  '/applications': typeof ApplicationsRoute
   '/auth': typeof AuthRoute
   '/broken-link': typeof BrokenLinkRoute
   '/campus': typeof CampusRoute
@@ -480,6 +497,7 @@ export interface FileRoutesById {
   '/feed': typeof FeedRoute
   '/feedback': typeof FeedbackRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/innovation-lab': typeof InnovationLabRoute
   '/institution-admin': typeof InstitutionAdminRouteWithChildren
   '/leaderboards': typeof LeaderboardsRoute
   '/notifications': typeof NotificationsRoute
@@ -524,6 +542,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ambassador'
     | '/announcements'
+    | '/applications'
     | '/auth'
     | '/broken-link'
     | '/campus'
@@ -539,6 +558,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/feedback'
     | '/forgot-password'
+    | '/innovation-lab'
     | '/institution-admin'
     | '/leaderboards'
     | '/notifications'
@@ -581,6 +601,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ambassador'
     | '/announcements'
+    | '/applications'
     | '/auth'
     | '/broken-link'
     | '/campus'
@@ -596,6 +617,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/feedback'
     | '/forgot-password'
+    | '/innovation-lab'
     | '/institution-admin'
     | '/leaderboards'
     | '/notifications'
@@ -638,6 +660,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ambassador'
     | '/announcements'
+    | '/applications'
     | '/auth'
     | '/broken-link'
     | '/campus'
@@ -653,6 +676,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/feedback'
     | '/forgot-password'
+    | '/innovation-lab'
     | '/institution-admin'
     | '/leaderboards'
     | '/notifications'
@@ -696,6 +720,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   AmbassadorRoute: typeof AmbassadorRoute
   AnnouncementsRoute: typeof AnnouncementsRoute
+  ApplicationsRoute: typeof ApplicationsRoute
   AuthRoute: typeof AuthRoute
   BrokenLinkRoute: typeof BrokenLinkRoute
   CampusRoute: typeof CampusRoute
@@ -711,6 +736,7 @@ export interface RootRouteChildren {
   FeedRoute: typeof FeedRoute
   FeedbackRoute: typeof FeedbackRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  InnovationLabRoute: typeof InnovationLabRoute
   InstitutionAdminRoute: typeof InstitutionAdminRouteWithChildren
   LeaderboardsRoute: typeof LeaderboardsRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -871,6 +897,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstitutionAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/innovation-lab': {
+      id: '/innovation-lab'
+      path: '/innovation-lab'
+      fullPath: '/innovation-lab'
+      preLoaderRoute: typeof InnovationLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forgot-password': {
       id: '/forgot-password'
       path: '/forgot-password'
@@ -974,6 +1007,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/applications': {
+      id: '/applications'
+      path: '/applications'
+      fullPath: '/applications'
+      preLoaderRoute: typeof ApplicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/announcements': {
@@ -1193,6 +1233,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   AmbassadorRoute: AmbassadorRoute,
   AnnouncementsRoute: AnnouncementsRoute,
+  ApplicationsRoute: ApplicationsRoute,
   AuthRoute: AuthRoute,
   BrokenLinkRoute: BrokenLinkRoute,
   CampusRoute: CampusRoute,
@@ -1208,6 +1249,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeedRoute: FeedRoute,
   FeedbackRoute: FeedbackRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  InnovationLabRoute: InnovationLabRoute,
   InstitutionAdminRoute: InstitutionAdminRouteWithChildren,
   LeaderboardsRoute: LeaderboardsRoute,
   NotificationsRoute: NotificationsRoute,

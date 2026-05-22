@@ -33,6 +33,7 @@ const profileSchema = new mongoose.Schema(
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     streakDays: { type: Number, default: 0 },
+    achievements: { type: [String], default: ["early_adopter"] },
     lastActiveDate: Date,
     emailVerifiedAt: Date,
     institutionVerified: { type: Boolean, default: false },

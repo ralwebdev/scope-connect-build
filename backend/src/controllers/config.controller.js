@@ -1,15 +1,28 @@
 import { PlatformConfig } from "../models/index.js";
 import { sendSuccess } from "../utils/response.js";
 
+const defaultConfig = {
+  brand: {
+    name: "Scope Connect",
+    contactEmail: "support@scopeconnect.com",
+    logoText: "Scope Connect",
+  },
+  contact: {
+    supportEmail: "support@scopeconnect.com",
+    partnershipEmail: "partners@scope.in",
+  },
+  features: {
+    enableXP: true,
+    enableMarketplace: true,
+    enableChallenges: true,
+  },
+  campuses: [],
+};
+
 export async function getConfig(req, res) {
   let config = await PlatformConfig.findOne({});
   if (!config) {
-    config = await PlatformConfig.create({
-      brand: { name: "Scope Connect" },
-      contact: { email: "support@scopeconnect.com" },
-      features: { enableXP: true, enableMarketplace: true, enableChallenges: true },
-      campuses: []
-    });
+    config = await PlatformConfig.create(defaultConfig);
   }
   sendSuccess(res, { config });
 }
@@ -17,7 +30,7 @@ export async function getConfig(req, res) {
 export async function updateConfig(req, res) {
   let config = await PlatformConfig.findOne({});
   if (!config) {
-    config = new PlatformConfig({});
+    config = new PlatformConfig(defaultConfig);
   }
   
   if (req.body.brand) config.brand = { ...config.brand, ...req.body.brand };

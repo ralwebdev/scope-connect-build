@@ -54,6 +54,8 @@ type CuratedProject = {
   scope: "scope" | "campus" | "open";
   campus?: string;
   endsAt?: number;
+  votes?: number;
+  userVoted?: boolean;
 };
 
 type ProjectApplication = {
@@ -151,6 +153,8 @@ function ProjectsPage() {
             scope: isCampusProject ? "campus" : "scope",
             campus: projectInstitutionId ? String(projectInstitutionId) : undefined,
             endsAt: p.ends_on ? new Date(p.ends_on).getTime() : undefined,
+            votes: p.votes || 0,
+            userVoted: p.user_voted || false,
           };
 
 
@@ -182,7 +186,9 @@ function ProjectsPage() {
             status: "live",
             cover: p.cover || "🚀",
             postedBy: "Scope Official",
-            scope: "scope"
+            scope: "scope",
+            votes: p.votes || 0,
+            userVoted: false,
           }));
           setScopeChallenges(seeds);
         } else {
@@ -237,6 +243,56 @@ function ProjectsPage() {
       }
     }
     toast(wasSaved ? "Removed from saved" : `🔖 Saved · "${title}"`);
+  };
+
+  const handleVote = async (id: string) => {
+    if (!isAuthed) {
+      toast.error("Sign in to upvote projects.");
+      return;
+    }
+    
+    // Find the project in our local states
+    let targetProj: CuratedProject | undefined;
+    let type: "scope" | "campus" | "open" | null = null;
+    
+    if (scopeChallenges.some((p) => p.id === id)) {
+      targetProj = scopeChallenges.find((p) => p.id === id);
+      type = "scope";
+    } else if (campusProjects.some((p) => p.id === id)) {
+      targetProj = campusProjects.find((p) => p.id === id);
+      type = "campus";
+    } else if (openProjects.some((p) => p.id === id)) {
+      targetProj = openProjects.find((p) => p.id === id);
+      type = "open";
+    }
+    
+    if (!targetProj) return;
+    
+    const wasVoted = !!targetProj.userVoted;
+    const nextVoted = !wasVoted;
+    const nextVotes = (targetProj.votes || 0) + (nextVoted ? 1 : -1);
+    
+    // Optimistic local update
+    const updateLocalList = (list: CuratedProject[]) =>
+      list.map((p) => (p.id === id ? { ...p, userVoted: nextVoted, votes: nextVotes } : p));
+      
+    if (type === "scope") setScopeChallenges(updateLocalList);
+    else if (type === "campus") setCampusProjects(updateLocalList);
+    else if (type === "open") setOpenProjects(updateLocalList);
+    
+    try {
+      const { projects } = await import("@/lib/scope-store");
+      await projects.vote(id);
+      toast.success(nextVoted ? "🔥 Project upvoted!" : "Removed upvote");
+    } catch (err) {
+      // Revert optimistic update
+      const revertLocalList = (list: CuratedProject[]) =>
+        list.map((p) => (p.id === id ? { ...p, userVoted: wasVoted, votes: targetProj!.votes } : p));
+      if (type === "scope") setScopeChallenges(revertLocalList);
+      else if (type === "campus") setCampusProjects(revertLocalList);
+      else if (type === "open") setOpenProjects(revertLocalList);
+      toast.error("Failed to sync vote with server.");
+    }
   };
 
   const handleShare = (p: CuratedProject) => {
@@ -386,6 +442,7 @@ function ProjectsPage() {
               onSave={() => handleSave(p.id, p.title)}
               onShare={() => handleShare(p)}
               onView={() => setDetailTarget(p)}
+              onVote={() => handleVote(p.id)}
               tone="scope"
             />
           ))}
@@ -427,6 +484,7 @@ function ProjectsPage() {
                 onSave={() => handleSave(p.id, p.title)}
                 onShare={() => handleShare(p)}
                 onView={() => setDetailTarget(p)}
+                onVote={() => handleVote(p.id)}
                 tone="campus"
               />
             ))}
@@ -443,15 +501,16 @@ function ProjectsPage() {
         >
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {openProjects.map((p) => (
-                <ProjectCard
-                  key={p.id} project={p}
-                  application={appByProjectId.get(p.id)}
-                  saved={saved.includes(p.id)}
-                  canParticipate={!isAdmin}
-                  onApply={() => handleApplyClick(p)}
-                  onSave={() => handleSave(p.id, p.title)}
-                  onShare={() => handleShare(p)}
+              <ProjectCard
+                key={p.id} project={p}
+                application={appByProjectId.get(p.id)}
+                saved={saved.includes(p.id)}
+                canParticipate={!isAdmin}
+                onApply={() => handleApplyClick(p)}
+                onSave={() => handleSave(p.id, p.title)}
+                onShare={() => handleShare(p)}
                 onView={() => setDetailTarget(p)}
+                onVote={() => handleVote(p.id)}
                 tone="open"
               />
             ))}
@@ -632,7 +691,7 @@ function Section({
 
 
 function ProjectCard({
-  project, application, saved, onApply, onSave, onShare, onView, tone, canParticipate = true,
+  project, application, saved, onApply, onSave, onShare, onView, onVote, tone, canParticipate = true,
 }: {
   project: CuratedProject;
   application?: ProjectApplication;
@@ -641,6 +700,7 @@ function ProjectCard({
   onSave: () => void;
   onShare: () => void;
   onView: () => void;
+  onVote: () => void;
   tone: "scope" | "campus" | "open";
   canParticipate?: boolean;
 }) {
@@ -776,6 +836,20 @@ function ProjectCard({
           </Button>
           <Button size="sm" variant="outline" onClick={onShare} aria-label="Share">
             <Share2 className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onVote}
+            className={`flex items-center gap-1.5 transition-all duration-300 ${
+              project.userVoted
+                ? "text-orange-500 bg-orange-500/10 border-orange-500/30 shadow-[0_0_12px_rgba(249,115,22,0.2)] hover:bg-orange-500/20"
+                : "text-muted-foreground hover:text-orange-500 hover:bg-orange-500/5 hover:border-orange-500/20"
+            }`}
+            aria-label="Upvote"
+          >
+            <Flame className={`h-4 w-4 transition-transform duration-300 ${project.userVoted ? "scale-110 fill-orange-500 animate-pulse" : "group-hover:scale-110"}`} />
+            <span className="text-xs font-semibold">{project.votes || 0}</span>
           </Button>
         </div>
         <button onClick={onView} className="mt-3 self-start text-xs font-semibold text-brand hover:underline">

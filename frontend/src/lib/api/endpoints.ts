@@ -145,6 +145,12 @@ export const backendUsers = {
       method: "POST",
     });
   },
+  joinChapter(institutionId: string) {
+    return api<{ user: ScopeUser; awarded_xp: number }>("/api/v1/users/join-chapter", {
+      method: "POST",
+      body: JSON.stringify({ institution_id: institutionId }),
+    });
+  },
   listMyFeedback() {
     return api<{ feedback: Array<{
       id: string;
@@ -160,12 +166,16 @@ export const backendUsers = {
   },
 };
 
-type BackendInstitution = {
+export type BackendInstitution = {
   id: string;
   name: string;
   city?: string;
   state?: string;
   pipeline_stage?: string;
+  logo_text?: string;
+  description?: string;
+  top_skills?: string[];
+  departments?: string[];
   documents?: Array<{
     kind: "brochure" | "proposal" | "pricing" | "mou";
     file_id: string;
@@ -188,6 +198,18 @@ export const backendInstitutions = {
       projects_shipped: number;
       weekly_growth_pct: number;
     }>("/api/v1/institutions/me/campus-summary");
+  },
+  getProfile() {
+    return api<{ institution: BackendInstitution }>("/api/v1/institutions/me");
+  },
+  get(id: string) {
+    return api<{ institution: BackendInstitution }>(`/api/v1/institutions/${id}`);
+  },
+  update(id: string, body: Partial<Omit<BackendInstitution, "id">>) {
+    return api<{ institution: BackendInstitution }>(`/api/v1/institutions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
   },
   sendDocument(id: string, body: {
     kind: "brochure" | "proposal" | "pricing" | "mou" | "document";
@@ -223,6 +245,8 @@ export type BackendProject = {
   cover_url?: string | null;
   visibility: string;
   meta?: Record<string, string>;
+  votes?: number;
+  user_voted?: boolean;
   created_at: string;
   updated_at?: string;
 };
@@ -277,6 +301,11 @@ export const backendProjects = {
   },
   remove(id: string) {
     return api<null>(`/api/v1/projects/${id}`, { method: "DELETE" });
+  },
+  vote(id: string) {
+    return api<{ voted: boolean; votes: number }>(`/api/v1/projects/${id}/vote`, {
+      method: "POST",
+    });
   },
 };
 
@@ -674,12 +703,13 @@ export function mapBackendProject(project: BackendProject): Project {
     problem: project.summary || "Solving a real campus / industry pain.",
     team: "Scope Builder",
     category: project.domain || project.tags?.[0] || "Software",
-    votes: 0,
+    votes: project.votes || 0,
     cover: project.cover_url || "🚀",
     createdAt: project.created_at ? new Date(project.created_at).getTime() : Date.now(),
     endsAt: project.ends_on ? new Date(project.ends_on).getTime() : undefined,
     teams_allowed: project.teams_allowed,
     team_members_limit: project.team_members_limit,
+    userVoted: project.user_voted || false,
   };
 }
 
@@ -810,6 +840,43 @@ export const backendOpportunityApplications = {
     admin_comment?: string;
   }) {
     return api<{ application: BackendOpportunityApplication }>(`/api/v1/opportunities/applications/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+export type BackendChallenge = {
+  id: string;
+  scope: "campus" | "global";
+  title: string;
+  category: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  seatsTotal: number;
+  seatsFilled?: number;
+  reward: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export const backendChallenges = {
+  list() {
+    return api<{ items: BackendChallenge[] }>("/api/v1/challenges");
+  },
+  create(challenge: Omit<BackendChallenge, "id" | "seatsFilled" | "createdAt" | "updatedAt">) {
+    return api<{ challenge: BackendChallenge }>("/api/v1/challenges", {
+      method: "POST",
+      body: JSON.stringify(challenge),
+    });
+  },
+};
+
+export const backendConfig = {
+  get() {
+    return api<{ config: any }>("/api/v1/config");
+  },
+  update(body: any) {
+    return api<{ config: any }>("/api/v1/config", {
       method: "PATCH",
       body: JSON.stringify(body),
     });

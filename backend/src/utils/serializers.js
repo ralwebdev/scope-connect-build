@@ -52,6 +52,7 @@ export async function serializeUser(user, options = {}) {
       level: profile?.level || 1,
       streak_days: profile?.streakDays || 0,
     },
+    achievements: profile?.achievements || ["early_adopter"],
     opportunitiesVerified: profile?.opportunitiesVerified || false,
     opportunitiesVerificationStatus: profile?.opportunitiesVerificationStatus || "none",
     opportunities_verified: profile?.opportunitiesVerified || false,
@@ -86,7 +87,10 @@ export async function serializeUser(user, options = {}) {
   return body;
 }
 
-export function serializeProject(project) {
+export function serializeProject(project, currentUserId = null) {
+  const votedBy = project.votedBy || [];
+  const votesCount = project.votes !== undefined ? project.votes : (votedBy.length || 0);
+  const userVoted = currentUserId ? votedBy.some(id => id.toString() === currentUserId.toString()) : false;
   return {
     id: idOf(project._id),
     created_by: idOf(project.createdBy?._id || project.createdBy),
@@ -104,6 +108,8 @@ export function serializeProject(project) {
     ends_on: project.endsOn,
     cover_url: project.coverUrl,
     visibility: project.visibility,
+    votes: votesCount,
+    user_voted: userVoted,
     meta: project.meta ? Object.fromEntries(project.meta) : {},
     created_at: project.createdAt,
     updated_at: project.updatedAt,
@@ -228,6 +234,10 @@ export function serializeInstitution(institution) {
     domain: institution.domain,
     verified: institution.verified,
     logo_url: institution.logoUrl,
+    logo_text: institution.logoText || "",
+    description: institution.description || "",
+    top_skills: institution.topSkills || [],
+    departments: institution.departments || [],
     mou_status: institution.mouStatus,
     contact_person: institution.contactPerson,
     designation: institution.designation,

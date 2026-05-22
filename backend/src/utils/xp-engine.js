@@ -15,6 +15,9 @@ export const XP_RULES = {
   opportunity_application_submitted: { amount: 20, label: "Submitted an opportunity application" },
   streak_bonus: { amount: 50, label: "Maintained your streak" },
   weekly_mission_claimed: { amount: 60, label: "Completed a weekly mission" },
+  achievement_verified_builder: { amount: 100, label: "Achievement Unlocked: Verified Builder" },
+  achievement_first_project: { amount: 150, label: "Achievement Unlocked: First Project" },
+  achievement_team_player: { amount: 100, label: "Achievement Unlocked: Team Player" },
   manual_adjustment: { amount: 0, label: "XP updated" },
 };
 

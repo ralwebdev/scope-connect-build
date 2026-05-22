@@ -44,14 +44,6 @@ function FeedbackPage() {
         message: text.trim(),
       });
 
-      try {
-        const list = JSON.parse(localStorage.getItem("scope_feedback") || "[]");
-        list.unshift({ rating, type, text: text.trim(), at: Date.now() });
-        localStorage.setItem("scope_feedback", JSON.stringify(list.slice(0, 50)));
-      } catch {
-        // noop
-      }
-
       toast.success("Thanks. The Scope team reads every feedback.");
       setText("");
       setRating(4);

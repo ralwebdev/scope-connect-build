@@ -15,7 +15,10 @@ export const eventsRouter = express.Router();
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
   type: z.string().min(1).max(200),
-  date: z.string().min(1).max(80),
+  date: z.string().min(1).max(80).refine((val) => {
+    const d = new Date(val);
+    return !isNaN(d.getTime()) && d >= new Date(Date.now() - 5 * 60 * 1000);
+  }, { message: "Event date must be in the future" }),
   venue: z.string().min(1).max(200),
   seats: z.coerce.number().int().min(1).max(100000),
   color: z.enum(["brand", "cyan", "primary"]),

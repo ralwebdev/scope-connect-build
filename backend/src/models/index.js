@@ -22,4 +22,5 @@ export { OpportunityApplication } from "./OpportunityApplication.js";
 export { PublicSubmission } from "./PublicSubmission.js";
 export { Proposal } from "./Proposal.js";
 export { Communication } from "./Communication.js";
-
+export { Challenge } from "./Challenge.js";
+export { PlatformConfig } from "./PlatformConfig.js";

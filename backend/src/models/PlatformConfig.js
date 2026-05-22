@@ -2,21 +2,10 @@ import mongoose from "mongoose";
 
 const platformConfigSchema = new mongoose.Schema(
   {
-    brand: {
-      name: { type: String, required: true, trim: true, maxlength: 100 },
-      primaryColor: { type: String, trim: true, maxlength: 50 },
-      logoUrl: { type: String, trim: true, maxlength: 500 }
-    },
-    contact: {
-      email: { type: String, trim: true, lowercase: true, maxlength: 255 },
-      supportUrl: { type: String, trim: true, maxlength: 500 }
-    },
-    features: {
-      enableXP: { type: Boolean, default: true },
-      enableMarketplace: { type: Boolean, default: true },
-      enableChallenges: { type: Boolean, default: true }
-    },
-    campuses: [{ type: String, trim: true }]
+    brand: { type: mongoose.Schema.Types.Mixed, default: {} },
+    contact: { type: mongoose.Schema.Types.Mixed, default: {} },
+    features: { type: mongoose.Schema.Types.Mixed, default: {} },
+    campuses: { type: [mongoose.Schema.Types.Mixed], default: [] }
   },
   { timestamps: true }
 );

@@ -9,21 +9,10 @@ import { requirePermission } from "../middleware/rbac.js";
 export const configRouter = express.Router();
 
 const configSchema = z.object({
-  brand: z.object({
-    name: z.string().max(100).optional(),
-    primaryColor: z.string().max(50).optional(),
-    logoUrl: z.string().max(500).optional(),
-  }).optional(),
-  contact: z.object({
-    email: z.string().email().max(255).optional(),
-    supportUrl: z.string().max(500).optional(),
-  }).optional(),
-  features: z.object({
-    enableXP: z.boolean().optional(),
-    enableMarketplace: z.boolean().optional(),
-    enableChallenges: z.boolean().optional(),
-  }).optional(),
-  campuses: z.array(z.string()).optional(),
+  brand: z.record(z.unknown()).optional(),
+  contact: z.record(z.unknown()).optional(),
+  features: z.record(z.unknown()).optional(),
+  campuses: z.array(z.unknown()).optional(),
 });
 
 configRouter.get("/", asyncHandler(getConfig));

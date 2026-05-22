@@ -57,14 +57,6 @@ function WaitlistPage() {
         interests,
       });
 
-      try {
-        const list = JSON.parse(localStorage.getItem("scope_waitlist") || "[]");
-        list.unshift({ name: name.trim(), email, campus: campus.trim(), interests, at: Date.now() });
-        localStorage.setItem("scope_waitlist", JSON.stringify(list.slice(0, 500)));
-      } catch {
-        // noop
-      }
-
       toast.success("You're on the list. Welcome aboard.");
       setDone(true);
     } catch (error) {

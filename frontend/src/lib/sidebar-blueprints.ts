@@ -67,7 +67,7 @@ const STUDENT_BLUEPRINT: SidebarBlueprint = {
       id: "me",
       label: "Me",
       items: [
-        { to: "/notifications", label: "My Applications", permission: "view_dashboard", icon: Briefcase },
+        { to: "/applications", label: "My Applications", permission: "view_dashboard", icon: Briefcase },
         { to: "/profile", label: "Profile", permission: "manage_profile", icon: User },
         { to: "/settings", label: "Settings", permission: "view_dashboard", icon: Settings },
       ],
@@ -155,7 +155,7 @@ const INSTITUTIONAL_ADMIN_BLUEPRINT: SidebarBlueprint = {
       id: "growth",
       label: "Growth",
       items: [
-        { to: "/projects", label: "Projects", permission: "view_projects", icon: FolderKanban },
+        { to: "/projects", label: "Projects Log", permission: "view_projects", icon: FolderKanban },
         { to: "/institution-admin/analytics", label: "Analytics", permission: "view_institution_analytics", icon: BarChart3 },
         { to: "/institution/reports", label: "Reports", permission: "view_institution_analytics", icon: FileText },
         { to: "/institution-admin", label: "Branding", permission: "edit_brand", icon: Sparkles },

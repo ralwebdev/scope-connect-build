@@ -23,6 +23,8 @@ import { reportsRouter } from "./routes/reports.js";
 import { departmentsRouter } from "./routes/departments.js";
 import { publicRouter } from "./routes/public.js";
 import { proposalsRouter } from "./routes/proposals.js";
+import { challengesRouter } from "./routes/challenges.js";
+import { configRouter } from "./routes/config.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -73,6 +75,8 @@ export function createApp() {
   v1Router.use("/departments", departmentsRouter);
   v1Router.use("/public", publicRouter);
   v1Router.use("/proposals", proposalsRouter);
+  v1Router.use("/challenges", challengesRouter);
+  v1Router.use("/config", configRouter);
 
   app.use("/api/v1", v1Router);
 

@@ -19,6 +19,8 @@ const projectSchema = new mongoose.Schema(
     endsOn: Date,
     coverUrl: String,
     visibility: { type: String, enum: ["public", "institution", "private"], default: "public" },
+    votes: { type: Number, default: 0 },
+    votedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     meta: { type: Map, of: String },
   },
   { timestamps: true },

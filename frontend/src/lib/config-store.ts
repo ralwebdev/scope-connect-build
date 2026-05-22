@@ -170,14 +170,16 @@ export const configStore = {
       const { backendConfig } = await import("./api/endpoints");
       const { config } = await backendConfig.get();
       if (config) {
-        configStore.set({
+        const payload = {
           edition: configStore.get().edition,
           brand: config.brand,
           contact: config.contact,
           features: config.features,
           campuses: config.campuses,
           meta: { updatedAt: Date.now() },
-        });
+        };
+        localStorage.setItem(KEY, JSON.stringify(payload));
+        notify();
       }
     } catch (e) {
       console.warn("Config sync failed", e);
