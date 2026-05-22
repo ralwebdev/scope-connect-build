@@ -23,6 +23,7 @@ import {
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
 import { backendProjects, backendApplications, backendReports, backendUpload, backendProposals, backendUsers, type BackendApplication, type BackendProjectRoom, type BackendProjectTask } from "@/lib/api/endpoints";
+import { ApiException } from "@/lib/api/client";
 import { auth } from "@/lib/scope-store";
 import { useRole } from "@/hooks/use-rbac";
 import { useFeature } from "@/hooks/use-platform";
@@ -950,6 +951,39 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
   const hasStakeXp = currentXp !== null && currentXp >= stakeAmount;
   const hasEnoughXp = hasEntryXp && hasStakeXp;
 
+  const getEligibilityErrorMessage = (error: unknown): string | null => {
+    if (!(error instanceof ApiException)) return null;
+    if (error.code !== "PROJECT_ELIGIBILITY_FAILED" && error.code !== "INSUFFICIENT_XP") return null;
+    const details = (error.details || {}) as {
+      failures?: string[];
+      entry_xp_required?: number;
+      stake_xp_required?: number;
+      current_xp?: number;
+    };
+
+    if (error.code === "INSUFFICIENT_XP") {
+      return error.message || "You do not have enough XP to commit the project stake.";
+    }
+
+    const failures = new Set(details.failures || []);
+    if (failures.has("entry_xp")) {
+      return `You need ${details.entry_xp_required ?? entryAmount} Entry XP to enter this project.`;
+    }
+    if (failures.has("stake_xp")) {
+      return `Entry XP check passed. You need ${details.stake_xp_required ?? stakeAmount} XP available to commit stake.`;
+    }
+    if (failures.has("profile_complete")) {
+      return "Complete your profile before joining this project.";
+    }
+    if (failures.has("institution_eligibility")) {
+      return "This project is restricted to selected institutions.";
+    }
+    if (failures.has("max_project_limit")) {
+      return "You have reached the maximum number of active projects.";
+    }
+    return error.message || null;
+  };
+
   const submit = async () => {
     if (submitting || committed) return;
     if (!fit.trim()) { toast.error("Tell us why you're a fit."); return; }
@@ -1021,7 +1055,9 @@ function ApplyModal({ project, onClose, onSubmitted, onApplied }: {
         onSubmitted();
       }, 1400);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Could not commit XP.";
+      const msg =
+        getEligibilityErrorMessage(error) ||
+        (error instanceof Error ? error.message : "Could not commit XP.");
       toast.error(msg);
       setSubmitting(false);
     }

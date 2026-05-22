@@ -413,6 +413,37 @@ async function evaluateProjectEligibility({ req, project, profile }) {
   };
 }
 
+function projectEligibilityMessage(eligibility) {
+  const failureSet = new Set(eligibility?.failures || []);
+
+  if (failureSet.has("entry_xp")) {
+    return `You need at least ${eligibility?.entry_xp_required || 0} Entry XP to access this project`;
+  }
+  if (failureSet.has("stake_xp")) {
+    return `Entry XP check passed. You still need ${eligibility?.stake_xp_required || 0} XP available to commit the project stake`;
+  }
+  if (failureSet.has("profile_complete")) {
+    return "Complete your profile before joining this project";
+  }
+  if (failureSet.has("verified_student")) {
+    return "Only verified student accounts can join this project";
+  }
+  if (failureSet.has("institution_eligibility")) {
+    return "This project is restricted to selected institutions";
+  }
+  if (failureSet.has("role_fit")) {
+    return "Selected project role is not available for this project";
+  }
+  if (failureSet.has("challenge_prerequisite")) {
+    return "A prerequisite challenge is required before joining this project";
+  }
+  if (failureSet.has("max_project_limit")) {
+    return "You have reached the maximum number of active projects";
+  }
+
+  return "You are not eligible to commit XP to this project yet";
+}
+
 async function ensureProjectRoom(project, application, projectRole = "") {
   let room = await ProjectRoom.findOne({ project: project._id });
   const acceptedCount = await Application.countDocuments({ project: project._id, status: "accepted" });
@@ -464,7 +495,7 @@ async function joinProject(req, res) {
   if (!profile) throw notFound("Profile not found");
   const eligibility = await evaluateProjectEligibility({ req, project, profile });
   if (!eligibility.eligible) {
-    throw new AppError(403, "PROJECT_ELIGIBILITY_FAILED", "You are not eligible to commit XP to this project yet", eligibility);
+    throw new AppError(403, "PROJECT_ELIGIBILITY_FAILED", projectEligibilityMessage(eligibility), eligibility);
   }
 
   // Platform minimum XP commitment is 50 XP. Use project stake or fall back to 50.
