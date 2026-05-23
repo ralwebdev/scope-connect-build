@@ -273,8 +273,11 @@ type InstitutionCommunicationPayload = {
 };
 
 export const backendProjects = {
-  list() {
-    return api<{ items: BackendProject[]; next_cursor: string | null; has_more: boolean }>("/api/v1/projects?limit=100");
+  list(params: { institutionId?: string } = {}) {
+    const qs = new URLSearchParams();
+    qs.set("limit", "100");
+    if (params.institutionId) qs.set("institution_id", params.institutionId);
+    return api<{ items: BackendProject[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/projects?${qs}`);
   },
   create(project: any) {
     return api<{ project: BackendProject }>("/api/v1/projects", {

@@ -152,7 +152,13 @@ projectsRouter.get("/", optionalAuthMiddleware, asyncHandler(async (req, res) =>
     ];
   }
 
-  if (req.query.status) filter.status = req.query.status;
+  if (req.query.status) {
+    filter.status = req.query.status;
+  } else {
+    // Exclude soft-deleted (cancelled) projects from the default listing.
+    // Admins who explicitly request ?status=cancelled will still see them.
+    filter.status = { $ne: "cancelled" };
+  }
   if (req.query.domain) filter.domain = req.query.domain;
   if (req.query.tag) filter.tags = req.query.tag;
   if (req.query.institution_id) filter.institution = req.query.institution_id === "null" ? null : req.query.institution_id;
