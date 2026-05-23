@@ -540,6 +540,12 @@ export const backendAdminUsers = {
       method: "DELETE",
     });
   },
+  resetPassword(id: string, password: string) {
+    return api<{ user: ScopeUser }>(`/api/v1/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ password }),
+    });
+  },
   listFeedback() {
     return api<{ feedback: Array<{
       id: string;

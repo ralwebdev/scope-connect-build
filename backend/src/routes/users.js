@@ -866,6 +866,7 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
 adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
+  let passwordChanged = false;
 
   // Permission Check: Super Admin OR Scope Admin OR Institutional Admin for their own campus members
   const isSuperAdmin = hasPermission(req.user, "manage_users");
@@ -938,6 +939,13 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   }
   if (req.body.disabled_at !== undefined) user.disabledAt = req.body.disabled_at ? new Date(req.body.disabled_at) : null;
   if (req.body.founder !== undefined) user.founder = req.body.founder;
+  if (req.body.password !== undefined) {
+    if (typeof req.body.password !== "string" || req.body.password.length < 8 || req.body.password.length > 128) {
+      throw new AppError(400, "INVALID_PASSWORD", "Password must be between 8 and 128 characters");
+    }
+    user.passwordHash = await bcrypt.hash(req.body.password, 12);
+    passwordChanged = true;
+  }
   await user.save();
   if (req.body.institution_id !== undefined) {
     const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
@@ -950,7 +958,9 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
       { upsert: true },
     );
   }
-  if (user.disabledAt) await Session.updateMany({ user: user._id, revokedAt: null }, { revokedAt: new Date() });
+  if (user.disabledAt || passwordChanged) {
+    await Session.updateMany({ user: user._id, revokedAt: null }, { revokedAt: new Date() });
+  }
   sendSuccess(res, { user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }) });
 }));
 adminUsersRouter.delete("/:id", asyncHandler(async (req, res) => {

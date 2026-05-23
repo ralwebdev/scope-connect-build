@@ -3779,7 +3779,10 @@ function KpiCard({
 function InstitutionAccountForm({ institutions }: { institutions: Institution[] }) {
   const firstInstitution = institutions[0];
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
   const [institutionId, setInstitutionId] = useState(firstInstitution?.id ?? "");
+  const [existingAdmin, setExistingAdmin] = useState<ScopeUser | null>(null);
   const selected =
     institutions.find((institution) => institution.id === institutionId) ?? firstInstitution;
   const eligible = selected?.stage === "Launch Pending";
@@ -3788,6 +3791,8 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
     email: firstInstitution?.email ?? "",
     password: "Password123!",
   });
+  const [resetPassword, setResetPassword] = useState("Password123!");
+  const [repeatResetPassword, setRepeatResetPassword] = useState("Password123!");
 
   useEffect(() => {
     if (institutionId || !firstInstitution) return;
@@ -3798,6 +3803,35 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
       email: current.email || firstInstitution.email,
     }));
   }, [firstInstitution, institutionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!institutionId) {
+      setExistingAdmin(null);
+      return;
+    }
+
+    setLookupLoading(true);
+    void backendUsers
+      .list({ institutionId, role: "institution_admin" })
+      .then((response) => {
+        if (cancelled) return;
+        const admin = response.items.find((item) => item.role === "institution_admin") ?? null;
+        setExistingAdmin(admin);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setExistingAdmin(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLookupLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [institutionId]);
 
   const selectInstitution = (id: string) => {
     const institution = institutions.find((item) => item.id === id);
@@ -3840,6 +3874,37 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
       toast.error(error instanceof Error ? error.message : "Could not create institution login.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetInstitutionPassword = async () => {
+    if (!selected) {
+      toast.error("Select an institution first.");
+      return;
+    }
+    if (!existingAdmin) {
+      toast.error("No institution admin account exists yet for this institution.");
+      return;
+    }
+    if (resetPassword.length < 8) {
+      toast.error("Use an 8+ character password.");
+      return;
+    }
+    if (resetPassword !== repeatResetPassword) {
+      toast.error("password not matched");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await backendAdminUsers.resetPassword(existingAdmin.id, resetPassword);
+      toast.success(`Password reset for ${selected.name}.`);
+      setResetPassword("Password123!");
+      setRepeatResetPassword("Password123!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not reset institution password.");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -3913,6 +3978,48 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
               Institution login unlocks only when the institution reaches Launch Pending.
             </p>
           )}
+
+          <div className="mt-4 rounded-lg border border-border/60 p-3">
+            <div className="text-xs font-semibold text-foreground">Reset Institution Password</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Scope Admin can reset the linked institution admin login password here.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  value={resetPassword}
+                  onChange={(event) => setResetPassword(event.target.value)}
+                  placeholder="Enter new password"
+                />
+                <Input
+                  type="password"
+                  value={repeatResetPassword}
+                  onChange={(event) => setRepeatResetPassword(event.target.value)}
+                  placeholder="Repeat new password"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetInstitutionPassword}
+                disabled={resetLoading || lookupLoading || !selected || !existingAdmin || resetPassword.length < 8}
+              >
+                {resetLoading ? "Resetting..." : "Reset password"}
+              </Button>
+            </div>
+            {lookupLoading ? (
+              <p className="mt-2 text-xs text-muted-foreground">Checking institution admin account...</p>
+            ) : existingAdmin ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Active institution admin: {existingAdmin.email}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No institution admin account found for this institution yet.
+              </p>
+            )}
+          </div>
         </div>
       </form>
     </Card>
