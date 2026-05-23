@@ -10,7 +10,7 @@ const numberFromEnv = (key, fallback) => {
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: numberFromEnv("PORT", 8080),
-  mongoUri: process.env.MONGODB_URI || "mongodb+srv://Auth:hs9MofCPaymr0g8M@cluster0.fmtt8p1.mongodb.net/scopeConnect",
+  mongoUri: process.env.MONGODB_URI,
   mongoConnectMaxAttempts: numberFromEnv("MONGO_CONNECT_MAX_ATTEMPTS", 5),
   mongoRetryDelayMs: numberFromEnv("MONGO_RETRY_DELAY_MS", 1500),
   mongoServerSelectionTimeoutMs: numberFromEnv("MONGO_SERVER_SELECTION_TIMEOUT_MS", 8000),
