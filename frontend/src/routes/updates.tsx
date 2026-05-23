@@ -85,11 +85,11 @@ const UPDATES: UpdateEntry[] = [
 
 const TYPE_META: Record<UpdateType, { icon: typeof Shield; className: string }> = {
   Policy: { icon: FileText, className: "bg-brand/15 text-brand" },
-  Moderation: { icon: Shield, className: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+  Moderation: { icon: Shield, className: "bg-amber-500/15 text-amber-600" },
   Feature: { icon: Sparkles, className: "bg-cyan/15 text-cyan" },
-  Security: { icon: Lock, className: "bg-red-500/15 text-red-600 dark:text-red-400" },
-  Rewards: { icon: Award, className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
-  Community: { icon: Users, className: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
+  Security: { icon: Lock, className: "bg-red-500/15 text-red-600" },
+  Rewards: { icon: Award, className: "bg-emerald-500/15 text-emerald-600" },
+  Community: { icon: Users, className: "bg-violet-500/15 text-violet-600" },
 };
 
 const IMPACT_LABEL: Record<ImpactLevel, string> = {

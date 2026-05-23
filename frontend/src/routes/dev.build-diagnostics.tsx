@@ -168,8 +168,8 @@ function BuildDiagnosticsPage() {
                                 variant={d.severity === "error" ? "destructive" : d.severity === "warn" ? "outline" : "secondary"}
                                 className={cn(
                                   "text-[10px] capitalize",
-                                  d.severity === "warn" && "border-yellow-500/50 text-yellow-700 dark:text-yellow-300",
-                                  d.severity === "ok" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                                  d.severity === "warn" && "border-yellow-500/50 text-yellow-700",
+                                  d.severity === "ok" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
                                 )}
                               >
                                 {d.severity}
@@ -258,8 +258,8 @@ function RuleCard({ label }: { label: string }) {
 
 function Stat({ label, value, icon: Icon, tone = "default" }: { label: string; value: number; icon: typeof FileCheck2; tone?: "default" | "red" | "yellow" | "green" }) {
   const toneCls = tone === "red" ? "border-destructive/40 text-destructive"
-    : tone === "yellow" ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
-    : tone === "green" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+    : tone === "yellow" ? "border-yellow-500/40 text-yellow-700"
+    : tone === "green" ? "border-emerald-500/40 text-emerald-700"
     : "";
   return (
     <Card className={cn("p-4", toneCls)}>

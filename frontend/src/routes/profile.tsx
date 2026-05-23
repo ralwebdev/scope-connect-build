@@ -965,7 +965,7 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
 
           {!hasLinks ? (
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
-              <div className="flex items-start gap-2.5 text-amber-600 dark:text-amber-400">
+              <div className="flex items-start gap-2.5 text-amber-600">
                 <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="font-bold text-sm">No portfolio links found</h5>
@@ -979,14 +979,14 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
                 onClick={handleGoToPortfolio}
                 variant="outline"
                 size="sm"
-                className="text-xs border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                className="text-xs border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> Configure Portfolio Links
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 text-emerald-600 bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-3 py-2 text-xs">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span>Ready for review! The links below will be shared with the review board.</span>
               </div>

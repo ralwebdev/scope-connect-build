@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
- * Tasteful, theme-aware dummy ad placeholders.
+ * Tasteful dummy ad placeholders.
  * Always clearly labeled. No autoplay, no popups, no form-blocking.
  */
 

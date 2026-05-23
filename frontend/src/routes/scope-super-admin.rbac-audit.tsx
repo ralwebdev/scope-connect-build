@@ -255,8 +255,8 @@ function RbacAuditPage() {
 
 function StatCard({ label, value, icon: Icon, tone = "default" }: { label: string; value: number; icon: typeof CheckCircle2; tone?: "default" | "red" | "yellow" | "orange" }) {
   const toneCls = tone === "red" ? "border-destructive/40 text-destructive"
-    : tone === "yellow" ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
-    : tone === "orange" ? "border-orange-500/40 text-orange-700 dark:text-orange-300"
+    : tone === "yellow" ? "border-yellow-500/40 text-yellow-700"
+    : tone === "orange" ? "border-orange-500/40 text-orange-700"
     : "";
   return (
     <Card className={cn("p-4", toneCls)}>

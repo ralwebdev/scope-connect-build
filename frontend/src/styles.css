@@ -2,8 +2,6 @@
 @source "../src";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 /*
  * Scope Connect — Design System
  * Colors expressed as oklch for perceptual consistency.
@@ -123,40 +121,6 @@
   --sidebar-accent: oklch(0.22 0.06 270);
   --sidebar-accent-foreground: oklch(0.985 0.005 250);
   --sidebar-border: oklch(0.25 0.05 270);
-  --sidebar-ring: oklch(0.78 0.16 220);
-}
-
-.dark {
-  --background: oklch(0.13 0.04 268);
-  --foreground: oklch(0.985 0.005 250);
-  --card: oklch(0.18 0.05 270);
-  --card-foreground: oklch(0.985 0.005 250);
-  --popover: oklch(0.18 0.05 270);
-  --popover-foreground: oklch(0.985 0.005 250);
-  --primary: oklch(0.985 0.005 250);
-  --primary-foreground: oklch(0.16 0.045 268);
-  --secondary: oklch(0.24 0.05 270);
-  --secondary-foreground: oklch(0.985 0.005 250);
-  --muted: oklch(0.24 0.05 270);
-  --muted-foreground: oklch(0.7 0.03 260);
-  --accent: oklch(0.28 0.07 275);
-  --accent-foreground: oklch(0.985 0.005 250);
-  --brand: oklch(0.66 0.22 25);
-  --brand-foreground: oklch(1 0 0);
-  --cyan: oklch(0.78 0.16 220);
-  --cyan-foreground: oklch(0.16 0.045 268);
-  --destructive: oklch(0.7 0.19 22);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.78 0.16 220);
-  --sidebar: oklch(0.13 0.04 268);
-  --sidebar-foreground: oklch(0.985 0.005 250);
-  --sidebar-primary: oklch(0.62 0.21 25);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.22 0.06 270);
-  --sidebar-accent-foreground: oklch(0.985 0.005 250);
-  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.78 0.16 220);
 }
 

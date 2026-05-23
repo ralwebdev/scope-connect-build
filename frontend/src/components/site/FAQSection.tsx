@@ -21,7 +21,7 @@ interface FAQSectionProps {
 
 /**
  * Additive, reusable FAQ block. Reuses existing card/accordion tokens, so it
- * inherits dark/light themes and responsive spacing automatically.
+ * inherits site colors and responsive spacing automatically.
  */
 export function FAQSection({ title = "Frequently asked questions", subtitle, items, jsonLd = true }: FAQSectionProps) {
   const id = useId();

@@ -119,14 +119,14 @@ export const Route = createFileRoute("/scope-admin")({
 
 const STAGE_COLORS: Record<PipelineStage, string> = {
   Prospect: "bg-muted text-muted-foreground",
-  Contacted: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
-  "Meeting Scheduled": "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300",
-  "Meeting Completed": "bg-purple-500/15 text-purple-600 dark:text-purple-300",
-  "Proposal Sent": "bg-amber-500/15 text-amber-600 dark:text-amber-300",
-  Negotiation: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
-  "MoU Draft Shared": "bg-cyan-500/15 text-cyan-600 dark:text-cyan-300",
-  "MoU Signed": "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  "Launch Pending": "bg-pink-500/15 text-pink-600 dark:text-pink-300",
+  Contacted: "bg-blue-500/15 text-blue-600",
+  "Meeting Scheduled": "bg-indigo-500/15 text-indigo-600",
+  "Meeting Completed": "bg-purple-500/15 text-purple-600",
+  "Proposal Sent": "bg-amber-500/15 text-amber-600",
+  Negotiation: "bg-orange-500/15 text-orange-600",
+  "MoU Draft Shared": "bg-cyan-500/15 text-cyan-600",
+  "MoU Signed": "bg-emerald-500/15 text-emerald-700",
+  "Launch Pending": "bg-pink-500/15 text-pink-600",
   "Live Chapter": "bg-gradient-brand text-brand-foreground",
   Dormant: "bg-destructive/15 text-destructive",
 };
@@ -1157,15 +1157,15 @@ function ScopeAnalyticsDashboard({
                                     Deactivated
                                   </Badge>
                                 ) : m.student_status === "pending_verification" ? (
-                                  <Badge className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-none font-bold">
+                                  <Badge className="bg-yellow-500/10 text-yellow-600 border-none font-bold">
                                     Pending Approval
                                   </Badge>
                                 ) : m.student_status === "active" ? (
-                                  <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-bold">
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border-none font-bold">
                                     Active / Verified
                                   </Badge>
                                 ) : (
-                                  <Badge className="bg-red-500/10 text-red-600 dark:text-red-400 border-none font-bold">
+                                  <Badge className="bg-red-500/10 text-red-600 border-none font-bold">
                                     Rejected
                                   </Badge>
                                 )}
@@ -2364,7 +2364,7 @@ function ScopeProjectsManager() {
                                   {item.reward_pool_xp ? (
                                     <Badge
                                       variant="outline"
-                                      className="bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold py-0"
+                                      className="bg-amber-500/10 border-amber-500/20 text-amber-600 text-[10px] font-bold py-0"
                                     >
                                       +{item.reward_pool_xp} XP Reward
                                     </Badge>
@@ -2565,7 +2565,7 @@ function ScopeProjectsManager() {
                                         asChild={Boolean(app.submission.live_url)}
                                         size="sm"
                                         variant="outline"
-                                        className={`h-7 px-2 text-[10px] ${app.submission.live_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                        className={`h-7 px-2 text-[10px] ${app.submission.live_url ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
                                         disabled={!app.submission.live_url}
                                       >
                                         {app.submission.live_url ? (
@@ -2592,7 +2592,7 @@ function ScopeProjectsManager() {
                                         asChild={Boolean(app.submission.github_url)}
                                         size="sm"
                                         variant="outline"
-                                        className={`h-7 px-2 text-[10px] ${app.submission.github_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                        className={`h-7 px-2 text-[10px] ${app.submission.github_url ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
                                         disabled={!app.submission.github_url}
                                       >
                                         {app.submission.github_url ? (
@@ -2619,7 +2619,7 @@ function ScopeProjectsManager() {
                                         asChild={Boolean(app.submission.screenshot_url)}
                                         size="sm"
                                         variant="outline"
-                                        className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
+                                        className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10" : "opacity-50 cursor-not-allowed bg-muted"}`}
                                         disabled={!app.submission.screenshot_url}
                                       >
                                         {app.submission.screenshot_url ? (
@@ -3334,7 +3334,7 @@ function ProjectRosterDialog({
                             app.submission_review_status !== "not_submitted" && (
                               <Badge
                                 variant="outline"
-                                className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-1.5"
+                                className="h-5 text-[9px] capitalize bg-emerald-500/10 border-emerald-500/30 text-emerald-600 px-1.5"
                               >
                                 {app.submission_review_status.replace("_", " ")}
                               </Badge>
@@ -3359,7 +3359,7 @@ function ProjectRosterDialog({
                                 variant="outline"
                                 className={`h-7 px-2 text-[10px] ${
                                   app.submission.live_url
-                                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                    ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
                                     : "opacity-50 cursor-not-allowed bg-muted"
                                 }`}
                                 disabled={!app.submission.live_url}
@@ -3386,7 +3386,7 @@ function ProjectRosterDialog({
                                 variant="outline"
                                 className={`h-7 px-2 text-[10px] ${
                                   app.submission.github_url
-                                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                    ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
                                     : "opacity-50 cursor-not-allowed bg-muted"
                                 }`}
                                 disabled={!app.submission.github_url}
@@ -3413,7 +3413,7 @@ function ProjectRosterDialog({
                                 variant="outline"
                                 className={`h-7 px-2 text-[10px] ${
                                   app.submission.screenshot_url
-                                    ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+                                    ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
                                     : "opacity-50 cursor-not-allowed bg-muted"
                                 }`}
                                 disabled={!app.submission.screenshot_url}
@@ -3576,7 +3576,7 @@ function ProjectRosterDialog({
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-sm">{uName}</span>
                               {isLeader && (
-                                <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-[9px] font-bold py-0 h-4 border-amber-500/20">
+                                <Badge className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 text-[9px] font-bold py-0 h-4 border-amber-500/20">
                                   Coordinator
                                 </Badge>
                               )}
@@ -3680,8 +3680,8 @@ function ProjectRosterDialog({
                                 variant="outline"
                                 className={`text-[9px] uppercase tracking-wider py-0.5 px-1.5 font-bold rounded-full ${
                                   isResolved
-                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                                    : "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+                                    : "bg-amber-500/10 border-amber-500/20 text-amber-600"
                                 }`}
                               >
                                 {g.status}
@@ -3700,8 +3700,8 @@ function ProjectRosterDialog({
                         {/* Admin Response Section */}
                         <div className="mt-4 border-t border-border/50 pt-4">
                           {isResolved ? (
-                            <div className="bg-emerald-500/5 dark:bg-emerald-500/[0.02] border border-emerald-500/10 rounded-lg p-3">
-                              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 dark:text-emerald-400 block mb-1">
+                            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 block mb-1">
                                 Admin Response
                               </span>
                               <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
@@ -3710,7 +3710,7 @@ function ProjectRosterDialog({
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 block">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 block">
                                 Reply & Resolve Grievance
                               </span>
                               <Textarea
@@ -4580,7 +4580,7 @@ function PerformanceScorecard({
                         variant={admin.status === "active" ? "default" : "outline"}
                         className={`capitalize px-2 py-0.5 text-[10px] ${
                           admin.status === "active"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                             : "bg-destructive/10 text-destructive border-destructive/20"
                         }`}
                       >
@@ -4868,20 +4868,20 @@ function StudentIdeasManager() {
     pending: {
       label: "Pending",
       className:
-        "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 animate-pulse",
+        "bg-amber-500/15 text-amber-600 border border-amber-500/25 animate-pulse",
     },
     reviewed: {
       label: "Reviewed",
-      className: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25",
+      className: "bg-blue-500/15 text-blue-600 border border-blue-500/25",
     },
     accepted: {
       label: "Accepted",
       className:
-        "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25",
+        "bg-emerald-500/15 text-emerald-600 border border-emerald-500/25",
     },
     rejected: {
       label: "Rejected",
-      className: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25",
+      className: "bg-rose-500/15 text-rose-600 border border-rose-500/25",
     },
   };
 
@@ -5211,10 +5211,10 @@ function FeedbackManager() {
           </div>
         </Card>
         <Card className="p-4 border-cyan-500/20 bg-cyan-500/5 relative overflow-hidden group hover:border-cyan-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 dark:text-cyan-400">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-500">
             Average Rating
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-cyan-500 dark:text-cyan-400 flex items-baseline gap-1">
+          <div className="mt-2 text-3xl font-extrabold text-cyan-500 flex items-baseline gap-1">
             {stats.avgRating} <span className="text-xs text-muted-foreground font-normal">/ 5</span>
           </div>
           <div className="absolute right-3 bottom-3 text-cyan-500/10 group-hover:scale-110 transition-transform">
@@ -5222,10 +5222,10 @@ function FeedbackManager() {
           </div>
         </Card>
         <Card className="p-4 border-rose-500/20 bg-rose-500/5 relative overflow-hidden group hover:border-rose-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500">
             Bug Reports
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">
+          <div className="mt-2 text-3xl font-extrabold text-rose-500">
             {stats.bugs}
           </div>
           <div className="absolute right-3 bottom-3 text-rose-500/10 group-hover:scale-110 transition-transform">
@@ -5233,10 +5233,10 @@ function FeedbackManager() {
           </div>
         </Card>
         <Card className="p-4 border-amber-500/20 bg-amber-500/5 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
             Feature Requests
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">
+          <div className="mt-2 text-3xl font-extrabold text-amber-500">
             {stats.features}
           </div>
           <div className="absolute right-3 bottom-3 text-amber-500/10 group-hover:scale-110 transition-transform">
@@ -5349,9 +5349,9 @@ function FeedbackManager() {
                         <Badge
                           className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${
                             item.type === "Bug report"
-                              ? "bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20"
+                              ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
                               : item.type === "Feature request"
-                                ? "bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20"
+                                ? "bg-cyan-500/10 text-cyan-500 border border-cyan-500/20"
                                 : "bg-secondary text-foreground border border-border/40"
                           }`}
                         >
@@ -5389,7 +5389,7 @@ function FeedbackManager() {
                         className={`h-3.5 w-3.5 transition-colors ${
                           star <= item.rating
                             ? "fill-brand text-brand"
-                            : "text-muted-foreground/20 dark:text-muted-foreground/10"
+                            : "text-muted-foreground/20"
                         }`}
                       />
                     ))}
@@ -5556,10 +5556,10 @@ function StudentVerificationCenter() {
           </div>
         </Card>
         <Card className="p-4 border-amber-500/20 bg-amber-500/5 relative overflow-hidden group hover:border-amber-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
             Pending Review
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-amber-500 dark:text-amber-400">
+          <div className="mt-2 text-3xl font-extrabold text-amber-500">
             {stats.pending}
           </div>
           <div className="absolute right-3 bottom-3 text-amber-500/10 group-hover:scale-110 transition-transform">
@@ -5567,10 +5567,10 @@ function StudentVerificationCenter() {
           </div>
         </Card>
         <Card className="p-4 border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 dark:text-emerald-400">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">
             Verified Builders
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-emerald-500 dark:text-emerald-400">
+          <div className="mt-2 text-3xl font-extrabold text-emerald-500">
             {stats.verified}
           </div>
           <div className="absolute right-3 bottom-3 text-emerald-500/10 group-hover:scale-110 transition-transform">
@@ -5578,10 +5578,10 @@ function StudentVerificationCenter() {
           </div>
         </Card>
         <Card className="p-4 border-rose-500/20 bg-rose-500/5 relative overflow-hidden group hover:border-rose-500/30 transition-colors">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-rose-500">
             Rejected Portfolios
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-rose-500 dark:text-rose-400">
+          <div className="mt-2 text-3xl font-extrabold text-rose-500">
             {stats.rejected}
           </div>
           <div className="absolute right-3 bottom-3 text-rose-500/10 group-hover:scale-110 transition-transform">

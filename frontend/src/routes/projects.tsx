@@ -768,7 +768,7 @@ function ProjectCard({
 
   const statusBadge =
     closed ? { label: "Closed", className: "bg-muted text-muted-foreground" } :
-    project.status === "closing-soon" ? { label: "Closing soon", className: "bg-orange-500/15 text-orange-600 dark:text-orange-400" } :
+    project.status === "closing-soon" ? { label: "Closing soon", className: "bg-orange-500/15 text-orange-600" } :
     { label: "Live Now", className: "bg-success/15 text-success" };
 
   // Detect rare honorarium/stipend rewards (1–2% of projects). Only these
@@ -862,9 +862,9 @@ function ProjectCard({
               applied && !isPending && !isRejected
                 ? "bg-success text-primary-foreground hover:bg-success/90"
                 : applied && isPending
-                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 cursor-not-allowed hover:bg-amber-500/20"
+                  ? "bg-amber-500/20 text-amber-600 border border-amber-500/30 cursor-not-allowed hover:bg-amber-500/20"
                   : applied && isRejected
-                    ? "bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 cursor-not-allowed hover:bg-red-500/20"
+                    ? "bg-red-500/20 text-red-600 border border-red-500/30 cursor-not-allowed hover:bg-red-500/20"
                     : "bg-gradient-brand text-brand-foreground"
             }`}
           >
@@ -1408,7 +1408,7 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
                       <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         {participantName(participant)}
                         {isLeader && (
-                          <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 text-[9px] h-4 py-0 px-1 font-semibold flex items-center gap-0.5">
+                          <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 text-[9px] h-4 py-0 px-1 font-semibold flex items-center gap-0.5">
                             ★ Leader
                           </Badge>
                         )}
@@ -1550,8 +1550,8 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
                           variant={grievance.status === "resolved" ? "outline" : "destructive"}
                           className={`text-[9px] h-5 ${
                             grievance.status === "resolved"
-                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                              : "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600"
+                              : "bg-red-500/10 border-red-500/30 text-red-600"
                           }`}
                         >
                           {grievance.status === "resolved" ? "Resolved" : "Open"}
@@ -1567,7 +1567,7 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
 
                       {grievance.adminResponse ? (
                         <div className="mt-2 p-3 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-xs space-y-1">
-                          <div className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                          <div className="font-semibold text-emerald-700 flex items-center gap-1">
                             <span>Admin Response</span>
                             <span className="text-[10px] font-normal text-muted-foreground">(Resolved)</span>
                           </div>
@@ -1575,7 +1575,7 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
                         </div>
                       ) : (
                         grievance.status === "open" && (
-                          <div className="mt-2 p-2 rounded bg-amber-500/5 border border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-400">
+                          <div className="mt-2 p-2 rounded bg-amber-500/5 border border-amber-500/20 text-[10px] text-amber-700">
                             ⏳ Waiting for Scope Admin response...
                           </div>
                         )

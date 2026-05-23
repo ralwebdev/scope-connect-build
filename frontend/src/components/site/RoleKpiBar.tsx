@@ -41,7 +41,7 @@ function Chip({ kpi }: { kpi: Kpi }) {
     >
       <span className="flex items-center text-indigo-400/90"><Icon className="h-3.5 w-3.5 shrink-0" /></span>
       <div className="flex items-baseline gap-1 leading-none">
-        <span className="text-[12px] font-bold tabular-nums text-[#1a1a1a] dark:text-foreground">{kpi.value}</span>
+        <span className="text-[12px] font-bold tabular-nums text-[#1a1a1a]">{kpi.value}</span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
           {kpi.label}
         </span>

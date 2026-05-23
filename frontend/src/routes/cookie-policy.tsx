@@ -20,18 +20,18 @@ function CookiePolicyPage() {
     <AppShell>
       <LegalShell title="Cookie Policy" updated="May 2026">
         <Section heading="Summary">
-          Scope Connect uses a minimal set of cookies and browser localStorage to keep you signed in, remember your theme, and measure aggregate, anonymous platform usage. We do not run third-party advertising trackers.
+          Scope Connect uses a minimal set of cookies and browser localStorage to keep you signed in, remember preferences, and measure aggregate, anonymous platform usage. We do not run third-party advertising trackers.
         </Section>
         <Section heading="Categories of cookies">
           <strong>Essential</strong> — session, authentication, CSRF protection. Cannot be disabled without breaking the platform.<br />
-          <strong>Preference</strong> — theme, language, sidebar collapse state.<br />
+          <strong>Preference</strong> — language, sidebar collapse state, and similar interface choices.<br />
           <strong>Analytics</strong> — anonymous, aggregated route visits and feature usage so we can prioritize fixes. No PII.<br />
         </Section>
         <Section heading="Analytics usage">
           We record route visits, soft-launch events, and rage-click clusters to find broken UX. Your name, email, and content are never sent to analytics.
         </Section>
         <Section heading="Preference controls">
-          Theme and preferences live in your browser. Clear them any time from Settings → Reset local data, or from your browser's site-data tools.
+          Preferences live in your browser. Clear them any time from Settings → Reset local data, or from your browser's site-data tools.
         </Section>
         <Section heading="Opt-out">
           To opt out of analytics, enable your browser's Do Not Track signal or use private browsing. For deletion requests email privacy@scope.in.

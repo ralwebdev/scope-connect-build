@@ -12,7 +12,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bell, LogOut, Settings as SettingsIcon, User as UserIcon, Menu,
-  Moon, Monitor, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useImageSrc } from "@/hooks/use-image-src";
@@ -21,7 +20,6 @@ import { useUnreadNotifications } from "@/hooks/use-scope";
 import { auth, meta, notifications } from "@/lib/scope-store";
 import { ApiException } from "@/lib/api/client";
 import { useBrand } from "@/hooks/use-platform";
-import { useTheme } from "@/hooks/use-theme";
 import { landingRouteForRole } from "@/lib/rbac";
 import { themeForRole } from "@/lib/role-theme";
 import { navConfigForRole } from "@/lib/role-nav";
@@ -207,7 +205,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
           <div
             style={glowVar}
             className={cn(
-              "relative flex items-center justify-between rounded-full border border-white/20 bg-white/70 backdrop-blur-2xl transition-all duration-500 ease-in-out dark:border-border/40 dark:bg-background/60",
+              "relative flex items-center justify-between rounded-full border border-white/20 bg-white/70 backdrop-blur-2xl transition-all duration-500 ease-in-out",
               collapsed ? "px-3 py-1.5 shadow-lg" : "px-4 py-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)]",
               shimmer && "nav-shimmer",
             )}
@@ -254,7 +252,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                     )}
                   >
                     <span className="whitespace-nowrap px-1 text-[15px] font-extrabold tracking-tight">
-                      <span className="text-[#1a1a1a] dark:text-white">{brand.shortName}</span>
+                      <span className="text-[#1a1a1a]">{brand.shortName}</span>
                       <span className="text-brand">{brand.accentName}</span>
                     </span>
                   </div>
@@ -308,7 +306,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
               >
                 <div className="px-1">
                   <span
-                    className="flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/60 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.05em] transition-all hover:border-blue-300/60 dark:border-blue-900/30 dark:bg-blue-950/40"
+                    className="flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/60 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.05em] transition-all hover:border-blue-300/60"
                     style={{
                       color: "#2563eb", // Deep blue
                       boxShadow: "0 2px 10px -4px rgba(37, 99, 235, 0.15)",
@@ -327,8 +325,6 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
             {/* RIGHT GROUP — actions */}
             <div className="relative flex items-center gap-1">
               <div className="flex items-center gap-0.5">
-                {/* <ThemeQuickToggle /> */}
-
                 {showAuthedUI ? (
                   <>
                     <div ref={bellRef} className="relative">
@@ -420,23 +416,5 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
     </>
   );
 }
-
-// function ThemeQuickToggle() {
-//   const { mode, setTheme } = useTheme();
-//   const next = mode === "light" ? "dark" : mode === "dark" ? "system" : "light";
-//   const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-
-//   return (
-//     <button
-//       type="button"
-//       aria-label={`Theme: ${mode}. Click to switch to ${next}.`}
-//       onClick={() => setTheme(next)}
-//       className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-secondary hover:text-foreground"
-//       title={`Theme: ${mode}`}
-//     >
-//       <Icon className="h-4 w-4" />
-//     </button>
-//   );
-// }
 
 if (typeof window !== "undefined") meta.bumpVisit();

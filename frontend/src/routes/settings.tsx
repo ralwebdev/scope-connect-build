@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppShell } from "@/components/site/AppShell";
 import { AuthGate } from "@/components/site/AuthGate";
-import { useTheme, type ThemeMode } from "@/hooks/use-theme";
 import { useUser } from "@/hooks/use-scope";
 import { auth, meta } from "@/lib/scope-store";
 import { toast } from "sonner";
@@ -37,7 +36,6 @@ function SettingsPage() {
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
   const [weekly, setWeekly] = useState(true);
-  const { mode: theme, setTheme } = useTheme();
   // Sync email when user resolves on mount
   useEffect(() => {
     if (user?.email) setEmail(user.email);
@@ -91,28 +89,6 @@ function SettingsPage() {
             <div>
               <Label htmlFor="acc-email">Email</Label>
               <Input id="acc-email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" />
-            </div>
-            <div>
-              <Label>Theme</Label>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {(["system", "light", "dark"] as ThemeMode[]).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => {
-                      setTheme(item);
-                      toast(`Theme set to ${item}.`);
-                    }}
-                    className={`rounded-lg border px-3 py-1.5 text-xs capitalize transition-colors ${
-                      theme === item
-                        ? "border-brand bg-brand/10 text-brand"
-                        : "border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap justify-end gap-2">
