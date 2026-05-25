@@ -313,7 +313,7 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
     setLoading(true);
     Promise.all([
       backendUsers.list({ institutionId }),
-      backendProjects.list(),
+      backendProjects.list({ institutionId }),
       backendEvents.list(institutionId),
       import("@/lib/api/endpoints").then(({ backendReports }) => backendReports.institution(institutionId)).catch(() => null),
     ])
@@ -324,7 +324,7 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
         const totalFaculty = members.filter((m) => m.role === "faculty").length;
         const withProfile = members.filter((m) => Boolean(m.bio) || (m.skills?.length ?? 0) > 0 || (m.portfolio_links?.length ?? 0) > 0).length;
         const profile = members.length > 0 ? Math.round((withProfile / members.length) * 100) : 0;
-        const institutionProjects = projects.items.filter((p) => p.institution_id === institutionId).length;
+        const institutionProjects = projects.items.length;
         const rank = report?.metrics?.campusRank ? `#${report.metrics.campusRank}` : "-";
         setK({
           activeStudents,
@@ -2189,6 +2189,7 @@ function ProjectApplicationsDialog({
 }
 
 function AdminProjectsView({ institutionId }: { institutionId: string }) {
+  const user = useUser();
   const [projects, setProjects] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2206,17 +2207,21 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
     visibility: "institution"
   });
 
+  // Resolve the real MongoDB institution ID from the logged-in user's session
+  // (user.institution.id is the backend ObjectId) with the CRM store ID as fallback.
+  const backendInstitutionId = user?.institution?.id || institutionId;
+
   const fetchProjects = async () => {
     setLoading(true);
     try {
       const { backendProjects, backendApplications } = await import("@/lib/api/endpoints");
+      // Filter server-side by institution_id to avoid cross-ID-format mismatch
       const [{ items: projectItems }, { items: applicationItems }] = await Promise.all([
-        backendProjects.list(),
+        backendProjects.list({ institutionId: backendInstitutionId }),
         backendApplications.list().catch(() => ({ items: [] })),
       ]);
-      const institutionProjects = projectItems.filter((p: any) => p.institution_id === institutionId || p.institution === institutionId);
-      const projectIds = new Set(institutionProjects.map((p: any) => p.id));
-      setProjects(institutionProjects);
+      const projectIds = new Set(projectItems.map((p: any) => p.id));
+      setProjects(projectItems);
       setApplications(applicationItems.filter((app: any) => projectIds.has(app.project_id)));
     } catch (error) {
       toast.error("Failed to load projects");
@@ -2227,13 +2232,17 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
 
   useEffect(() => {
     fetchProjects();
-  }, [institutionId]);
+  }, [backendInstitutionId]);
 
   const handleCreate = async () => {
     if (!newProject.title) return toast.error("Project title is required");
     try {
       const { backendProjects } = await import("@/lib/api/endpoints");
-      await backendProjects.create(newProject);
+      // Explicitly pass institution_id so the project is linked to this institution
+      await backendProjects.create({
+        ...newProject,
+        institution_id: backendInstitutionId,
+      });
       toast.success("Project launched successfully!");
       setIsModalOpen(false);
       setNewProject({
@@ -2248,20 +2257,26 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
         visibility: "institution"
       });
       fetchProjects();
-    } catch (error) {
-      toast.error("Failed to launch project");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to launch project");
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this project?")) return;
+    // Optimistically remove the project from UI immediately
+    const previous = projects;
+    setProjects((prev) => prev.filter((p) => p.id !== id));
     try {
       const { backendProjects } = await import("@/lib/api/endpoints");
       await backendProjects.remove(id);
-      toast.success("Project removed");
+      toast.success("Project deleted successfully");
+      // Re-fetch to sync server state; strip any lingering cancelled projects
       fetchProjects();
-    } catch (error) {
-      toast.error("Failed to delete project");
+    } catch (error: any) {
+      // Revert optimistic update on failure
+      setProjects(previous);
+      toast.error(error?.message || "Failed to delete project");
     }
   };
 
