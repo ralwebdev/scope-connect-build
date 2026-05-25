@@ -16,7 +16,9 @@ import {
 import { ROLE_LABELS, type RoleId } from "@/lib/rbac";
 
 export function StudentNavbar() {
-  return <NavbarShell centerSlot={<StudentKpis />} roleLabel={ROLE_LABELS.student} />;
+  const session = useUserSession();
+  const isVerifiedBuilder = session.user?.student_status === "active";
+  return <NavbarShell centerSlot={<StudentKpis />} roleLabel={isVerifiedBuilder ? "Verified Builder" : ROLE_LABELS.student} />;
 }
 
 export function CampusNavbar() {

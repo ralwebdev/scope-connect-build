@@ -4,12 +4,11 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { auth, seedInterests } from "@/lib/scope-store";
+import { auth } from "@/lib/scope-store";
 import { useIsLoggedIn } from "@/hooks/use-scope";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
 import { roleFromEmail, landingRouteForRole, ROLE_LABELS } from "@/lib/rbac";
-import { backendInstitutions } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>): { ref?: string } => {
@@ -19,7 +18,7 @@ export const Route = createFileRoute("/auth")({
   },
   head: () => ({
     meta: [
-      { title: "Join Scope Connect — Sign up" },
+      { title: "Join Scope Connect - Sign up" },
       { name: "description", content: "Create your Scope Connect builder profile and join India's campus innovation network." },
     ],
   }),
@@ -27,40 +26,30 @@ export const Route = createFileRoute("/auth")({
 });
 
 const STAGES = [
-  "Authenticating access…",
-  "Syncing your innovation profile…",
-  "Calibrating your campus rank…",
+  "Authenticating access...",
+  "Syncing your innovation profile...",
+  "Calibrating your campus rank...",
 ];
 
 type LoginRoleTab = "student" | "institutional_admin" | "faculty_coordinator";
 
 const LOGIN_ROLE_TABS: Array<{ key: LoginRoleTab; label: string; emailPlaceholder: string }> = [
-  { key: "student", label: "Students", emailPlaceholder: "enter student email" },
-  { key: "institutional_admin", label: "Institute", emailPlaceholder: "institution-admin@campus.edu" },
-  { key: "faculty_coordinator", label: "Faculty", emailPlaceholder: "faculty@campus.edu" },
+  { key: "student", label: "Students", emailPlaceholder: "Enter Student Email" },
+  { key: "institutional_admin", label: "Institute", emailPlaceholder: "Enter Institution Email" },
+  { key: "faculty_coordinator", label: "Faculty", emailPlaceholder: "Enter Faculty Email" },
   // { key: "scope_admin", label: "Scope Admin", emailPlaceholder: "admin@scopeconnect.in" },
 ];
-
-type SignupInstitution = {
-  id: string;
-  name: string;
-  city?: string;
-  state?: string;
-};
 
 function AuthPage() {
   const navigate = useNavigate();
   const { ref } = Route.useSearch();
   const isAuthed = useIsLoggedIn();
+
   const [mode, setMode] = useState<"login" | "signup">("signup");
-  const [name, setName] = useState("");
-  const [campus, setCampus] = useState("IIT Bombay");
-  const [institutionId, setInstitutionId] = useState("");
-  const [institutions, setInstitutions] = useState<SignupInstitution[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
   const [loginRoleTab, setLoginRoleTab] = useState<LoginRoleTab>("student");
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(["AI", "Startup"]);
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState(0);
   const [signupStarted, setSignupStarted] = useState(false);
@@ -73,27 +62,6 @@ function AuthPage() {
     }
   }, [isAuthed, navigate]);
 
-  useEffect(() => {
-    if (mode !== "signup") return;
-    let cancelled = false;
-    backendInstitutions.publicList()
-      .then(({ items }) => {
-        if (cancelled) return;
-        setInstitutions(items);
-        const first = items[0];
-        if (first && !institutionId) {
-          setInstitutionId(first.id);
-          setCampus(first.name);
-        }
-      })
-      .catch((error) => {
-        console.warn("Institution list failed", error);
-        toast.error("Could not load institutions.");
-      });
-    return () => { cancelled = true; };
-  }, [mode, institutionId]);
-
-  // Fire signup_started once when user first interacts with a signup field.
   const markStarted = () => {
     if (!signupStarted && mode === "signup") {
       setSignupStarted(true);
@@ -101,13 +69,9 @@ function AuthPage() {
     }
   };
 
-  const toggleInterest = (t: string) =>
-    setSelectedInterests((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
-    );
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!email || !email.includes("@")) {
       toast.error("Please enter a valid email.");
       return;
@@ -116,22 +80,30 @@ function AuthPage() {
       toast.error("Password should be at least 8 characters.");
       return;
     }
-    if (mode === "signup" && !institutionId) {
-      toast.error("Please select your institution.");
+    if (mode === "signup" && password !== repeatPassword) {
+      toast.error("Passwords do not match.");
       return;
     }
+
     setLoading(true);
     setStage(0);
     const t1 = setTimeout(() => setStage(1), 450);
     const t2 = setTimeout(() => setStage(2), 900);
     await new Promise((r) => setTimeout(r, 1300));
-    clearTimeout(t1); clearTimeout(t2);
+    clearTimeout(t1);
+    clearTimeout(t2);
 
     try {
       let signedInUser;
       if (mode === "signup") {
-        signedInUser = await auth.signup({ name: name || email.split("@")[0], email, campus, institutionId, interests: selectedInterests, password, referralCode: ref });
-        auth.updateProfile({ campus, interests: selectedInterests });
+        signedInUser = await auth.signup({
+          name: email.split("@")[0],
+          email,
+          campus: "",
+          interests: [],
+          password,
+          referralCode: ref,
+        });
         analytics.track("signup_completed");
         toast.success("Welcome to Scope Connect. You're in.");
       } else {
@@ -143,9 +115,11 @@ function AuthPage() {
           (loginRoleTab === "institutional_admin" && role === "institutional_admin") ||
           (loginRoleTab === "faculty_coordinator" && role === "faculty_coordinator") ||
           (loginRoleTab === "student" && role === "student");
+
         if (!matchesSelectedTab) toast.message(`Signed in as ${ROLE_LABELS[role]}.`);
-        toast.success(`Welcome Back, ${ROLE_LABELS[role]}.`);
+        toast.success(`Welcome back, ${ROLE_LABELS[role]}.`);
       }
+
       const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
       navigate({ to: landingRouteForRole(role), replace: true });
     } catch (error) {
@@ -157,7 +131,6 @@ function AuthPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Left brand panel */}
       <div className="relative hidden overflow-hidden bg-gradient-hero text-primary-foreground lg:block">
         <div className="pointer-events-none absolute inset-0 bg-gradient-glow" />
         <div className="pointer-events-none absolute -left-20 top-20 h-72 w-72 rounded-full bg-brand/30 blur-3xl animate-pulse-glow" />
@@ -193,11 +166,10 @@ function AuthPage() {
             </div>
           </div>
 
-          <p className="text-xs text-primary-foreground/50">© Scope Connect</p>
+          <p className="text-xs text-primary-foreground/50">Copyright Scope Connect</p>
         </div>
       </div>
 
-      {/* Right form panel */}
       <div className="flex items-center justify-center bg-background px-4 py-12 sm:px-8">
         <div className="w-full max-w-md">
           <Link to="/" className="mb-8 flex items-center gap-2 font-bold lg:hidden">
@@ -231,24 +203,20 @@ function AuthPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             {mode === "signup" ? "Build your profile" : "Welcome back"}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {mode === "signup"
-              ? "Takes under 60 seconds. Start building today."
-              : "Pick up where you left off."}
-          </p>
+          {mode !== "signup" && <p className="mt-2 text-sm text-muted-foreground">
+            Pick up where you left off.
+          </p>}
 
           {mode === "login" && (
             <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-2">
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-3 gap-2">
                 {LOGIN_ROLE_TABS.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setLoginRoleTab(tab.key)}
                     className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
-                      loginRoleTab === tab.key
-                        ? "bg-background text-foreground shadow-soft"
-                        : "text-muted-foreground hover:text-foreground"
+                      loginRoleTab === tab.key ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {tab.label}
@@ -258,54 +226,14 @@ function AuthPage() {
             </div>
           )}
 
-          {/* {mode === "signup" && (
-            <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
-              <div className="font-semibold text-foreground">What you get instantly</div>
-              <ul className="mt-1 space-y-0.5">
-                <li>⚡ +120 XP welcome bonus</li>
-                <li>🎯 National rank assigned</li>
-                <li>🚀 Curated challenges unlocked</li>
-              </ul>
-            </div>
-          )} */}
-
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            {mode === "signup" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="fullName">Full name</Label>
-                  <Input id="fullName" value={name} onFocus={markStarted} onChange={(e) => setName(e.target.value)} placeholder="Aarav Mehta" required className="mt-1.5" />
-                </div>
-                <div>
-                  <Label htmlFor="campus">Campus</Label>
-                  <select
-                    id="campus"
-                    value={institutionId}
-                    onChange={(e) => {
-                      const selected = institutions.find((institution) => institution.id === e.target.value);
-                      setInstitutionId(e.target.value);
-                      setCampus(selected?.name ?? "");
-                    }}
-                    required
-                    className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    {institutions.length === 0 && <option value="">No institutions available</option>}
-                    {institutions.map((institution) => (
-                      <option key={institution.id} value={institution.id}>
-                        {institution.name}{institution.city ? ` · ${institution.city}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
+                onFocus={markStarted}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={mode === "login" ? LOGIN_ROLE_TABS.find((tab) => tab.key === loginRoleTab)?.emailPlaceholder ?? "you@campus.edu" : "you@campus.edu"}
                 required
@@ -322,33 +250,31 @@ function AuthPage() {
                   </Link>
                 )}
               </div>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required className="mt-1.5" />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+                className="mt-1.5"
+              />
             </div>
 
-            {/* {mode === "signup" && (
+            {mode === "signup" && (
               <div>
-                <Label>Pick your interests</Label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {seedInterests.map((t) => {
-                    const active = selectedInterests.includes(t);
-                    return (
-                      <button
-                        type="button"
-                        key={t}
-                        onClick={() => toggleInterest(t)}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
-                          active
-                            ? "border-transparent bg-gradient-brand text-brand-foreground shadow-brand"
-                            : "border-border bg-background text-muted-foreground hover:border-brand/40 hover:text-foreground"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    );
-                  })}
-                </div>
+                <Label htmlFor="repeatPassword">Repeat Password</Label>
+                <Input
+                  id="repeatPassword"
+                  type="password"
+                  value={repeatPassword}
+                  onChange={(e) => setRepeatPassword(e.target.value)}
+                  placeholder="Repeat your password"
+                  required
+                  className="mt-1.5"
+                />
               </div>
-            )} */}
+            )}
 
             <Button type="submit" disabled={loading} size="lg" className="w-full bg-gradient-brand text-brand-foreground shadow-brand hover:opacity-95">
               {loading ? (
@@ -356,15 +282,14 @@ function AuthPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {STAGES[stage]}
                 </>
               ) : (
-                <>{mode === "signup" ? "Create account" : "Log in"} <ArrowRight className="ml-2 h-4 w-4" /></>
+                <>
+                  {mode === "signup" ? "Create account" : "Log in"} <ArrowRight className="ml-2 h-4 w-4" />
+                </>
               )}
             </Button>
 
-            <p className="text-center text-xs text-muted-foreground">
-              By continuing you agree to our Terms & Code of Conduct.
-            </p>
+            <p className="text-center text-xs text-muted-foreground">By continuing you agree to our Terms and Code of Conduct.</p>
           </form>
-
         </div>
       </div>
     </div>

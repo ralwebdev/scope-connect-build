@@ -64,6 +64,7 @@ function CampusHub() {
 
   const isManagementRole = user?.role === "faculty" || user?.role === "institution_admin";
   const isPendingVerification = user?.student_status === "pending_verification";
+  const isCampusVerified = user?.student_status === "active";
 
   useEffect(() => {
     if (user?.institution?.id) return;
@@ -431,6 +432,25 @@ function CampusHub() {
               <Button variant="outline" size="sm" className="border-warning/30 hover:bg-warning/10 text-foreground" onClick={() => toast.info("Your application is queued. Coordinators are notified daily.")}>
                 Check Status
               </Button>
+            </div>
+          </div>
+        )}
+        {isCampusVerified && (
+          <div className="mb-8 rounded-xl border border-success/20 bg-success/5 p-5 backdrop-blur-md relative overflow-hidden shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-r from-success/5 to-transparent pointer-events-none" />
+            <div className="flex items-start gap-4 relative z-10">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success border border-success/20">
+                <Check className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-md font-bold text-foreground flex items-center gap-2">
+                  Campus Verification Complete
+                  <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20">Verified Builder</Badge>
+                </h4>
+                <p className="mt-1 text-sm text-muted-foreground max-w-2xl">
+                  Your campus coordinator has approved your membership. Your status is now verified and full campus collaboration access is enabled.
+                </p>
+              </div>
             </div>
           </div>
         )}
