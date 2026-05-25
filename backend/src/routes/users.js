@@ -334,14 +334,20 @@ usersRouter.post("/join-chapter", validate(z.object({ institution_id: z.string()
     { new: true, upsert: true }
   );
 
-  // Award +40 XP for joining chapter (idempotent via dedupeKey)
-  const xpResult = await awardXp({
+  // Award join-campus XP only once per user lifetime.
+  const hasJoinedCampusXp = await ProfileActivity.exists({
+    user: user._id,
+    kind: "xp_ledger",
+    "meta.rule": "dashboard_joined_campus",
+  });
+  let xpResult = { awarded: 0, skipped: true };
+  if (!hasJoinedCampusXp) xpResult = await awardXp({
     userId: user._id,
     institutionId: institution._id,
     rule: "dashboard_joined_campus",
     amountOverride: 40,
-    dedupeKey: `joined_campus:${user._id}:${institution._id}`,
-    text: `Joined ${institution.name} chapter · +40 XP`,
+    dedupeKey: `joined_campus:${user._id}`,
+    text: `Joined ${institution.name} chapter - +40 XP`,
   });
 
   // Create welcome notification
@@ -459,6 +465,15 @@ usersRouter.post("/me/dashboard-points", validate(dashboardPointsSchema), asyncH
   const awardedSegments = [];
 
   for (const segment of uniqueSegments) {
+    if (segment === "joined_campus") {
+      const alreadyGrantedCampusJoinXp = await ProfileActivity.exists({
+        user: req.user._id,
+        kind: "xp_ledger",
+        "meta.rule": "dashboard_joined_campus",
+      });
+      if (alreadyGrantedCampusJoinXp) continue;
+    }
+
     const alreadyAwarded = await ProfileActivity.exists({
       user: req.user._id,
       kind: "dashboard_segment_reward",
@@ -475,10 +490,13 @@ usersRouter.post("/me/dashboard-points", validate(dashboardPointsSchema), asyncH
       sourceType: "dashboard",
       sourceId: segment,
       action: XP_ACTIONS.ADMIN_ADJUSTMENT,
-      dedupeKey: `dashboard_segment:${req.user.id}:${segment}`,
+      dedupeKey: segment === "joined_campus"
+        ? `joined_campus:${req.user.id}`
+        : `dashboard_segment:${req.user.id}:${segment}`,
       meta: { segment },
       text: `${labels[segment]} +${amount} XP`,
     });
+    if (!xpResult.awarded) continue;
     awarded += xpResult.awarded;
     awardedSegments.push(segment);
     await ProfileActivity.create({
