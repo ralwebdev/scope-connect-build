@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/site/AppShell";
 import { useStoreValue, useIsLoggedIn, useUser } from "@/hooks/use-scope";
-import { events } from "@/lib/scope-store";
+import { events, auth } from "@/lib/scope-store";
 import { FeatureGate } from "@/components/site/FeatureGate";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
@@ -68,6 +68,7 @@ function EventsPage() {
     }>
   >([]);
   const [loading, setLoading] = useState(true);
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +161,9 @@ function EventsPage() {
       } else {
         toast.success("RSVP cancelled.");
       }
+
+      // Sync the user profile (and XP stats) in the background
+      void auth.refreshCurrentUser().catch(() => null);
     } catch (error: any) {
       toast.error(error?.message || "Could not reserve seat.");
     }
@@ -300,19 +304,25 @@ function EventsPage() {
                   <div className="mt-5 flex gap-2">
                     <Button
                       onClick={() => onRsvp(e.id)}
+                      onMouseEnter={() => setHoveredEventId(e.id)}
+                      onMouseLeave={() => setHoveredEventId(null)}
                       size="sm"
-                      className={`flex-1 ${
+                      className={`flex-1 transition-all duration-300 ${
                         going
-                          ? "bg-success text-primary-foreground hover:opacity-90"
+                          ? "bg-success hover:bg-destructive text-primary-foreground"
                           : "bg-gradient-brand text-brand-foreground"
                       }`}
                     >
                       {going ? (
-                        <>
-                          <Check className="mr-1.5 h-4 w-4" /> Going
-                        </>
+                        hoveredEventId === e.id ? (
+                          "Cancel RSVP (+30 XP)"
+                        ) : (
+                          <span className="flex items-center justify-center">
+                            <Check className="mr-1.5 h-4 w-4" /> Going
+                          </span>
+                        )
                       ) : (
-                        "RSVP (+30 XP)"
+                        "RSVP (-30 XP)"
                       )}
                     </Button>
                     <Button

@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
 import { useUser } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
 import { useStoreValue } from "@/hooks/use-scope";
@@ -2175,6 +2176,8 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [manageProject, setManageProject] = useState<any>(null);
+  const [customIsTeam, setCustomIsTeam] = useState<boolean>(true);
+  const [editingProject, setEditingProject] = useState<any>(null);
   const [newProject, setNewProject] = useState({
     title: "",
     summary: "",
@@ -2183,9 +2186,32 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
     capacity: 10,
     teams_allowed: 5,
     team_members_limit: 4,
+    minimum_xp_required: 0,
+    xp_commitment_stake: 50,
+    reward_pool_xp: 75,
     status: "open",
     visibility: "institution"
   });
+
+  const handleEditClick = (project: any) => {
+    setEditingProject(project);
+    setNewProject({
+      title: project.title,
+      summary: project.summary || "",
+      description: project.description || "",
+      domain: project.domain || "",
+      capacity: project.capacity ?? 10,
+      teams_allowed: project.teams_allowed ?? project.teamsAllowed ?? 5,
+      team_members_limit: project.team_members_limit ?? project.teamMembersLimit ?? 4,
+      minimum_xp_required: project.minimum_xp_required ?? project.minimumXpRequired ?? 0,
+      xp_commitment_stake: project.xp_commitment_stake ?? project.xpCommitmentStake ?? 50,
+      reward_pool_xp: project.reward_pool_xp ?? project.rewardPoolXp ?? 75,
+      status: project.status || "open",
+      visibility: project.visibility || "institution"
+    });
+    setCustomIsTeam((project.team_members_limit ?? project.teamMembersLimit ?? 1) > 1);
+    setIsModalOpen(true);
+  };
 
   // Resolve the real MongoDB institution ID from the logged-in user's session
   // (user.institution.id is the backend ObjectId) with the CRM store ID as fallback.
@@ -2218,13 +2244,33 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
     if (!newProject.title) return toast.error("Project title is required");
     try {
       const { backendProjects } = await import("@/lib/api/endpoints");
-      // Explicitly pass institution_id so the project is linked to this institution
-      await backendProjects.create({
-        ...newProject,
+      
+      const payload = {
+        title: newProject.title,
+        summary: newProject.summary,
+        description: newProject.description,
+        domain: newProject.domain,
+        capacity: newProject.capacity,
+        status: newProject.status,
+        minimum_xp_required: newProject.minimum_xp_required,
+        xp_commitment_stake: newProject.xp_commitment_stake,
+        reward_pool_xp: newProject.reward_pool_xp,
         institution_id: backendInstitutionId,
-      });
-      toast.success("Project launched successfully!");
+        visibility: "institution" as const,
+        team_members_limit: customIsTeam ? newProject.team_members_limit : 1,
+        teams_allowed: customIsTeam ? newProject.teams_allowed : 0,
+      };
+
+      if (editingProject) {
+        await backendProjects.update(editingProject.id, payload);
+        toast.success("Project updated successfully!");
+      } else {
+        await backendProjects.create(payload);
+        toast.success("Project launched successfully!");
+      }
+
       setIsModalOpen(false);
+      setEditingProject(null);
       setNewProject({
         title: "",
         summary: "",
@@ -2233,12 +2279,16 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
         capacity: 10,
         teams_allowed: 5,
         team_members_limit: 4,
+        minimum_xp_required: 0,
+        xp_commitment_stake: 50,
+        reward_pool_xp: 75,
         status: "open",
         visibility: "institution"
       });
+      setCustomIsTeam(true);
       fetchProjects();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to launch project");
+      toast.error(error?.message || "Failed to save project");
     }
   };
 
@@ -2267,80 +2317,199 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
           <h3 className="text-lg font-bold">Campus Projects</h3>
           <p className="text-sm text-muted-foreground">Manage exclusive opportunities for your students.</p>
         </div>
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <Dialog open={isModalOpen} onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) {
+            setEditingProject(null);
+            setNewProject({
+              title: "",
+              summary: "",
+              description: "",
+              domain: "",
+              capacity: 10,
+              teams_allowed: 5,
+              team_members_limit: 4,
+              minimum_xp_required: 0,
+              xp_commitment_stake: 50,
+              reward_pool_xp: 75,
+              status: "open",
+              visibility: "institution"
+            });
+            setCustomIsTeam(true);
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-brand text-brand-foreground shadow-brand">
+            <Button className="bg-gradient-brand text-brand-foreground shadow-brand" onClick={() => {
+              setEditingProject(null);
+              setNewProject({
+                title: "",
+                summary: "",
+                description: "",
+                domain: "",
+                capacity: 10,
+                teams_allowed: 5,
+                team_members_limit: 4,
+                minimum_xp_required: 0,
+                xp_commitment_stake: 50,
+                reward_pool_xp: 75,
+                status: "open",
+                visibility: "institution"
+              });
+              setCustomIsTeam(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" /> Launch Project
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Launch New Project</DialogTitle>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-0">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/40 shrink-0">
+              <DialogTitle>{editingProject ? "Edit Project" : "Launch New Project"}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Project Title *</Label>
-                <Input
-                  placeholder="e.g. AI-Powered Campus Assistant"
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Domain</Label>
-                <Input
-                  placeholder="e.g. Engineering, AI, Design"
-                  value={newProject.domain}
-                  onChange={(e) => setNewProject({ ...newProject, domain: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Total Student Capacity</Label>
-                <Input
-                  type="number"
-                  value={newProject.capacity}
-                  onChange={(e) => setNewProject({ ...newProject, capacity: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Teams Allowed</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 5"
-                  value={newProject.teams_allowed}
-                  onChange={(e) => setNewProject({ ...newProject, teams_allowed: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Members per Team</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 4"
-                  value={newProject.team_members_limit}
-                  onChange={(e) => setNewProject({ ...newProject, team_members_limit: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Short Summary</Label>
-                <Input
-                  placeholder="Visible in cards..."
-                  value={newProject.summary}
-                  onChange={(e) => setNewProject({ ...newProject, summary: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Detailed Description</Label>
-                <Textarea
-                  placeholder="Explain the problem, goals, and outcomes..."
-                  className="min-h-[120px]"
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                />
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Project Title *</Label>
+                  <Input
+                    placeholder="e.g. AI-Powered Campus Assistant"
+                    value={newProject.title}
+                    onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Domain</Label>
+                  <Input
+                    placeholder="e.g. Engineering, AI, Design"
+                    value={newProject.domain}
+                    onChange={(e) => setNewProject({ ...newProject, domain: e.target.value })}
+                  />
+                </div>
+
+                {/* Collaboration Mode Toggle */}
+                <div className="flex items-center justify-between rounded-lg border border-border/85 p-3.5 bg-secondary/5 shadow-sm transition-all hover:bg-secondary/10 sm:col-span-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-foreground">Project Collaboration Mode</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Choose whether students build individually (Solo) or collaborate in teams.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold transition-colors duration-200 ${!customIsTeam ? "text-foreground" : "text-muted-foreground"}`}>Individual</span>
+                    <Switch
+                      checked={customIsTeam}
+                      onCheckedChange={setCustomIsTeam}
+                    />
+                    <span className={`text-xs font-semibold transition-colors duration-200 ${customIsTeam ? "text-brand" : "text-muted-foreground"}`}>Team</span>
+                  </div>
+                </div>
+
+                <div className={customIsTeam ? "space-y-2" : "space-y-2 sm:col-span-2"}>
+                  <Label>Total Student Capacity</Label>
+                  <Input
+                    type="number"
+                    value={newProject.capacity}
+                    onChange={(e) => setNewProject({ ...newProject, capacity: Number(e.target.value) })}
+                  />
+                </div>
+                {customIsTeam && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Teams Allowed</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 5"
+                        value={newProject.teams_allowed}
+                        onChange={(e) => setNewProject({ ...newProject, teams_allowed: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Members per Team</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 4"
+                        value={newProject.team_members_limit}
+                        onChange={(e) => setNewProject({ ...newProject, team_members_limit: Number(e.target.value) })}
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Short Summary</Label>
+                  <Input
+                    placeholder="Visible in cards..."
+                    value={newProject.summary}
+                    onChange={(e) => setNewProject({ ...newProject, summary: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Detailed Description</Label>
+                  <Textarea
+                    placeholder="Explain the problem, goals, and outcomes..."
+                    className="min-h-[120px]"
+                    value={newProject.description}
+                    onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                  />
+                </div>
+
+                {/* XP Settings Section */}
+                <div className="space-y-2 sm:col-span-2 border-t border-border/40 pt-4 mt-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand">XP Settings & Stakes</h4>
+                  <div className="grid gap-3 sm:grid-cols-3 pt-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Entry XP Required</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={newProject.minimum_xp_required}
+                        onChange={(e) =>
+                          setNewProject({
+                            ...newProject,
+                            minimum_xp_required: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        placeholder="e.g. 100"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">XP Commitment Stake</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={newProject.xp_commitment_stake}
+                        onChange={(e) => {
+                          const val = Math.max(0, Number(e.target.value) || 0);
+                          setNewProject({
+                            ...newProject,
+                            xp_commitment_stake: val,
+                            reward_pool_xp: Math.round(val * 1.5),
+                          });
+                        }}
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Reward Pool XP</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={newProject.reward_pool_xp}
+                        onChange={(e) =>
+                          setNewProject({
+                            ...newProject,
+                            reward_pool_xp: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        placeholder="e.g. 75"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 py-4 border-t border-border/40 shrink-0 bg-secondary/10">
               <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} className="bg-gradient-brand text-brand-foreground">Launch Now</Button>
+              <Button onClick={handleCreate} className="bg-gradient-brand text-brand-foreground">
+                {editingProject ? "Save Changes" : "Launch Now"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2376,7 +2545,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"><Edit className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleEditClick(project)} className="h-7 w-7 text-muted-foreground"><Edit className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(project.id)} className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>

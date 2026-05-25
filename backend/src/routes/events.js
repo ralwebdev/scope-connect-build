@@ -101,15 +101,15 @@ eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
   const isGoing = event.rsvps.some((id) => id.toString() === userId.toString());
 
   if (isGoing) {
-    // Cancel RSVP
+    // Cancel RSVP -> refund/award XP back
     event.rsvps = event.rsvps.filter((id) => id.toString() !== userId.toString());
     
-    const xpResult = await revokeXp({
+    const xpResult = await awardXp({
       userId,
       institutionId: req.user.institution || null,
       rule: "event_rsvp",
       meta: { event_id: event.id },
-      text: `Cancelled RSVP for event: ${event.title} · -30 XP`,
+      text: `Cancelled RSVP for event: ${event.title} · +30 XP`,
     }).catch(() => ({ xp: 0 }));
 
     await ProfileActivity.create({
@@ -122,20 +122,19 @@ eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
     await event.save();
     sendSuccess(res, { going: false, rsvpsCount: event.rsvps.length, xp: xpResult.xp || 0 }, "RSVP cancelled");
   } else {
-    // RSVP (check seats)
+    // RSVP (check seats) -> subtract/revoke XP
     if (event.rsvps.length >= event.seats) {
       throw badRequest("This event is fully booked!");
     }
 
     event.rsvps.push(userId);
 
-    const xpResult = await awardXp({
+    const xpResult = await revokeXp({
       userId,
       institutionId: req.user.institution || null,
       rule: "event_rsvp",
-      dedupeKey: `event_rsvp:${event.id}:${userId}`,
       meta: { event_id: event.id },
-      text: `Reserved a seat for event: ${event.title} · +30 XP`,
+      text: `Reserved a seat for event: ${event.title} · -30 XP`,
     }).catch(() => ({ xp: 0 }));
 
     await ProfileActivity.create({

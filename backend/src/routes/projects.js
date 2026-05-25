@@ -392,6 +392,12 @@ async function evaluateProjectEligibility({ req, project, profile }) {
     const institutionId = req.user.institution?.toString?.() || "";
     if (!institutionId || !project.allowedInstitutions.map(String).includes(institutionId)) failures.push("institution_eligibility");
   }
+  if (project.institution) {
+    const institutionId = req.user.institution?.toString?.() || "";
+    if (institutionId !== project.institution.toString()) {
+      failures.push("institution_eligibility");
+    }
+  }
   if (project.roleRequirements?.length && req.body.project_role) {
     const wanted = project.roleRequirements.some((item) => item.role === req.body.project_role);
     if (!wanted) failures.push("role_fit");
