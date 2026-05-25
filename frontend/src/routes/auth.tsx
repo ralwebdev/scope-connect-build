@@ -32,6 +32,15 @@ const STAGES = [
   "Calibrating your campus rank…",
 ];
 
+type LoginRoleTab = "student" | "institutional_admin" | "faculty_coordinator";
+
+const LOGIN_ROLE_TABS: Array<{ key: LoginRoleTab; label: string; emailPlaceholder: string }> = [
+  { key: "student", label: "Students", emailPlaceholder: "enter student email" },
+  { key: "institutional_admin", label: "Institute", emailPlaceholder: "institution-admin@campus.edu" },
+  { key: "faculty_coordinator", label: "Faculty", emailPlaceholder: "faculty@campus.edu" },
+  // { key: "scope_admin", label: "Scope Admin", emailPlaceholder: "admin@scopeconnect.in" },
+];
+
 type SignupInstitution = {
   id: string;
   name: string;
@@ -50,6 +59,7 @@ function AuthPage() {
   const [institutions, setInstitutions] = useState<SignupInstitution[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loginRoleTab, setLoginRoleTab] = useState<LoginRoleTab>("student");
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["AI", "Startup"]);
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState(0);
@@ -128,7 +138,13 @@ function AuthPage() {
         signedInUser = await auth.login(email, password);
         analytics.track("login_success");
         const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
-        toast.success(`Welcome back, ${ROLE_LABELS[role]}.`);
+        const matchesSelectedTab =
+          // (loginRoleTab === "scope_admin" && (role === "scope_admin" || role === "scope_super_admin" || role === "super_admin")) ||
+          (loginRoleTab === "institutional_admin" && role === "institutional_admin") ||
+          (loginRoleTab === "faculty_coordinator" && role === "faculty_coordinator") ||
+          (loginRoleTab === "student" && role === "student");
+        if (!matchesSelectedTab) toast.message(`Signed in as ${ROLE_LABELS[role]}.`);
+        toast.success(`Welcome Back, ${ROLE_LABELS[role]}.`);
       }
       const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
       navigate({ to: landingRouteForRole(role), replace: true });
@@ -199,7 +215,7 @@ function AuthPage() {
                 mode === "signup" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
               }`}
             >
-              Create account
+              Sign Up
             </button>
             <button
               type="button"
@@ -221,7 +237,28 @@ function AuthPage() {
               : "Pick up where you left off."}
           </p>
 
-          {mode === "signup" && (
+          {mode === "login" && (
+            <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-2">
+              <div className="grid grid-cols-3 gap-1">
+                {LOGIN_ROLE_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setLoginRoleTab(tab.key)}
+                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                      loginRoleTab === tab.key
+                        ? "bg-background text-foreground shadow-soft"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* {mode === "signup" && (
             <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
               <div className="font-semibold text-foreground">What you get instantly</div>
               <ul className="mt-1 space-y-0.5">
@@ -230,7 +267,7 @@ function AuthPage() {
                 <li>🚀 Curated challenges unlocked</li>
               </ul>
             </div>
-          )}
+          )} */}
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             {mode === "signup" && (
@@ -265,7 +302,15 @@ function AuthPage() {
 
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@campus.edu" required className="mt-1.5" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={mode === "login" ? LOGIN_ROLE_TABS.find((tab) => tab.key === loginRoleTab)?.emailPlaceholder ?? "you@campus.edu" : "you@campus.edu"}
+                required
+                className="mt-1.5"
+              />
             </div>
 
             <div>
@@ -277,10 +322,10 @@ function AuthPage() {
                   </Link>
                 )}
               </div>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required className="mt-1.5" />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required className="mt-1.5" />
             </div>
 
-            {mode === "signup" && (
+            {/* {mode === "signup" && (
               <div>
                 <Label>Pick your interests</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -303,7 +348,7 @@ function AuthPage() {
                   })}
                 </div>
               </div>
-            )}
+            )} */}
 
             <Button type="submit" disabled={loading} size="lg" className="w-full bg-gradient-brand text-brand-foreground shadow-brand hover:opacity-95">
               {loading ? (
