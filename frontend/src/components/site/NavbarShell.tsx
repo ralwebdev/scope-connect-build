@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export type NavbarShellProps = {
-  /** Center brain — role-specific KPI rail. Hidden on collapse. */
+  /** Center brain — role-specific KPI rail. Stays visible in the compact navbar. */
   centerSlot?: ReactNode;
   /** Override role badge label (defaults to themeForRole label). */
   roleLabel?: string;
@@ -182,6 +182,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
   };
 
   const showAuthedUI = session.ready && session.isAuthenticated && !!session.user;
+  const accountFirstName = showAuthedUI ? session.user!.name.trim().split(/\s+/)[0] : "";
   const roleTheme = themeForRole(session.role);
   const badgeLabel = roleLabel ?? roleTheme.label;
   const glowVar = { ["--nav-glow" as const]: roleTheme.glow } as React.CSSProperties;
@@ -263,7 +264,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
               <div
                 className={cn(
                   "overflow-hidden transition-all duration-500 ease-in-out",
-                  collapsed || !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[600px] opacity-100"
+                  !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[600px] opacity-100"
                 )}
               >
                 <div className="mx-0 flex items-center justify-center px-1">
@@ -351,6 +352,17 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                           />
                         </div>
                       )}
+                    </div>
+
+                    <div
+                      className={cn(
+                        "overflow-hidden transition-all duration-500 ease-in-out",
+                        collapsed ? "max-w-[96px] opacity-100" : "max-w-0 opacity-0"
+                      )}
+                    >
+                      <span className="block truncate px-1 text-xs font-semibold text-[#1a1a1a]">
+                        {accountFirstName}
+                      </span>
                     </div>
 
                     <div ref={userRef} className="relative">

@@ -7,7 +7,12 @@ import { defineConfig, loadEnv } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, process.cwd(), "VITE_");
+  const env = loadEnv(mode, process.cwd(), "");
+  const clientEnv = Object.fromEntries(
+    Object.entries(env).filter(([key]) => key.startsWith("VITE_")),
+  );
+  const parsedPort = Number.parseInt(env.PORT || "", 10);
+  const port = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 8080;
   const apiTarget = (env.VITE_API_BASE_URL || "http://127.0.0.1:5050").replace(
     "://localhost",
     "://127.0.0.1",
@@ -36,7 +41,7 @@ export default defineConfig(({ command, mode }) => {
         : []),
     ],
     define: Object.fromEntries(
-      Object.entries(env).map(([key, value]) => [
+      Object.entries(clientEnv).map(([key, value]) => [
         `import.meta.env.${key}`,
         JSON.stringify(value),
       ]),
@@ -56,7 +61,7 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       host: "::",
-      port: 8080,
+      port,
       proxy: {
         "/api": {
           target: apiTarget,
@@ -78,7 +83,7 @@ export default defineConfig(({ command, mode }) => {
     },
     preview: {
       host: "::",
-      port: 8080,
+      port,
     },
   };
 });

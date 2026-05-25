@@ -102,7 +102,12 @@ function useAccessibleInstitutions() {
 
 function InstitutionAdminPortal() {
   const role = useRole();
-  const allowed = role === "institutional_admin" || role === "scope_super_admin" || role === "super_admin" || role === "scope_admin";
+  const allowed =
+    role === "institutional_admin" ||
+    role === "faculty_coordinator" ||
+    role === "scope_super_admin" ||
+    role === "super_admin" ||
+    role === "scope_admin";
   const institutions = useAccessibleInstitutions();
   const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
   useEffect(() => {
@@ -117,10 +122,10 @@ function InstitutionAdminPortal() {
       <AppShell>
         <AccessDenied
           role={role}
-          required="manage_institution"
-          title="Institution Hub restricted"
-          message="Only Institutional Admins (and higher) can access this institution's hub."
-          toastMessage="Institutional Admin access required."
+          required="approve_students"
+          title="Institution access restricted"
+          message="Only Faculty Coordinators, Institutional Admins, and higher can access this area."
+          toastMessage="Approval access required."
         />
       </AppShell>
     );
@@ -170,6 +175,8 @@ function InstitutionRouteSwitcher({
   selectedInstitutionId: string;
   onSelectInstitution: (institutionId: string) => void;
 }) {
+  const role = useRole();
+  const facultyOnly = role === "faculty_coordinator";
   const loc = useLocation();
   const tab = loc.pathname.includes("/members") ? "members"
     : loc.pathname.includes("/analytics") ? "analytics"
@@ -179,14 +186,21 @@ function InstitutionRouteSwitcher({
             : loc.pathname.includes("/projects") ? "projects"
               : loc.pathname.includes("/events") ? "events"
                 : "hub";
+  const effectiveTab = facultyOnly ? "members" : tab;
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Badge variant="outline" className="mb-2"><Building2 className="mr-1 h-3 w-3" /> Institutional Admin</Badge>
+          <Badge variant="outline" className="mb-2">
+            <Building2 className="mr-1 h-3 w-3" /> {facultyOnly ? "Faculty Coordinator" : "Institutional Admin"}
+          </Badge>
           <h1 className="text-3xl font-bold tracking-tight">{institutionName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {canSwitchInstitution ? "Super admin scope: switch between institutions." : "Mapped scope: this institution only."}
+            {facultyOnly
+              ? "Faculty scope: student verification and member approvals."
+              : canSwitchInstitution
+                ? "Super admin scope: switch between institutions."
+                : "Mapped scope: this institution only."}
           </p>
         </div>
         {canSwitchInstitution && (
@@ -207,27 +221,33 @@ function InstitutionRouteSwitcher({
       </header>
 
       <nav className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3">
-        <TabLink to="/institution-admin" label="Hub" active={tab === "hub"} />
-        {/* <TabLink to="/institution-admin/departments" label="Departments" active={tab === "departments"} /> */}
-        <TabLink to="/institution-admin/projects" label="Projects" active={tab === "projects"} />
-        <TabLink to="/institution-admin/events" label="Events" active={tab === "events"} />
-        <TabLink to="/institution-admin/members" label="Members" active={tab === "members"} />
-        {/* <TabLink to="/institution-admin/analytics" label="Analytics" active={tab === "analytics"} /> */}
-        <TabLink to="/institution-admin/reports" label="Reports" active={tab === "reports"} />
-        <TabLink to="/institution-admin/communications" label="Communications" active={tab === "communications"} />
+        {facultyOnly ? (
+          <TabLink to="/institution-admin/members" label="Members" active={effectiveTab === "members"} />
+        ) : (
+          <>
+            <TabLink to="/institution-admin" label="Hub" active={effectiveTab === "hub"} />
+            {/* <TabLink to="/institution-admin/departments" label="Departments" active={effectiveTab === "departments"} /> */}
+            <TabLink to="/institution-admin/projects" label="Projects" active={effectiveTab === "projects"} />
+            <TabLink to="/institution-admin/events" label="Events" active={effectiveTab === "events"} />
+            <TabLink to="/institution-admin/members" label="Members" active={effectiveTab === "members"} />
+            {/* <TabLink to="/institution-admin/analytics" label="Analytics" active={effectiveTab === "analytics"} /> */}
+            <TabLink to="/institution-admin/reports" label="Reports" active={effectiveTab === "reports"} />
+            <TabLink to="/institution-admin/communications" label="Communications" active={effectiveTab === "communications"} />
+          </>
+        )}
       </nav>
 
-      <FirstLoginBanner institutionId={institutionId} />
+      {!facultyOnly && <FirstLoginBanner institutionId={institutionId} />}
 
       <div className="mt-6">
-        {tab === "hub" && <HubView institutionId={institutionId} institutionName={institutionName} />}
-        {tab === "departments" && <DepartmentsView institutionId={institutionId} />}
-        {tab === "projects" && <AdminProjectsView institutionId={institutionId} />}
-        {tab === "events" && <AdminEventsView institutionId={institutionId} />}
-        {tab === "members" && <MembersView institutionId={institutionId} />}
-        {tab === "analytics" && <AnalyticsView institutionId={institutionId} />}
-        {tab === "reports" && <ReportsView institutionId={institutionId} institutionName={institutionName} />}
-        {tab === "communications" && <CommunicationsView institutionName={institutionName} />}
+        {effectiveTab === "hub" && <HubView institutionId={institutionId} institutionName={institutionName} />}
+        {effectiveTab === "departments" && <DepartmentsView institutionId={institutionId} />}
+        {effectiveTab === "projects" && <AdminProjectsView institutionId={institutionId} />}
+        {effectiveTab === "events" && <AdminEventsView institutionId={institutionId} />}
+        {effectiveTab === "members" && <MembersView institutionId={institutionId} />}
+        {effectiveTab === "analytics" && <AnalyticsView institutionId={institutionId} />}
+        {effectiveTab === "reports" && <ReportsView institutionId={institutionId} institutionName={institutionName} />}
+        {effectiveTab === "communications" && <CommunicationsView institutionName={institutionName} />}
       </div>
     </section>
   );
