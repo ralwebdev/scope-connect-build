@@ -107,7 +107,13 @@ function AuthPage() {
         analytics.track("signup_completed");
         toast.success("Welcome to Scope Connect. You're in.");
       } else {
-        signedInUser = await auth.login(email, password);
+        let apiRole: string = "student";
+        if (loginRoleTab === "institutional_admin") {
+          apiRole = "institution_admin";
+        } else if (loginRoleTab === "faculty_coordinator") {
+          apiRole = "faculty";
+        }
+        signedInUser = await auth.login(email, password, apiRole);
         analytics.track("login_success");
         const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
         const matchesSelectedTab =
@@ -183,18 +189,16 @@ function AuthPage() {
             <button
               type="button"
               onClick={() => setMode("signup")}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
-                mode === "signup" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
-              }`}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all cursor-pointer ${mode === "signup" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
+                }`}
             >
               Sign Up
             </button>
             <button
               type="button"
               onClick={() => setMode("login")}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
-                mode === "login" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
-              }`}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all cursor-pointer ${mode === "login" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
+                }`}
             >
               Log in
             </button>
@@ -215,9 +219,8 @@ function AuthPage() {
                     key={tab.key}
                     type="button"
                     onClick={() => setLoginRoleTab(tab.key)}
-                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
-                      loginRoleTab === tab.key ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
-                    }`}
+                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all cursor-pointer ${loginRoleTab === tab.key ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
+                      }`}
                   >
                     {tab.label}
                   </button>

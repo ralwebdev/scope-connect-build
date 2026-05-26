@@ -73,7 +73,7 @@ function mapCommandCenterData(payload: Awaited<ReturnType<typeof backendSuperAdm
       potentialValue: institution.potential_value || 0,
       stage: toPipelineStage(institution.pipeline_stage),
       notes: institution.notes || "",
-      documents: (institution.documents || []).filter((doc) => doc.kind !== "document") as Institution["documents"],
+      documents: (institution.documents || []).filter((doc) => (doc.kind as string) !== "document") as Institution["documents"],
       updatedAt: institution.updated_at ? new Date(institution.updated_at).getTime() : Date.now(),
     })),
     visits: payload.visits.map((visit) => ({

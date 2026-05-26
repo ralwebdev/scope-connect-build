@@ -15,7 +15,7 @@ export const backendAuth = {
       body: JSON.stringify(body),
     });
   },
-  login(body: { email: string; password: string }) {
+  login(body: { email: string; password: string; role?: string }) {
     return api<AuthPayload>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify(body),

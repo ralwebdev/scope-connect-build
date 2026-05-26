@@ -436,8 +436,8 @@ export const auth = {
     notifications.push({ icon: "trophy", text: "You're ranked #142 nationally. Climb today.", dedupKey: `welcome_rank:${user.id}` });
     return nextUser;
   },
-  async login(email: string, password: string) {
-    const payload = await backendAuth.login({ email, password });
+  async login(email: string, password: string, role?: string) {
+    const payload = await backendAuth.login({ email, password, role });
     const user = persistApiSession(payload);
     streak.tick();
     void notifications.syncFromBackend();

@@ -30,3 +30,17 @@ Best regards,
 Scope Connect Admin
 Attachments: Scope Connect Draft.pdf
 --------------------------------------------------
+
+[EMAIL SENT]
+Timestamp: 2026-05-26T07:27:31.058Z
+To: subhadeep100100@gmail.com
+Subject: Reset your Scope Connect password
+Body: Hi Subhadeep Paul,
+
+We received a request to reset your password.
+Use this link to set a new password: http://localhost:8080/reset-password?token=834d264c53c48c281d170988edc042d068c19260de11568b9d43ef6b8a7dbe92
+
+This link expires in 15 minutes.
+If you did not request this, you can ignore this email.
+Attachments: 
+--------------------------------------------------

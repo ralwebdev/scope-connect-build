@@ -31,6 +31,7 @@ const signupSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1).max(128),
+  role: z.enum(["student", "faculty", "institution_admin", "scope_admin", "super_admin"]).optional(),
 });
 
 const refreshSchema = z.object({
@@ -183,6 +184,10 @@ authRouter.post("/login", authRateLimit, validate(loginSchema), asyncHandler(asy
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
   if (user.disabledAt) throw new AppError(403, "ACCOUNT_DISABLED", "Account disabled");
+
+  if (req.body.role && user.role !== req.body.role) {
+    throw new AppError(403, "ROLE_MISMATCH", `This account is not registered as a ${req.body.role.replace('_', ' ')}`);
+  }
 
   const tokens = await issueSession(req, user);
   const hydrated = await User.findById(user._id).populate({ path: "profile", populate: { path: "institution" } });
