@@ -24,6 +24,7 @@ const url = z.string().max(2000).regex(/^(https?:\/\/|\/)/).nullable().optional(
 const patchUserSchema = z.object({
   email: z.string().email().optional(),
   name: z.string().min(1).max(120).optional(),
+  phone: z.string().max(20).optional().nullable(),
   handle: z.string().min(2).max(80).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   headline: z.string().max(180).optional(),
   bio: z.string().max(5000).optional(),
@@ -759,7 +760,8 @@ usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, re
     if (duplicate) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
     user.email = req.body.email;
   }
-  if (req.body.name) user.name = req.body.name;
+  if (req.body.name !== undefined) user.name = req.body.name;
+  if (req.body.phone !== undefined) user.phone = req.body.phone ? req.body.phone.trim() : null;
   if (req.body.institution_id !== undefined) user.institution = req.body.institution_id;
   await user.save();
 

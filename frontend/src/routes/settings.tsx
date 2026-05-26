@@ -32,21 +32,43 @@ const PREMIUM = [
 
 function SettingsPage() {
   const user = useUser();
+  const isStudent = (user?.role === "student") || (user?.role_variant === "student");
+  const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [phone, setPhone] = useState(user?.phone ?? "");
+  const [saving, setSaving] = useState(false);
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
   const [weekly, setWeekly] = useState(true);
-  // Sync email when user resolves on mount
+  // Sync account fields when user resolves on mount
   useEffect(() => {
-    if (user?.email) setEmail(user.email);
-  }, [user?.email]);
+    setName(user?.name ?? "");
+    setEmail(user?.email ?? "");
+    setPhone(user?.phone ?? "");
+  }, [user?.name, user?.email, user?.phone]);
 
   if (!user) return null;
 
-  const saveAccount = () => {
+  const saveAccount = async () => {
+    if (isStudent && !name.trim()) { toast.error("Name is required."); return; }
     if (!email.includes("@")) { toast.error("Enter a valid email."); return; }
-    auth.updateProfile({ email });
-    toast.success("Account updated.");
+    if (phone.trim() && !/^[0-9+()\\-\\s]{7,20}$/.test(phone.trim())) {
+      toast.error("Enter a valid phone number.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await auth.updateProfile({
+        email: email.trim(),
+        ...(isStudent ? { name: name.trim(), phone: phone.trim() || null } : {}),
+      });
+      toast.success("Account updated.");
+    } catch {
+      toast.error("Could not save account details.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const exportProfile = () => {
@@ -86,16 +108,36 @@ function SettingsPage() {
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-foreground">Account</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {isStudent ? (
+              <div>
+                <Label htmlFor="acc-name">Name</Label>
+                <Input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1.5" />
+              </div>
+            ) : null}
             <div>
               <Label htmlFor="acc-email">Email</Label>
               <Input id="acc-email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" />
             </div>
+            {isStudent ? (
+              <div>
+                <Label htmlFor="acc-phone">Phone number</Label>
+                <Input
+                  id="acc-phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="mt-1.5"
+                />
+              </div>
+            ) : null}
           </div>
           <div className="mt-5 flex flex-wrap justify-end gap-2">
             <Button onClick={exportProfile} variant="outline">
               <Download className="mr-2 h-4 w-4" /> Export profile JSON
             </Button>
-            <Button onClick={saveAccount} className="bg-gradient-brand text-brand-foreground">Save</Button>
+            <Button onClick={saveAccount} disabled={saving} className="bg-gradient-brand text-brand-foreground">
+              {saving ? "Saving..." : "Save"}
+            </Button>
           </div>
         </Card>
 
