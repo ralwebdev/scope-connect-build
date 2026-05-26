@@ -705,6 +705,8 @@ type Member = {
   role: "student" | "campus_leader" | "faculty_coordinator" | "institutional_admin";
   status: "pending" | "active" | "deactivated";
   department?: string;
+  institutionMemberId?: string;
+  verificationRequestedAt?: string | null;
 };
 function readMembers(id: string): Member[] {
   if (typeof window === "undefined") return seedMembers();
@@ -735,7 +737,8 @@ function MemberRoster({
   user,
   onUpdate,
   onDelete,
-  showDepartment = false
+  showDepartment = false,
+  showVerificationColumns = false,
 }: {
   list: Member[];
   loading: boolean;
@@ -743,8 +746,10 @@ function MemberRoster({
   onUpdate: (id: string, patch: Partial<Member>) => void;
   onDelete?: (id: string) => void;
   showDepartment?: boolean;
+  showVerificationColumns?: boolean;
 }) {
   const facultyScoped = user?.role_variant === "faculty_coordinator" || user?.role === "faculty";
+  const columnCount = 5 + (showDepartment ? 1 : 0) + (showVerificationColumns ? 2 : 0);
   return (
     <div className="overflow-x-auto mt-4">
       <table className="w-full text-sm">
@@ -753,13 +758,15 @@ function MemberRoster({
             <th className="py-2 text-left">Name</th>
             <th className="py-2 text-left">Email</th>
             {showDepartment && <th className="py-2 text-left">Department</th>}
+            {showVerificationColumns && <th className="py-2 text-left">Roll No</th>}
             <th className="py-2 text-left">Role</th>
             <th className="py-2 text-left">Status</th>
+            {showVerificationColumns && <th className="py-2 text-left">Requested</th>}
             <th className="py-2 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {loading && <tr><td colSpan={showDepartment ? 6 : 5} className="py-8 text-center text-sm text-muted-foreground">Loading members...</td></tr>}
+          {loading && <tr><td colSpan={columnCount} className="py-8 text-center text-sm text-muted-foreground">Loading members...</td></tr>}
           {!loading && list.map(m => {
             const isSelf = m.id === user?.id;
             const isAdmin = m.role === "institutional_admin";
@@ -770,6 +777,7 @@ function MemberRoster({
                 <td className="py-3 font-semibold">{m.name}</td>
                 <td className="py-3 text-xs text-muted-foreground">{m.email}</td>
                 {showDepartment && <td className="py-3 text-xs">{m.department || "N/A"}</td>}
+                {showVerificationColumns && <td className="py-3 text-xs">{m.institutionMemberId || "N/A"}</td>}
                 <td className="py-3">
                   {isLocked || facultyScoped ? (
                     <Badge variant="secondary" className="font-medium">
@@ -786,6 +794,11 @@ function MemberRoster({
                 <td className="py-3">
                   <Badge variant={m.status === "active" ? "default" : m.status === "pending" ? "outline" : "destructive"}>{m.status}</Badge>
                 </td>
+                {showVerificationColumns && (
+                  <td className="py-3 text-xs text-muted-foreground">
+                    {m.verificationRequestedAt ? new Date(m.verificationRequestedAt).toLocaleDateString() : "N/A"}
+                  </td>
+                )}
                 <td className="py-3 text-right">
                   <div className="flex justify-end gap-1.5">
                     {!isLocked && (
@@ -813,7 +826,7 @@ function MemberRoster({
               </tr>
             )
           })}
-          {!loading && list.length === 0 && <tr><td colSpan={showDepartment ? 6 : 5} className="py-8 text-center text-sm text-muted-foreground">No members found.</td></tr>}
+          {!loading && list.length === 0 && <tr><td colSpan={columnCount} className="py-8 text-center text-sm text-muted-foreground">No members found.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -925,6 +938,8 @@ function MembersView({ institutionId }: { institutionId: string }) {
             loading={loadingMembers}
             user={user}
             onUpdate={update}
+            showDepartment={true}
+            showVerificationColumns={true}
           />
         </TabsContent>
 
@@ -970,6 +985,8 @@ function memberFromUser(user: ScopeUser): Member {
     role,
     status,
     department: user.department_name || user.primary_domain || undefined,
+    institutionMemberId: user.institution_member_id || undefined,
+    verificationRequestedAt: user.verification_requested_at || null,
   };
 }
 

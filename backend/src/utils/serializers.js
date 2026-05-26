@@ -81,6 +81,8 @@ export async function serializeUser(user, options = {}) {
     body.phone = user.phone || null;
     body.department_id = idOf(user.department);
     body.department_name = user.department?.name || null;
+    body.institution_member_id = user.institutionMemberId || null;
+    body.verification_requested_at = user.studentVerificationRequestedAt || null;
     body.created_at = user.createdAt;
     body.updated_at = user.updatedAt;
   }

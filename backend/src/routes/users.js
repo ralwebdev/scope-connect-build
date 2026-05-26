@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { AnalyticsEvent, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, Notification, PublicSubmission } from "../models/index.js";
+import { AnalyticsEvent, Department, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, Notification, PublicSubmission } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -94,6 +94,12 @@ const memberStatusSchema = z.object({
   student_status: z.enum(["pending_verification", "active", "rejected"]),
 });
 
+const studentVerificationRequestSchema = z.object({
+  institution_id: z.string().min(1),
+  department_id: z.string().min(1),
+  institution_member_id: z.string().trim().min(2).max(80),
+});
+
 const dashboardPointsSchema = z.object({
   segments: z.array(z.enum(["joined_campus", "complete_profile", "first_application", "first_portfolio"])).max(10),
 });
@@ -162,6 +168,27 @@ function canFacultyViewUserDetail(req, targetUser) {
   if (!isFacultyCoordinator(req.user)) return true;
   if (String(req.user.id) === String(targetUser.id || targetUser._id)) return true;
   return canFacultyManageStudent(req, targetUser);
+}
+
+async function syncStudentVerificationSubmission(userId, status, actor) {
+  if (!["active", "rejected"].includes(status)) return;
+
+  const nextStatus = status === "active" ? "verified" : "rejected";
+  await PublicSubmission.updateMany(
+    {
+      user: userId,
+      kind: "student_verification",
+      status: { $in: ["new", "reviewed"] },
+    },
+    {
+      $set: {
+        status: nextStatus,
+        "meta.reviewed_by": actor?._id?.toString?.() || actor?.id || null,
+        "meta.reviewed_role": actor?.role || null,
+        "meta.reviewed_at": new Date().toISOString(),
+      },
+    },
+  ).catch(() => null);
 }
 
 async function logProfileActivity(userId, kind, text, meta = {}) {
@@ -308,6 +335,7 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
     { user: user._id },
     { institutionVerified: req.body.student_status === "active" },
   );
+  await syncStudentVerificationSubmission(user._id, req.body.student_status, req.user);
 
   // Trigger notifications
   try {
@@ -365,6 +393,101 @@ usersRouter.get("/me/feedback", asyncHandler(async (req, res) => {
   }).sort({ createdAt: -1 });
 
   sendSuccess(res, { feedback: submissions });
+}));
+
+usersRouter.post("/me/student-verification", validate(studentVerificationRequestSchema), asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") {
+    throw forbidden("Only students can submit institution verification requests.");
+  }
+
+  const [user, profile, institution, department, existingPendingRequest] = await Promise.all([
+    User.findById(req.user._id),
+    Profile.findOne({ user: req.user._id }),
+    Institution.findById(req.body.institution_id),
+    Department.findById(req.body.department_id),
+    PublicSubmission.findOne({
+      user: req.user._id,
+      kind: "student_verification",
+      status: { $in: ["new", "reviewed"] },
+    }).select("_id"),
+  ]);
+
+  if (!user) throw notFound("User not found");
+  if (!profile) throw notFound("Profile not found");
+  if (!institution) throw notFound("Institution not found");
+  if (!department || department.institution.toString() !== institution.id) {
+    throw new AppError(400, "INVALID_DEPARTMENT", "Please choose a department from the selected institution.");
+  }
+  if (profile.institutionVerified && user.studentStatus === "active") {
+    throw new AppError(409, "ALREADY_VERIFIED", "Your student account is already institution-verified.");
+  }
+  if (existingPendingRequest) {
+    throw new AppError(409, "ALREADY_PENDING", "Your verification request is already pending review.");
+  }
+
+  const institutionMemberId = req.body.institution_member_id.trim();
+  const requestedAt = new Date();
+
+  user.institution = institution._id;
+  user.department = department._id;
+  user.institutionMemberId = institutionMemberId;
+  user.studentStatus = "pending_verification";
+  user.studentVerificationRequestedAt = requestedAt;
+  user.disabledAt = null;
+  await user.save();
+
+  await Profile.findOneAndUpdate(
+    { user: user._id },
+    {
+      institution: institution._id,
+      institutionVerified: false,
+    },
+    { new: true, upsert: true },
+  );
+
+  const submission = await PublicSubmission.create({
+    kind: "student_verification",
+    source: "profile_verification_tab",
+    user: user._id,
+    institution: institution._id,
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    campus: institution.name,
+    message: `Institution verification request from ${user.name} for ${institution.name} - ${department.name}.`,
+    meta: {
+      institution_id: institution.id,
+      institution_name: institution.name,
+      department_id: department.id,
+      department_name: department.name,
+      institution_member_id: institutionMemberId,
+      submitted_at: requestedAt.toISOString(),
+    },
+  });
+
+  await Notification.create({
+    user: user._id,
+    kind: "system",
+    title: "Verification Request Submitted",
+    body: `Your ${institution.name} verification request is now pending review.`,
+    link: "/profile",
+    dedupeKey: `student_verification_request:${user._id}:${submission._id}`,
+  }).catch(() => null);
+
+  await AnalyticsEvent.create({
+    user: user._id,
+    event: "student_verification_requested",
+    props: {
+      institution_id: institution.id,
+      department_id: department.id,
+      institution_member_id: institutionMemberId,
+    },
+  }).catch(() => null);
+
+  sendSuccess(res, {
+    submission_id: submission.id,
+    user: await serializeUser(await findHydratedUser(user._id), { includePrivate: true }),
+  }, "Verification request submitted successfully");
 }));
 
 usersRouter.post("/join-chapter", validate(z.object({ institution_id: z.string().min(1) })), asyncHandler(async (req, res) => {
@@ -979,6 +1102,7 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
         { institutionVerified: false }
       );
     }
+    await syncStudentVerificationSubmission(user._id, status, req.user);
     
     // Trigger notification
     try {

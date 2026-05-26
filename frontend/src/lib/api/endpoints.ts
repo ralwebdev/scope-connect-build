@@ -145,6 +145,16 @@ export const backendUsers = {
       method: "POST",
     });
   },
+  submitStudentVerification(body: {
+    institution_id: string;
+    department_id: string;
+    institution_member_id: string;
+  }) {
+    return api<{ submission_id: string; user: ScopeUser }>("/api/v1/users/me/student-verification", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
   joinChapter(institutionId: string) {
     return api<{ user: ScopeUser; awarded_xp: number }>("/api/v1/users/join-chapter", {
       method: "POST",

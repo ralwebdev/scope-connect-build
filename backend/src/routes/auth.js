@@ -99,6 +99,12 @@ function createPasswordResetToken() {
   return { token, tokenHash };
 }
 
+function hydrateUser(id) {
+  return User.findById(id)
+    .populate({ path: "profile", populate: { path: "institution" } })
+    .populate("department");
+}
+
 authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(async (req, res) => {
   const email = req.body.email.toLowerCase();
   const existing = await User.findOne({ email });
@@ -173,7 +179,7 @@ authRouter.post("/signup", authRateLimit, validate(signupSchema), asyncHandler(a
   }
 
   const tokens = await issueSession(req, user);
-  const hydrated = await User.findById(user._id).populate({ path: "profile", populate: { path: "institution" } });
+  const hydrated = await hydrateUser(user._id);
   sendSuccess(res, { user: await serializeUser(hydrated, { includePrivate: true }), ...tokens }, "Signup successful", 201);
 }));
 
@@ -185,7 +191,7 @@ authRouter.post("/login", authRateLimit, validate(loginSchema), asyncHandler(asy
   if (user.disabledAt) throw new AppError(403, "ACCOUNT_DISABLED", "Account disabled");
 
   const tokens = await issueSession(req, user);
-  const hydrated = await User.findById(user._id).populate({ path: "profile", populate: { path: "institution" } });
+  const hydrated = await hydrateUser(user._id);
   sendSuccess(res, { user: await serializeUser(hydrated, { includePrivate: true }), ...tokens }, "Login successful");
 }));
 
@@ -294,6 +300,6 @@ authRouter.post("/reset-password", authRateLimit, validate(resetPasswordSchema),
 }));
 
 authRouter.get("/me", authMiddleware, asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).populate({ path: "profile", populate: { path: "institution" } });
+  const user = await hydrateUser(req.user._id);
   sendSuccess(res, { user: await serializeUser(user, { includePrivate: true }) });
 }));

@@ -4,7 +4,7 @@ const publicSubmissionSchema = new mongoose.Schema(
   {
     kind: {
       type: String,
-      enum: ["feedback", "waitlist", "contact", "support_issue", "ambassador_application", "opportunity_verification"],
+      enum: ["feedback", "waitlist", "contact", "support_issue", "ambassador_application", "opportunity_verification", "student_verification"],
       required: true,
       index: true,
     },

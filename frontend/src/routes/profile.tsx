@@ -27,7 +27,7 @@ import {
 import { themeForRole } from "@/lib/role-theme";
 import { ROLE_LABELS, type RoleId } from "@/lib/rbac";
 import { toast } from "sonner";
-import { backendAuth, backendPortfolio, backendUsers, backendUpload, type BackendPortfolioItem } from "@/lib/api/endpoints";
+import { backendAuth, backendDepartments, backendInstitutions, backendPortfolio, backendUsers, backendUpload, type BackendPortfolioItem } from "@/lib/api/endpoints";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/profile")({
@@ -835,8 +835,76 @@ function RoleLinkGrid({ items, accent }: { items: { title: string; desc: string;
 
 function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) {
   const [submitting, setSubmitting] = useState(false);
+  const [submittingStudentVerification, setSubmittingStudentVerification] = useState(false);
+  const [institutionsLoading, setInstitutionsLoading] = useState(true);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [institutions, setInstitutions] = useState<Array<{ id: string; name: string }>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState(user.institution?.id ?? "");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState(user.department_id ?? "");
+  const [institutionMemberId, setInstitutionMemberId] = useState(user.institution_member_id ?? "");
   const v = user.verification ?? { email_verified: false, institution_verified: false, trust_score: 0 };
   const oppStatus = user.opportunitiesVerificationStatus ?? "none";
+  const isInstitutionVerified = v.institution_verified || user.student_status === "active";
+  const isInstitutionVerificationPending = user.student_status === "pending_verification";
+  const canSubmitStudentVerification = Boolean(
+    selectedInstitutionId && selectedDepartmentId && institutionMemberId.trim(),
+  );
+
+  useEffect(() => {
+    setSelectedInstitutionId(user.institution?.id ?? "");
+    setSelectedDepartmentId(user.department_id ?? "");
+    setInstitutionMemberId(user.institution_member_id ?? "");
+  }, [user.id, user.institution?.id, user.department_id, user.institution_member_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setInstitutionsLoading(true);
+    backendInstitutions.publicList()
+      .then(({ items }) => {
+        if (!cancelled) {
+          setInstitutions(items.map((item) => ({ id: item.id, name: item.name })));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setInstitutions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setInstitutionsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedInstitutionId) {
+      setDepartments([]);
+      setSelectedDepartmentId("");
+      return;
+    }
+
+    let cancelled = false;
+    setDepartmentsLoading(true);
+    backendDepartments.list(selectedInstitutionId)
+      .then((items) => {
+        if (cancelled) return;
+        const nextDepartments = items.map((item) => ({ id: item.id, name: item.name }));
+        setDepartments(nextDepartments);
+        setSelectedDepartmentId((current) => (
+          nextDepartments.some((item) => item.id === current)
+            ? current
+            : user.department_id && nextDepartments.some((item) => item.id === user.department_id)
+              ? user.department_id
+              : ""
+        ));
+      })
+      .catch(() => {
+        if (!cancelled) setDepartments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDepartmentsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedInstitutionId, user.department_id]);
 
   const handleVerifyOpportunities = async () => {
     setSubmitting(true);
@@ -848,6 +916,28 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
       toast.error(err instanceof Error ? err.message : "Failed to send verification request.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmitStudentVerification = async () => {
+    if (!canSubmitStudentVerification) {
+      toast.error("Choose your institution, department, and roll number first.");
+      return;
+    }
+
+    setSubmittingStudentVerification(true);
+    try {
+      await backendUsers.submitStudentVerification({
+        institution_id: selectedInstitutionId,
+        department_id: selectedDepartmentId,
+        institution_member_id: institutionMemberId.trim(),
+      });
+      toast.success("Verification request sent to your institution review team.");
+      await auth.refreshCurrentUser();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send verification request.");
+    } finally {
+      setSubmittingStudentVerification(false);
     }
   };
 
@@ -916,6 +1006,134 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
             <div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Trust Score</div>
             <div className="text-xl font-bold text-foreground">{v.trust_score}%</div>
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold text-foreground">Institution Verification</h3>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Submit your institution name, department, and institution ID or roll number.
+              Your Institution Admin or Department Faculty will review it, and once approved your verification XP will unlock automatically.
+            </p>
+          </div>
+
+          <div className="shrink-0">
+            {isInstitutionVerified ? (
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Verified</Badge>
+            ) : isInstitutionVerificationPending ? (
+              <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Pending Review</Badge>
+            ) : user.student_status === "rejected" ? (
+              <Badge variant="destructive">Needs Resubmission</Badge>
+            ) : (
+              <Badge variant="outline">Not Submitted</Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <Label htmlFor="verification-institution">Institution</Label>
+            <select
+              id="verification-institution"
+              value={selectedInstitutionId}
+              onChange={(e) => setSelectedInstitutionId(e.target.value)}
+              disabled={institutionsLoading || isInstitutionVerified || isInstitutionVerificationPending}
+              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">{institutionsLoading ? "Loading institutions..." : "Select institution"}</option>
+              {institutions.map((institution) => (
+                <option key={institution.id} value={institution.id}>{institution.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <Label htmlFor="verification-department">Department</Label>
+            <select
+              id="verification-department"
+              value={selectedDepartmentId}
+              onChange={(e) => setSelectedDepartmentId(e.target.value)}
+              disabled={!selectedInstitutionId || departmentsLoading || isInstitutionVerified || isInstitutionVerificationPending}
+              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">
+                {!selectedInstitutionId
+                  ? "Select institution first"
+                  : departmentsLoading
+                    ? "Loading departments..."
+                    : departments.length === 0
+                      ? "No departments found"
+                      : "Select department"}
+              </option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>{department.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label htmlFor="verification-roll">Institution ID / Roll No</Label>
+            <Input
+              id="verification-roll"
+              value={institutionMemberId}
+              onChange={(e) => setInstitutionMemberId(e.target.value)}
+              placeholder="Enter your official institution ID or roll number"
+              disabled={isInstitutionVerified || isInstitutionVerificationPending}
+              className="mt-1.5"
+            />
+          </div>
+        </div>
+
+        {(user.institution?.name || user.department_name || user.institution_member_id) && (
+          <div className="mt-6 grid gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 sm:grid-cols-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Institution</div>
+              <div className="mt-1 text-sm font-medium text-foreground">{user.institution?.name || "Not set"}</div>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Department</div>
+              <div className="mt-1 text-sm font-medium text-foreground">{user.department_name || "Not set"}</div>
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Institution ID / Roll No</div>
+              <div className="mt-1 text-sm font-medium text-foreground">{user.institution_member_id || "Not set"}</div>
+            </div>
+          </div>
+        )}
+
+        {user.verification_requested_at && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Last submitted on {new Date(user.verification_requested_at).toLocaleString()}.
+          </p>
+        )}
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          {isInstitutionVerified ? (
+            <Button disabled className="bg-emerald-500/20 text-emerald-700 border border-emerald-500/30">
+              <CheckCircle2 className="mr-2 h-4 w-4" /> Institution Verified
+            </Button>
+          ) : isInstitutionVerificationPending ? (
+            <Button disabled className="bg-amber-500/20 text-amber-600 border border-amber-500/30">
+              <Clock className="mr-2 h-4 w-4 animate-pulse" /> Request Under Review
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmitStudentVerification}
+              disabled={submittingStudentVerification || !canSubmitStudentVerification}
+              className={cn(
+                "bg-gradient-brand text-brand-foreground shadow-lg shadow-brand/20",
+                !canSubmitStudentVerification && "cursor-not-allowed opacity-50",
+              )}
+            >
+              {submittingStudentVerification ? "Submitting..." : "Send Verification Request"}
+            </Button>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Reviewers: Institution Admin or Department Faculty
+          </p>
         </div>
       </Card>
 

@@ -418,7 +418,7 @@ reportsRouter.get("/faculty/:id", asyncHandler(async (req, res) => {
   }
 
   const [students, projects, events] = await Promise.all([
-    User.find(studentFilter).sort({ createdAt: -1 }),
+    User.find(studentFilter).populate("department", "name").sort({ createdAt: -1 }),
     Project.find({ institution: institutionId }).sort({ updatedAt: -1, createdAt: -1 }),
     Event.find({
       $or: [
@@ -461,8 +461,12 @@ reportsRouter.get("/faculty/:id", asyncHandler(async (req, res) => {
     studentsToReview: pendingStudents.slice(0, 8).map((student) => ({
       id: student.id,
       name: student.name,
-      reason: "Awaiting institution verification",
-      when: student.updatedAt || student.createdAt,
+      reason: [
+        "Awaiting institution verification",
+        student.department?.name || null,
+        student.institutionMemberId ? `Roll No: ${student.institutionMemberId}` : null,
+      ].filter(Boolean).join(" - "),
+      when: student.studentVerificationRequestedAt || student.updatedAt || student.createdAt,
     })),
     projectChecks: projects.slice(0, 6).map((project) => {
       const needsReview = project.status === "in_review" || project.status === "draft";
