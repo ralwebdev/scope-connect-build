@@ -231,8 +231,8 @@ function InstitutionRouteSwitcher({
             <TabLink to="/institution-admin/events" label="Events" active={effectiveTab === "events"} />
             <TabLink to="/institution-admin/members" label="Members" active={effectiveTab === "members"} />
             {/* <TabLink to="/institution-admin/analytics" label="Analytics" active={effectiveTab === "analytics"} /> */}
-            <TabLink to="/institution-admin/reports" label="Reports" active={effectiveTab === "reports"} />
-            <TabLink to="/institution-admin/communications" label="Communications" active={effectiveTab === "communications"} />
+            {/* <TabLink to="/institution-admin/reports" label="Reports" active={effectiveTab === "reports"} /> */}
+            {/* <TabLink to="/institution-admin/communications" label="Communications" active={effectiveTab === "communications"} /> */}
           </>
         )}
       </nav>
