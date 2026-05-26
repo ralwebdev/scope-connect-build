@@ -30,3 +30,5 @@ export { XpTransaction } from "./XpTransaction.js";
 export { ProjectRoom } from "./ProjectRoom.js";
 export { ProjectTask } from "./ProjectTask.js";
 export { ChallengeParticipation } from "./ChallengeParticipation.js";
+export { ScopeAdminProfile } from "./ScopeAdminProfile.js";
+export { RbacPolicy } from "./RbacPolicy.js";

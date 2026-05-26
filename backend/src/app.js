@@ -25,6 +25,7 @@ import { publicRouter } from "./routes/public.js";
 import { proposalsRouter } from "./routes/proposals.js";
 import { challengesRouter } from "./routes/challenges.js";
 import { configRouter } from "./routes/config.js";
+import { superAdminRouter } from "./routes/super-admin.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -77,6 +78,7 @@ export function createApp() {
   v1Router.use("/proposals", proposalsRouter);
   v1Router.use("/challenges", challengesRouter);
   v1Router.use("/config", configRouter);
+  v1Router.use("/super-admin", superAdminRouter);
 
   app.use("/api/v1", v1Router);
 

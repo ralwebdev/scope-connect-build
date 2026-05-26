@@ -3,7 +3,7 @@
 // problems: missing permissions, conflicts (route requires no permission
 // but role lacks dashboard view), and over-privileged roles.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Brain, ShieldAlert, AlertTriangle, CheckCircle2, Filter } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useRole } from "@/hooks/use-rbac";
-import { rbac, ALL_ROLES, ALL_PERMISSIONS, ROLE_LABELS, type RoleId, type PermissionKey } from "@/lib/rbac";
-import { ROUTE_INVENTORY } from "@/lib/route-inventory";
+import { backendSuperAdmin, type BackendRbacAuditRow } from "@/lib/api/endpoints";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/scope-super-admin/rbac-audit")({
   head: () => ({ meta: [{ title: "RBAC Audit · Scope Super Admin" }, { name: "robots", content: "noindex" }] }),
@@ -24,11 +24,11 @@ export const Route = createFileRoute("/scope-super-admin/rbac-audit")({
 });
 
 type AuditRow = {
-  role: RoleId;
+  role: string;
   path: string;
   file: string;
   action: string;
-  permission: PermissionKey | null;
+  permission: string | null;
   status: "granted" | "denied" | "open";
   flag: "ok" | "missing_permission" | "conflicting_permission" | "overprivileged_role";
 };
@@ -36,38 +36,26 @@ type AuditRow = {
 function RbacAuditPage() {
   const role = useRole();
   const allowed = role === "scope_super_admin" || role === "super_admin";
+  const [rows, setRows] = useState<BackendRbacAuditRow[]>([]);
+  const [roleLabels, setRoleLabels] = useState<Record<string, string>>({});
+  const [allRoles, setAllRoles] = useState<string[]>([]);
+  const [allPermissions, setAllPermissions] = useState<string[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>({});
 
-  const rows = useMemo<AuditRow[]>(() => {
-    const out: AuditRow[] = [];
-    for (const r of ALL_ROLES) {
-      for (const route of ROUTE_INVENTORY) {
-        const perm = route.permission ?? null;
-        let status: AuditRow["status"];
-        if (!perm) status = "open";
-        else status = rbac.hasPermission(r, perm) ? "granted" : "denied";
+  useEffect(() => {
+    if (!allowed) return;
+    void backendSuperAdmin.rbacAudit().then((payload) => {
+      setRows(payload.rows);
+      setRoleLabels(payload.role_labels);
+      setAllRoles(payload.roles);
+      setAllPermissions(payload.all_permissions);
+      setRolePermissions(payload.role_permissions);
+    }).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "Could not load RBAC audit.");
+    });
+  }, [allowed]);
 
-        let flag: AuditRow["flag"] = "ok";
-        // Over-privileged: low-tier role granted on a super-only route.
-        if (status === "granted" && route.group === "super" && r === "viewer") flag = "overprivileged_role";
-        // Conflicting: route is open but the role lacks even view_dashboard.
-        if (status === "open" && route.group !== "public" && route.group !== "auth" && route.group !== "legal" && !rbac.hasPermission(r, "view_dashboard")) flag = "conflicting_permission";
-        // Missing: a workspace route role expected to use is denied.
-        if (status === "denied" && route.group === "workspace" && (r === "student" || r === "campus_leader")) flag = "missing_permission";
-        out.push({
-          role: r,
-          path: route.path,
-          file: route.file,
-          action: route.description,
-          permission: perm,
-          status,
-          flag,
-        });
-      }
-    }
-    return out;
-  }, []);
-
-  const [filterRole, setFilterRole] = useState<"all" | RoleId>("all");
+  const [filterRole, setFilterRole] = useState<"all" | string>("all");
   const [filterFlag, setFilterFlag] = useState<"all" | AuditRow["flag"]>("all");
   const [search, setSearch] = useState("");
 
@@ -85,6 +73,22 @@ function RbacAuditPage() {
     conflicting: rows.filter((r) => r.flag === "conflicting_permission").length,
     over: rows.filter((r) => r.flag === "overprivileged_role").length,
   }), [rows]);
+
+  const roleList = allRoles.length ? allRoles : Object.keys(roleLabels);
+  const permissionRoutes = useMemo(() => {
+    const map = new Map<string, { path: string; action: string }>();
+    rows.forEach((row) => {
+      if (row.permission && !map.has(row.path)) map.set(row.path, { path: row.path, action: row.action });
+    });
+    return Array.from(map.values());
+  }, [rows]);
+  const accessMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    rows.forEach((row) => {
+      if (row.permission) map.set(`${row.role}::${row.path}`, row.status === "granted");
+    });
+    return map;
+  }, [rows]);
 
   if (!allowed) {
     return (
@@ -130,9 +134,9 @@ function RbacAuditPage() {
               <Card className="p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground" />
-                  <select value={filterRole} onChange={(e) => setFilterRole(e.target.value as "all" | RoleId)} className="rounded-md border border-input bg-background px-2 py-1.5 text-xs">
+                  <select value={filterRole} onChange={(e) => setFilterRole(e.target.value as "all" | string)} className="rounded-md border border-input bg-background px-2 py-1.5 text-xs">
                     <option value="all">All roles</option>
-                    {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    {roleList.map((r) => <option key={r} value={r}>{roleLabels[r] ?? r}</option>)}
                   </select>
                   <select value={filterFlag} onChange={(e) => setFilterFlag(e.target.value as "all" | AuditRow["flag"])} className="rounded-md border border-input bg-background px-2 py-1.5 text-xs">
                     <option value="all">All flags</option>
@@ -171,7 +175,7 @@ function RbacAuditPage() {
                           r.flag === "conflicting_permission" && "bg-yellow-500/10",
                           r.flag === "overprivileged_role" && "bg-orange-500/10",
                         )}>
-                          <td className="py-1.5 pr-3 font-semibold truncate">{ROLE_LABELS[r.role]}</td>
+                          <td className="py-1.5 pr-3 font-semibold truncate">{roleLabels[r.role] ?? r.role}</td>
                           <td className="py-1.5 pr-3 font-mono text-muted-foreground truncate" title={r.path}>{r.path}</td>
                           <td className="py-1.5 pr-3 break-words">{r.action}</td>
                           <td className="py-1.5 pr-3 font-mono text-[10px] text-muted-foreground truncate" title={r.permission ?? "—"}>{r.permission ?? "—"}</td>
@@ -198,19 +202,19 @@ function RbacAuditPage() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="sticky left-0 bg-card py-2 pr-2 text-left text-[10px] uppercase text-muted-foreground">Role</th>
-                      {ROUTE_INVENTORY.filter(r => r.permission).map((r) => (
-                        <th key={r.path} className="py-2 px-1 text-left text-[10px] font-mono text-muted-foreground" title={r.description}>
+                      {permissionRoutes.map((r) => (
+                        <th key={r.path} className="py-2 px-1 text-left text-[10px] font-mono text-muted-foreground" title={r.action}>
                           {r.path.replace("/scope-super-admin/", "/sa/").replace("/institution-admin/", "/i/")}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {ALL_ROLES.map((r) => (
+                    {roleList.map((r) => (
                       <tr key={r} className="border-b border-border/40">
-                        <td className="sticky left-0 bg-card py-1.5 pr-2 font-semibold">{ROLE_LABELS[r]}</td>
-                        {ROUTE_INVENTORY.filter(rt => rt.permission).map((rt) => {
-                          const ok = rbac.hasPermission(r, rt.permission!);
+                        <td className="sticky left-0 bg-card py-1.5 pr-2 font-semibold">{roleLabels[r] ?? r}</td>
+                        {permissionRoutes.map((rt) => {
+                          const ok = accessMap.get(`${r}::${rt.path}`) === true;
                           return (
                             <td key={rt.path} className="px-1 py-1.5 text-center">
                               <span className={cn("inline-block h-3 w-3 rounded-sm", ok ? "bg-emerald-500" : "bg-destructive/40")} />
@@ -228,14 +232,17 @@ function RbacAuditPage() {
               <Card className="p-4">
                 <p className="text-xs text-muted-foreground">Permission coverage per role (granted permissions / total).</p>
                 <div className="mt-3 space-y-2">
-                  {ALL_ROLES.map((r) => {
-                    const granted = ALL_PERMISSIONS.filter((p) => rbac.hasPermission(r, p)).length;
-                    const pct = Math.round((granted / ALL_PERMISSIONS.length) * 100);
+                  {roleList.map((r) => {
+                    const rolePerms = rolePermissions[r] || [];
+                    const granted = rolePerms.includes("*") || rolePerms.includes("full_system_access")
+                      ? allPermissions.length
+                      : allPermissions.filter((p) => rolePerms.includes(p)).length;
+                    const pct = allPermissions.length ? Math.round((granted / allPermissions.length) * 100) : 0;
                     return (
                       <div key={r}>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold">{ROLE_LABELS[r]}</span>
-                          <span className="text-muted-foreground">{granted}/{ALL_PERMISSIONS.length} · {pct}%</span>
+                          <span className="font-semibold">{roleLabels[r] ?? r}</span>
+                          <span className="text-muted-foreground">{granted}/{allPermissions.length} · {pct}%</span>
                         </div>
                         <div className="mt-1 h-2 overflow-hidden rounded-full bg-secondary">
                           <div className="h-full bg-gradient-brand" style={{ width: `${pct}%` }} />

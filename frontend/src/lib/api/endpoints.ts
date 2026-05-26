@@ -578,6 +578,126 @@ export const backendAdminUsers = {
   },
 };
 
+export type BackendRbacAuditRow = {
+  role: string;
+  path: string;
+  file: string;
+  action: string;
+  permission: string | null;
+  status: "granted" | "denied" | "open";
+  flag: "ok" | "missing_permission" | "conflicting_permission" | "overprivileged_role";
+};
+
+export const backendSuperAdmin = {
+  commandCenter() {
+    return api<{
+      institutions: Array<{
+        id: string;
+        name: string;
+        type: "University" | "Engineering College" | "School" | "Polytechnic" | "Other";
+        board?: string;
+        city: string;
+        state: string;
+        contact_person?: string;
+        designation?: string;
+        phone?: string;
+        email?: string;
+        owner_id?: string;
+        priority?: number;
+        potential_value?: number;
+        pipeline_stage?: string;
+        notes?: string;
+        documents?: Array<{
+          kind: "brochure" | "proposal" | "pricing" | "mou";
+          file_id: string;
+          file_name: string;
+          file_url: string;
+          sent_at: string;
+        }>;
+        updated_at?: string;
+        created_at?: string;
+      }>;
+      visits: Array<{
+        id: string;
+        institution_id: string;
+        owner_id: string;
+        date: string;
+        time: string;
+        status: "scheduled" | "checked_in" | "completed" | "cancelled";
+        notes?: string;
+      }>;
+      launches: Array<{
+        institution_id: string;
+        faculty_assigned: boolean;
+        leader_shortlisted: boolean;
+        launch_scheduled: boolean;
+        registrations_started: boolean;
+        page_live: boolean;
+        challenge_activated: boolean;
+      }>;
+      admins: Array<{
+        id: string;
+        name: string;
+        email: string;
+        region: string;
+        focus: string;
+        meetings: number;
+        closures: number;
+        last_active?: string;
+        status: "active" | "suspended";
+        target: number;
+      }>;
+    }>("/api/v1/super-admin/command-center");
+  },
+  createScopeAdmin(body: {
+    name: string;
+    email: string;
+    password: string;
+    region?: string;
+    focus?: string;
+    target?: number;
+  }) {
+    return api<{ user: ScopeUser }>("/api/v1/super-admin/scope-admins", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  patchScopeAdmin(id: string, body: {
+    status?: "active" | "suspended";
+    region?: string;
+    focus?: string;
+    target?: number;
+  }) {
+    return api<{ user: ScopeUser }>(`/api/v1/super-admin/scope-admins/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  rbacAudit() {
+    return api<{
+      rows: BackendRbacAuditRow[];
+      counts: {
+        total: number;
+        flagged: number;
+        missing: number;
+        conflicting: number;
+        over: number;
+      };
+      roles: string[];
+      role_labels: Record<string, string>;
+      all_permissions: string[];
+      role_permissions: Record<string, string[]>;
+      route_inventory: Array<{
+        path: string;
+        file: string;
+        group: string;
+        description: string;
+        permission: string | null;
+      }>;
+    }>("/api/v1/super-admin/rbac-audit");
+  },
+};
+
 export const backendAnalytics = {
   dau() {
     return api<{ series: Array<{ date: string; value: number }>; total_unique: number }>("/api/v1/analytics/dau");

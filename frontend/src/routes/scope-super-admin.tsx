@@ -15,9 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useStoreValue } from "@/hooks/use-scope";
 import { useRole } from "@/hooks/use-rbac";
-import { crm, type AdminProfile, type Institution, PIPELINE_STAGES } from "@/lib/crm-store";
+import { type AdminProfile, type Institution, type PipelineStage, PIPELINE_STAGES } from "@/lib/crm-store";
 import { configStore } from "@/lib/config-store";
-import { backendAdminUsers } from "@/lib/api/endpoints";
+import { backendAdminUsers, backendSuperAdmin } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/scope-super-admin")({
@@ -25,18 +25,108 @@ export const Route = createFileRoute("/scope-super-admin")({
   component: SuperAdminPortal,
 });
 
+type SuperAdminSnapshot = {
+  institutions: Institution[];
+  visits: Array<{
+    id: string;
+    institutionId: string;
+    ownerId: string;
+    date: string;
+    time: string;
+    status: "scheduled" | "checked_in" | "completed" | "cancelled";
+    notes?: string;
+  }>;
+  launches: Record<string, {
+    institutionId: string;
+    facultyAssigned: boolean;
+    leaderShortlisted: boolean;
+    launchScheduled: boolean;
+    registrationsStarted: boolean;
+    pageLive: boolean;
+    challengeActivated: boolean;
+  }>;
+  admins: AdminProfile[];
+};
+
+const EMPTY_DATA: SuperAdminSnapshot = { institutions: [], visits: [], launches: {}, admins: [] };
+
+function toPipelineStage(stage?: string): PipelineStage {
+  if (PIPELINE_STAGES.includes(stage as PipelineStage)) return stage as PipelineStage;
+  return "Prospect";
+}
+
+function mapCommandCenterData(payload: Awaited<ReturnType<typeof backendSuperAdmin.commandCenter>>): SuperAdminSnapshot {
+  return {
+    institutions: payload.institutions.map((institution) => ({
+      id: institution.id,
+      name: institution.name,
+      type: institution.type || "Other",
+      board: institution.board,
+      city: institution.city || "",
+      state: institution.state || "",
+      contactPerson: institution.contact_person || "",
+      designation: institution.designation || "",
+      phone: institution.phone || "",
+      email: institution.email || "",
+      ownerId: institution.owner_id || "",
+      priority: (institution.priority as Institution["priority"]) || 3,
+      potentialValue: institution.potential_value || 0,
+      stage: toPipelineStage(institution.pipeline_stage),
+      notes: institution.notes || "",
+      documents: (institution.documents || []).filter((doc) => doc.kind !== "document") as Institution["documents"],
+      updatedAt: institution.updated_at ? new Date(institution.updated_at).getTime() : Date.now(),
+    })),
+    visits: payload.visits.map((visit) => ({
+      id: visit.id,
+      institutionId: visit.institution_id,
+      ownerId: visit.owner_id,
+      date: visit.date,
+      time: visit.time,
+      status: visit.status,
+      notes: visit.notes,
+    })),
+    launches: Object.fromEntries(payload.launches.map((launch) => [launch.institution_id, {
+      institutionId: launch.institution_id,
+      facultyAssigned: launch.faculty_assigned,
+      leaderShortlisted: launch.leader_shortlisted,
+      launchScheduled: launch.launch_scheduled,
+      registrationsStarted: launch.registrations_started,
+      pageLive: launch.page_live,
+      challengeActivated: launch.challenge_activated,
+    }])),
+    admins: payload.admins.map((admin) => ({
+      id: admin.id,
+      name: admin.name,
+      email: admin.email,
+      region: admin.region || "Assigned Territory",
+      focus: admin.focus || "Partnerships",
+      meetings: admin.meetings || 0,
+      closures: admin.closures || 0,
+      lastActive: admin.last_active ? new Date(admin.last_active).getTime() : Date.now(),
+      status: admin.status || "active",
+      target: admin.target ?? 6,
+    })),
+  };
+}
+
 function SuperAdminPortal() {
   const role = useRole();
   const isAllowed = role === "scope_super_admin" || role === "super_admin";
-  const data = useStoreValue(() => crm.all());
+  const [data, setData] = useState<SuperAdminSnapshot>(EMPTY_DATA);
   const config = useStoreValue(() => configStore.get());
+
+  const loadCommandCenter = async () => {
+    const payload = await backendSuperAdmin.commandCenter();
+    setData(mapCommandCenterData(payload));
+  };
 
   useEffect(() => {
     if (!isAllowed) return;
-    void crm.syncFromBackend().catch((error) => {
-      console.warn("CRM sync failed", error);
-      toast.error(error instanceof Error ? error.message : "Could not load CRM data.");
+    void loadCommandCenter().catch((error) => {
+      console.warn("Command center sync failed", error);
+      toast.error(error instanceof Error ? error.message : "Could not load command center data.");
     });
+    void configStore.syncFromBackend().catch(() => null);
   }, [isAllowed]);
 
   const kpis = useMemo(() => {
@@ -303,7 +393,7 @@ function SuperAdminPortal() {
             <TabsTrigger value="intel">Strategic Intel</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="admins" className="mt-6"><AdminControl admins={data.admins} /></TabsContent>
+          <TabsContent value="admins" className="mt-6"><AdminControl admins={data.admins} onRefresh={loadCommandCenter} /></TabsContent>
           <TabsContent value="institutions" className="mt-6"><NationalCRM data={data} /></TabsContent>
           <TabsContent value="heatmap" className="mt-6"><IndiaHeatmap data={data} /></TabsContent>
           <TabsContent value="revenue" className="mt-6"><RevenueControl data={data} /></TabsContent>
@@ -329,19 +419,33 @@ function Kpi({ label, value, icon: Icon, accent = false }: { label: string; valu
   );
 }
 
-function AdminControl({ admins }: { admins: AdminProfile[] }) {
+function AdminControl({ admins, onRefresh }: { admins: AdminProfile[]; onRefresh: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", region: "", focus: "", target: 5 });
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", region: "", focus: "", target: 5, password: "Password123!" });
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.name || !form.email) { toast.error("Name and email required"); return; }
-    crm.upsertAdmin({
-      id: `a${Date.now()}`, name: form.name, email: form.email, region: form.region, focus: form.focus,
-      meetings: 0, closures: 0, lastActive: Date.now(), status: "active", target: form.target,
-    });
-    toast.success("Admin added");
-    setOpen(false);
-    setForm({ name: "", email: "", region: "", focus: "", target: 5 });
+    if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    setBusy(true);
+    try {
+      await backendSuperAdmin.createScopeAdmin({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        region: form.region,
+        focus: form.focus,
+        target: form.target,
+      });
+      await onRefresh();
+      toast.success("Admin added");
+      setOpen(false);
+      setForm({ name: "", email: "", region: "", focus: "", target: 5, password: "Password123!" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create scope admin.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const ranked = [...admins].sort((a,b) => b.closures - a.closures);
@@ -360,7 +464,8 @@ function AdminControl({ admins }: { admins: AdminProfile[] }) {
               <div><Label>Region</Label><Input value={form.region} onChange={(e) => setForm({...form, region: e.target.value})} /></div>
               <div><Label>Institution focus</Label><Input value={form.focus} onChange={(e) => setForm({...form, focus: e.target.value})} /></div>
               <div><Label>Monthly target (closures)</Label><Input type="number" value={form.target} onChange={(e) => setForm({...form, target: Number(e.target.value)})} /></div>
-              <Button onClick={submit} className="bg-gradient-brand text-brand-foreground">Save</Button>
+              <div><Label>Password</Label><Input type="password" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} /></div>
+              <Button onClick={() => { void submit(); }} disabled={busy} className="bg-gradient-brand text-brand-foreground">{busy ? "Saving..." : "Save"}</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -397,7 +502,23 @@ function AdminControl({ admins }: { admins: AdminProfile[] }) {
                   <td className="py-3 text-right">{a.target}</td>
                   <td className="py-3"><Badge variant={a.status === "active" ? "default" : "destructive"}>{a.status}</Badge></td>
                   <td className="py-3 text-right">
-                    <Button size="sm" variant="outline" onClick={() => { crm.setAdminStatus(a.id, a.status === "active" ? "suspended" : "active"); toast.success("Updated"); }}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          await backendSuperAdmin.patchScopeAdmin(a.id, { status: a.status === "active" ? "suspended" : "active" });
+                          await onRefresh();
+                          toast.success("Updated");
+                        } catch (error) {
+                          toast.error(error instanceof Error ? error.message : "Could not update scope admin.");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
                       {a.status === "active" ? "Suspend" : "Activate"}
                     </Button>
                   </td>
@@ -411,7 +532,7 @@ function AdminControl({ admins }: { admins: AdminProfile[] }) {
   );
 }
 
-function NationalCRM({ data }: { data: ReturnType<typeof crm.all> }) {
+function NationalCRM({ data }: { data: SuperAdminSnapshot }) {
   const [filterState, setFilterState] = useState<string>("all");
   const [filterStage, setFilterStage] = useState<string>("all");
   const states = Array.from(new Set(data.institutions.map(i => i.state)));
@@ -652,7 +773,7 @@ function InstitutionLoginDialog({ institution }: { institution: Institution }) {
   );
 }
 
-function IndiaHeatmap({ data }: { data: ReturnType<typeof crm.all> }) {
+function IndiaHeatmap({ data }: { data: SuperAdminSnapshot }) {
   const stateData = useMemo(() => {
     const map = new Map<string, { total: number; live: number }>();
     data.institutions.forEach(i => {
@@ -705,7 +826,7 @@ function IndiaHeatmap({ data }: { data: ReturnType<typeof crm.all> }) {
   );
 }
 
-function RevenueControl({ data }: { data: ReturnType<typeof crm.all> }) {
+function RevenueControl({ data }: { data: SuperAdminSnapshot }) {
   const signed = data.institutions.filter(i => ["MoU Signed","Launch Pending","Live Chapter"].includes(i.stage));
   const mouFees = signed.reduce((s,i) => s + i.potentialValue * 0.6, 0);
   const subs = signed.reduce((s,i) => s + i.potentialValue * 0.3, 0);
@@ -792,7 +913,7 @@ function Moderation() {
   );
 }
 
-function StrategicIntel({ data }: { data: ReturnType<typeof crm.all> }) {
+function StrategicIntel({ data }: { data: SuperAdminSnapshot }) {
   const topAdmin = [...data.admins].sort((a,b) => b.closures - a.closures)[0];
   const cards = [
     { title: "Best state to enter next", value: "Odisha", note: "1 active institution · low competition", icon: MapPin },
