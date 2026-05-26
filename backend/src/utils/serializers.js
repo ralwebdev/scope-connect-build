@@ -248,6 +248,7 @@ export function serializeCommunication(comm) {
     sender_id: idOf(comm.sender?._id || comm.sender),
     sender_name: comm.sender?.name || null,
     institution_id: idOf(comm.institution?._id || comm.institution),
+    department_id: idOf(comm.department?._id || comm.department),
     delivered_count: comm.deliveredCount || 0,
     created_at: comm.createdAt,
     updated_at: comm.updatedAt,

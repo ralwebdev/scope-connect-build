@@ -744,6 +744,7 @@ function MemberRoster({
   onDelete?: (id: string) => void;
   showDepartment?: boolean;
 }) {
+  const facultyScoped = user?.role_variant === "faculty_coordinator" || user?.role === "faculty";
   return (
     <div className="overflow-x-auto mt-4">
       <table className="w-full text-sm">
@@ -770,8 +771,10 @@ function MemberRoster({
                 <td className="py-3 text-xs text-muted-foreground">{m.email}</td>
                 {showDepartment && <td className="py-3 text-xs">{m.department || "N/A"}</td>}
                 <td className="py-3">
-                  {isLocked ? (
-                    <Badge variant="secondary" className="font-medium">Institutional Admin</Badge>
+                  {isLocked || facultyScoped ? (
+                    <Badge variant="secondary" className="font-medium">
+                      {isLocked ? "Institutional Admin" : m.role === "faculty_coordinator" ? "Faculty Coordinator" : m.role === "campus_leader" ? "Campus Leader" : "Student"}
+                    </Badge>
                   ) : (
                     <select value={m.role} onChange={(e) => onUpdate(m.id, { role: e.target.value as Member["role"] })} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
                       <option value="student">Student</option>
@@ -819,6 +822,7 @@ function MemberRoster({
 
 function MembersView({ institutionId }: { institutionId: string }) {
   const user = useUser();
+  const facultyOnly = user?.role_variant === "faculty_coordinator" || user?.role === "faculty";
   const [remoteMembers, setRemoteMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   useEffect(() => {
@@ -904,8 +908,8 @@ function MembersView({ institutionId }: { institutionId: string }) {
         <div className="flex flex-wrap items-center gap-4">
           <TabsList className="bg-secondary/50">
             <TabsTrigger value="students" className="px-6">Students</TabsTrigger>
-            <TabsTrigger value="leaders" className="px-6">Campus Leaders</TabsTrigger>
-            <TabsTrigger value="faculty" className="px-6">Faculty</TabsTrigger>
+            {!facultyOnly && <TabsTrigger value="leaders" className="px-6">Campus Leaders</TabsTrigger>}
+            {!facultyOnly && <TabsTrigger value="faculty" className="px-6">Faculty</TabsTrigger>}
           </TabsList>
 
           <div className="ml-auto flex gap-1.5">
@@ -924,16 +928,16 @@ function MembersView({ institutionId }: { institutionId: string }) {
           />
         </TabsContent>
 
-        <TabsContent value="leaders">
+        {!facultyOnly && <TabsContent value="leaders">
           <MemberRoster
             list={list.filter(m => m.role === "campus_leader")}
             loading={loadingMembers}
             user={user}
             onUpdate={update}
           />
-        </TabsContent>
+        </TabsContent>}
 
-        <TabsContent value="faculty">
+        {!facultyOnly && <TabsContent value="faculty">
           <MemberRoster
             list={list.filter(m => m.role === "faculty_coordinator")}
             loading={loadingMembers}
@@ -942,7 +946,7 @@ function MembersView({ institutionId }: { institutionId: string }) {
             onDelete={deleteMember}
             showDepartment={true}
           />
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </Card>
   );

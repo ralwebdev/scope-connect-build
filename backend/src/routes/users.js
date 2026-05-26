@@ -134,6 +134,36 @@ function canCreateAdminUser(req) {
   if (req.user.role === "institution_admin" && req.body.role === "faculty" && String(req.body.institution_id) === String(req.user.institution)) return true;
   return false;
 }
+
+function isFacultyCoordinator(user) {
+  return user?.role === "faculty" || user?.roleVariant === "faculty_coordinator";
+}
+
+function ensureFacultyDepartment(user) {
+  if (isFacultyCoordinator(user) && !user?.department) {
+    throw forbidden("Faculty account is not linked to a department.");
+  }
+}
+
+function isSameInstitution(user, institutionId) {
+  return Boolean(user?.institution?.toString?.()) && user.institution.toString() === String(institutionId);
+}
+
+function canFacultyManageStudent(req, targetUser) {
+  if (!isFacultyCoordinator(req.user)) return true;
+  ensureFacultyDepartment(req.user);
+  return targetUser.role === "student"
+    && isSameInstitution(req.user, targetUser.institution)
+    && Boolean(targetUser.department?.toString?.())
+    && targetUser.department.toString() === req.user.department.toString();
+}
+
+function canFacultyViewUserDetail(req, targetUser) {
+  if (!isFacultyCoordinator(req.user)) return true;
+  if (String(req.user.id) === String(targetUser.id || targetUser._id)) return true;
+  return canFacultyManageStudent(req, targetUser);
+}
+
 async function logProfileActivity(userId, kind, text, meta = {}) {
   await ProfileActivity.create({ user: userId, kind, text, meta }).catch(() => null);
 }
@@ -218,7 +248,20 @@ usersRouter.get("/leaderboard/chapters", asyncHandler(async (req, res) => {
 }));
 
 usersRouter.get("/", asyncHandler(async (req, res) => {
-  const institutionId = req.query.institution_id;
+  const requestedInstitutionId = req.query.institution_id;
+  const facultyScoped = isFacultyCoordinator(req.user);
+  const institutionId = facultyScoped ? (requestedInstitutionId || req.user.institution?.toString()) : requestedInstitutionId;
+
+  if (facultyScoped) {
+    ensureFacultyDepartment(req.user);
+    if (!institutionId || !isSameInstitution(req.user, institutionId)) {
+      throw forbidden("Faculty can only view students from their own institution and department.");
+    }
+    if (req.query.role && req.query.role !== "student") {
+      throw forbidden("Faculty can only view student records.");
+    }
+  }
+
   if (!hasPermission(req.user, "manage_users")) {
     const canViewInstitutionMembers = hasPermission(req.user, "manage_members") && institutionId && req.user.institution?.toString() === String(institutionId);
     const isScopeAdmin = req.user.role === "scope_admin";
@@ -227,7 +270,12 @@ usersRouter.get("/", asyncHandler(async (req, res) => {
   const { limit, cursor, sort } = parsePagination(req.query, ["createdAt"]);
   const filter = { ...cursorFilter(cursor, sort) };
   if (institutionId) filter.institution = institutionId;
-  if (req.query.role) filter.role = req.query.role;
+  if (facultyScoped) {
+    filter.role = "student";
+    filter.department = req.user.department;
+  } else if (req.query.role) {
+    filter.role = req.query.role;
+  }
   if (req.query.q) {
     filter.$or = [
       { email: new RegExp(req.query.q, "i") },
@@ -251,6 +299,9 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
   if (!user) throw notFound("User not found");
   const sameInstitution = user.institution?.toString() && user.institution.toString() === req.user.institution?.toString();
   if (!sameInstitution || !hasPermission(req.user, "approve_students")) throw forbidden();
+  if (!canFacultyManageStudent(req, user)) {
+    throw forbidden("Faculty can only manage students from their own department.");
+  }
   user.studentStatus = req.body.student_status;
   await user.save();
   await Profile.findOneAndUpdate(
@@ -300,6 +351,9 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
 usersRouter.get("/:id", asyncHandler(async (req, res) => {
   const user = await findHydratedUser(req.params.id);
   if (!user) throw notFound("User not found");
+  if (!canFacultyViewUserDetail(req, user)) {
+    throw forbidden("Faculty can only view students from their own department.");
+  }
   const includePrivate = req.user.id === user.id || req.user.role === "super_admin";
   sendSuccess(res, { user: await serializeUser(user, { includePrivate }) });
 }));

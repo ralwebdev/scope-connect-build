@@ -33,6 +33,7 @@ export async function optionalAuthMiddleware(req, _res, next) {
       role: user.role,
       roleVariant: user.roleVariant,
       institution: user.institution,
+      department: user.department,
       founder: user.founder,
     };
     next();
@@ -73,6 +74,7 @@ export async function authMiddleware(req, _res, next) {
       role: user.role,
       roleVariant: user.roleVariant,
       institution: user.institution,
+      department: user.department,
       founder: user.founder,
     };
     next();

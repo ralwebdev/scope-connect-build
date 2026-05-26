@@ -107,6 +107,10 @@ function canAccessInstitutionReports(req, institutionId) {
   return isSuperAdmin || isMyInstitution;
 }
 
+function isFacultyCoordinator(user) {
+  return user?.role === "faculty" || user?.roleVariant === "faculty_coordinator";
+}
+
 async function activeAssignmentsFor(userId) {
   const applications = await Application.find({
     user: userId,
@@ -401,12 +405,20 @@ reportsRouter.get("/faculty/:id", asyncHandler(async (req, res) => {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
+  const studentFilter = {
+    institution: institutionId,
+    disabledAt: null,
+    role: "student",
+  };
+  if (isFacultyCoordinator(req.user)) {
+    if (!req.user.department) {
+      throw forbidden("Faculty account is not linked to a department.");
+    }
+    studentFilter.department = req.user.department;
+  }
+
   const [students, projects, events] = await Promise.all([
-    User.find({
-      institution: institutionId,
-      disabledAt: null,
-      role: "student",
-    }).sort({ createdAt: -1 }),
+    User.find(studentFilter).sort({ createdAt: -1 }),
     Project.find({ institution: institutionId }).sort({ updatedAt: -1, createdAt: -1 }),
     Event.find({
       $or: [

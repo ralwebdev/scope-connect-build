@@ -28,6 +28,10 @@ const institutionCreateSchema = z.object({
   body: z.string().max(4000),
 });
 
+function isFacultyCoordinator(user) {
+  return user?.role === "faculty" || user?.roleVariant === "faculty_coordinator";
+}
+
 notificationsRouter.use(authMiddleware);
 
 notificationsRouter.get("/", asyncHandler(async (req, res) => {
@@ -73,8 +77,14 @@ notificationsRouter.get("/institution", asyncHandler(async (req, res) => {
   const institutionId = req.user.institution?.toString();
   if (!institutionId) throw forbidden("No institution scope");
   const limit = Math.min(Number(req.query.limit || 50), 100);
-  
-  const communications = await Communication.find({ institution: institutionId })
+
+  const filter = { institution: institutionId };
+  if (isFacultyCoordinator(req.user)) {
+    if (!req.user.department) throw forbidden("Faculty account is not linked to a department.");
+    filter.department = req.user.department;
+  }
+
+  const communications = await Communication.find(filter)
     .populate("sender", "name")
     .sort({ createdAt: -1 })
     .limit(limit);
@@ -86,8 +96,17 @@ notificationsRouter.post("/institution", validate(institutionCreateSchema), asyn
   if (!hasPermission(req.user, "manage_institution") && !hasPermission(req.user, "manage_members")) throw forbidden();
   const institutionId = req.user.institution?.toString();
   if (!institutionId) throw forbidden("No institution scope");
-  
-  const users = await User.find({ institution: institutionId, disabledAt: null }).select("_id");
+
+  const userFilter = { institution: institutionId, disabledAt: null };
+  let communicationDepartment = null;
+  if (isFacultyCoordinator(req.user)) {
+    if (!req.user.department) throw forbidden("Faculty account is not linked to a department.");
+    userFilter.department = req.user.department;
+    userFilter.role = "student";
+    communicationDepartment = req.user.department;
+  }
+
+  const users = await User.find(userFilter).select("_id");
   const userIds = users.map((user) => user._id);
   
   const communication = await Communication.create({
@@ -96,6 +115,8 @@ notificationsRouter.post("/institution", validate(institutionCreateSchema), asyn
     channel: req.body.channel || "broadcast",
     sender: req.user._id,
     institution: institutionId,
+    department: communicationDepartment,
+    recipients: userIds,
     deliveredCount: userIds.length,
   });
 
