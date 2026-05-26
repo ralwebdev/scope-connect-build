@@ -7,6 +7,7 @@ import { Building2, Users, BarChart3, Megaphone, CheckCircle2, XCircle, Trending
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
 import { AccessDenied } from "@/components/site/AccessDenied";
+import { InstitutionProfileHeader } from "@/components/site/InstitutionProfileHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -181,12 +182,12 @@ function InstitutionRouteSwitcher({
               : loc.pathname.includes("/events") ? "events"
                 : "hub";
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mx-auto max-w-6xl px-2 py-4 sm:px-3 lg:px-4">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Badge variant="outline" className="mb-2"><Building2 className="mr-1 h-3 w-3" /> Institutional Admin</Badge>
-          <h1 className="text-3xl font-bold tracking-tight">{institutionName}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <Badge variant="outline" className="mb-1"><Building2 className="mr-1 h-3 w-3" /> Institutional Admin</Badge>
+          <h1 className="text-2xl font-bold tracking-tight">{institutionName}</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {canSwitchInstitution ? "Super admin scope: switch between institutions." : "Mapped scope: this institution only."}
           </p>
         </div>
@@ -207,20 +208,13 @@ function InstitutionRouteSwitcher({
         )}
       </header>
 
-      <nav className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3">
-        <TabLink to="/institution-admin" label="Hub" active={tab === "hub"} />
-        {/* <TabLink to="/institution-admin/departments" label="Departments" active={tab === "departments"} /> */}
-        <TabLink to="/institution-admin/projects" label="Projects" active={tab === "projects"} />
-        <TabLink to="/institution-admin/events" label="Events" active={tab === "events"} />
-        <TabLink to="/institution-admin/members" label="Members" active={tab === "members"} />
-        {/* <TabLink to="/institution-admin/analytics" label="Analytics" active={tab === "analytics"} /> */}
-        <TabLink to="/institution-admin/reports" label="Reports" active={tab === "reports"} />
-        <TabLink to="/institution-admin/communications" label="Communications" active={tab === "communications"} />
+      <nav className="mt-3 flex flex-wrap gap-2 border-b border-border pb-2">
+        {/* Tabs removed - now in sidebar under Institution Dashboard */}
       </nav>
 
       <FirstLoginBanner institutionId={institutionId} />
 
-      <div className="mt-6">
+      <div className="mt-3">
         {tab === "hub" && <HubView institutionId={institutionId} institutionName={institutionName} />}
         {tab === "departments" && <DepartmentsView institutionId={institutionId} />}
         {tab === "projects" && <AdminProjectsView institutionId={institutionId} />}
@@ -231,14 +225,6 @@ function InstitutionRouteSwitcher({
         {tab === "communications" && <CommunicationsView institutionName={institutionName} />}
       </div>
     </section>
-  );
-}
-
-function TabLink({ to, label, active }: { to: string; label: string; active: boolean }) {
-  return (
-    <Link to={to} className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${active ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"}`}>
-      {label}
-    </Link>
   );
 }
 
@@ -288,6 +274,9 @@ function FirstLoginBanner({ institutionId }: { institutionId: string }) {
 function HubView({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
   const [k, setK] = useState({ activeStudents: 0, totalFaculty: 0, profile: 0, projects: 0, rank: "-", events: 0, totalXp: 0 });
   const [loading, setLoading] = useState(true);
+  const [coverPhoto, setCoverPhoto] = useState<string | undefined>();
+  const [profilePhoto, setProfilePhoto] = useState<string | undefined>();
+  const [isEditingPhotos, setIsEditingPhotos] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -330,32 +319,54 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
   const items = [
     { label: "Active students", v: k.activeStudents, icon: Users },
     { label: "Total Faculty", v: k.totalFaculty, icon: TrendingUp, accent: true },
-    { label: "Profile completion", v: `${k.profile}%`, icon: Award },
-    { label: "Projects participation", v: k.projects, icon: FolderKanban },
+    // { label: "Profile completion", v: `${k.profile}%`, icon: Award },
+    // { label: "Projects participation", v: k.projects, icon: FolderKanban },
     { label: "Campus rank", v: k.rank, icon: Award, accent: true },
     { label: "Campus Engagement", v: k.totalXp?.toLocaleString() || "0", icon: Award, accent: true },
     { label: "Events conducted", v: k.events, icon: Calendar },
   ];
   return (
-    <div className="space-y-6">
-      {loading && <p className="text-sm text-muted-foreground">Hydrating institution data...</p>}
-      <div className="mb-6">
-        <FeedComposer />
+    <div className="space-y-3">
+      {/* Institution Profile Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold">Institution Profile</h2>
+          <p className="text-xs text-muted-foreground">Customize your institution's appearance</p>
+        </div>
+        <Button
+          variant={isEditingPhotos ? "default" : "outline"}
+          onClick={() => setIsEditingPhotos(!isEditingPhotos)}
+        >
+          {isEditingPhotos ? "Done Editing" : "Edit Photos"}
+        </Button>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+
+      <InstitutionProfileHeader
+        institutionId={institutionId}
+        institutionName={institutionName}
+        coverPhotoUrl={coverPhoto}
+        profilePhotoUrl={profilePhoto}
+        onCoverPhotoChange={setCoverPhoto}
+        onProfilePhotoChange={setProfilePhoto}
+        isEditing={isEditingPhotos}
+      />
+
+      {loading && <p className="text-xs text-muted-foreground">Hydrating institution data...</p>}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {items.map((it) => (
-          <Card key={it.label} className={`p-4 ${it.accent ? "border-brand/30 bg-gradient-to-br from-brand/5 to-transparent" : ""}`}>
+          <Card key={it.label} className={`p-3 ${it.accent ? "border-brand/30 bg-gradient-to-br from-brand/5 to-transparent" : ""}`}>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{it.label}</span>
-              <it.icon className={`h-4 w-4 ${it.accent ? "text-brand" : "text-muted-foreground"}`} />
+              <span className="text-[10px] text-muted-foreground">{it.label}</span>
+              <it.icon className={`h-3.5 w-3.5 ${it.accent ? "text-brand" : "text-muted-foreground"}`} />
             </div>
-            <div className="mt-2 text-2xl font-bold">{it.v}</div>
+            <div className="mt-1 text-xl font-bold">{it.v}</div>
           </Card>
         ))}
       </div>
-      <QuickActionsPanel />
-      <ReceivedDocuments institutionId={institutionId} />
+      {/* <QuickActionsPanel /> */}
       <InstitutionProfileEditor institutionId={institutionId} institutionName={institutionName} />
+      <ReceivedDocuments institutionId={institutionId} />
+      
     </div>
   );
 }
@@ -526,7 +537,7 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
   };
 
   return (
-    <Card className="relative overflow-hidden p-6 transition-all duration-300 hover:shadow-lg border-border bg-card/60 backdrop-blur-sm">
+    <Card className="relative overflow-hidden p-4 transition-all duration-300 hover:shadow-lg border-border bg-card/60 backdrop-blur-sm">
       {/* Loading Spinner */}
       {loading && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 gap-3 backdrop-blur-xs transition-opacity duration-300">
@@ -535,12 +546,12 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
         </div>
       )}
 
-      <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-4">
+      <div className="flex items-center justify-between border-b border-border/40 pb-3 mb-3">
         <div>
-          <h3 className="text-base font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-transparent">
+          <h3 className="text-sm font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-transparent">
             Campus Profile Details
           </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5">
             Configure the visual identity, description, departments, and skills for your campus chapter.
           </p>
         </div>
@@ -559,13 +570,13 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
         </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         {/* Left Column: Monogram & Description */}
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground/80">Campus Monogram / Logo Text</Label>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-lg font-extrabold text-brand-foreground shadow-sm transition-all duration-300 hover:scale-105 animate-in fade-in zoom-in-95">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[11px] font-semibold text-foreground/80">Campus Monogram / Logo Text</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-brand text-base font-extrabold text-brand-foreground shadow-sm transition-all duration-300 hover:scale-105 animate-in fade-in zoom-in-95">
                 {(p.logoText || institutionName || "SC").slice(0, 3).toUpperCase()}
               </div>
               <div className="flex-1">
@@ -581,10 +592,10 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground/80">About our Campus Chapter</Label>
+          <div className="space-y-1">
+            <Label className="text-[11px] font-semibold text-foreground/80">About our Campus Chapter</Label>
             <Textarea
-              rows={4}
+              rows={3}
               value={p.description}
               onChange={(e) => setP({ ...p, description: e.target.value })}
               placeholder="Tell students about your campus hub..."
@@ -595,10 +606,10 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
         </div>
 
         {/* Right Column: Departments & Top Skills */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Departments Tag Input */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground/80">Academic Departments</Label>
+          <div className="space-y-1">
+            <Label className="text-[11px] font-semibold text-foreground/80">Academic Departments</Label>
             <div className="flex gap-2">
               <Input
                 value={dept}
@@ -636,8 +647,8 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
           </div>
 
           {/* Top Skills Tag Input */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground/80">Top Hot Skills on Campus</Label>
+          <div className="space-y-1">
+            <Label className="text-[11px] font-semibold text-foreground/80">Top Hot Skills on Campus</Label>
             <div className="flex gap-2">
               <Input
                 value={skill}

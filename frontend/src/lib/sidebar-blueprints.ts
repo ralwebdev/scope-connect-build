@@ -148,6 +148,10 @@ const INSTITUTIONAL_ADMIN_BLUEPRINT: SidebarBlueprint = {
       label: "Institution",
       items: [
         { to: "/institution-admin", label: "Institution Dashboard", permission: "manage_institution", icon: Building2 },
+        { to: "/institution-admin", label: "Hub", permission: "manage_institution", icon: Newspaper },
+        { to: "/institution-admin/projects", label: "Projects", permission: "view_projects", icon: FolderKanban },
+        { to: "/institution-admin/events", label: "Events", permission: "view_events", icon: Calendar },
+        { to: "/institution-admin/members", label: "Members", permission: "manage_members", icon: Users },
         { to: "/institution-admin/departments", label: "Departments", permission: "manage_members", icon: Layers },
       ],
     },
@@ -155,7 +159,6 @@ const INSTITUTIONAL_ADMIN_BLUEPRINT: SidebarBlueprint = {
       id: "growth",
       label: "Growth",
       items: [
-        { to: "/projects", label: "Projects Log", permission: "view_projects", icon: FolderKanban },
         { to: "/institution-admin/analytics", label: "Analytics", permission: "view_institution_analytics", icon: BarChart3 },
         { to: "/institution/reports", label: "Reports", permission: "view_institution_analytics", icon: FileText },
         { to: "/institution-admin", label: "Branding", permission: "edit_brand", icon: Sparkles },
