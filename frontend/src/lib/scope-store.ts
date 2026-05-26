@@ -73,11 +73,14 @@ export type ScopeUser = {
   role?: string;
   role_variant?: string;
   student_status?: "pending_verification" | "active" | "rejected";
+  department_id?: string | null;
   founder?: boolean;
   stats?: { xp: number; level: number; streak_days: number };
   verification?: { email_verified: boolean; institution_verified: boolean; trust_score: number };
   portfolio_links?: { id: string; key: string; label: string; url: string; category?: string }[];
   department_name?: string | null;
+  institution_member_id?: string | null;
+  verification_requested_at?: string | null;
   disabled_at?: string | null;
   phone?: string | null;
   location?: string | null;
