@@ -18,6 +18,7 @@ const dailyReportSchema = new mongoose.Schema(
 );
 
 dailyReportSchema.index({ user: 1, assignmentKey: 1, dayKey: 1 }, { unique: true });
+dailyReportSchema.index({ project: 1, user: 1, createdAt: -1 });
 dailyReportSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });

@@ -54,6 +54,10 @@ const projectSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+projectSchema.index({ status: 1, createdAt: -1 });
+projectSchema.index({ institution: 1, status: 1, createdAt: -1 });
+projectSchema.index({ createdBy: 1, createdAt: -1 });
+
 projectSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });

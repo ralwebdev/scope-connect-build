@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+userSchema.index({ institution: 1, role: 1, disabledAt: 1, createdAt: -1 });
+userSchema.index({ institution: 1, studentStatus: 1, disabledAt: 1 });
+userSchema.index({ institution: 1, roleVariant: 1, disabledAt: 1 });
+
 userSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });

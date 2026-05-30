@@ -58,6 +58,8 @@ const applicationSchema = new mongoose.Schema(
 );
 
 applicationSchema.index({ project: 1, user: 1 }, { unique: true });
+applicationSchema.index({ user: 1, status: 1, commitmentStatus: 1 });
+applicationSchema.index({ user: 1, status: 1, projectRole: 1 });
 applicationSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });

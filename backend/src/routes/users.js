@@ -11,7 +11,7 @@ import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
-import { serializeUser } from "../utils/serializers.js";
+import { serializeUser, serializeUsers } from "../utils/serializers.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
 import { awardXp } from "../utils/xp-engine.js";
 import { XP_ACTIONS } from "../utils/xp-constants.js";
@@ -113,6 +113,18 @@ async function findHydratedUser(id) {
   return User.findById(id).populate({ path: "profile", populate: { path: "institution" } }).populate("department");
 }
 
+async function findHydratedUsersByIds(ids) {
+  const orderedIds = [...new Set(ids.map((id) => String(id)).filter(Boolean))];
+  if (!orderedIds.length) return [];
+
+  const users = await User.find({ _id: { $in: orderedIds } })
+    .populate({ path: "profile", populate: { path: "institution" } })
+    .populate("department");
+
+  const byId = new Map(users.map((user) => [String(user._id), user]));
+  return orderedIds.map((id) => byId.get(id)).filter(Boolean);
+}
+
 function roleVariantFor(role, requested) {
   if (requested) return requested;
   if (role === "institution_admin") return "institutional_admin";
@@ -209,10 +221,8 @@ usersRouter.get("/leaderboard/students", asyncHandler(async (req, res) => {
     { $limit: 100 },
   ]);
 
-  const items = await Promise.all(rows.map(async (row) => {
-    const hydrated = await findHydratedUser(row.user);
-    return serializeUser(hydrated, { includePrivate: false });
-  }));
+  const hydratedUsers = await findHydratedUsersByIds(rows.map((row) => row.user));
+  const items = await serializeUsers(hydratedUsers, { includePrivate: false });
 
   sendSuccess(res, { items: items.filter(Boolean), next_cursor: null, has_more: false });
 }));
@@ -309,10 +319,14 @@ usersRouter.get("/", asyncHandler(async (req, res) => {
       { name: new RegExp(req.query.q, "i") },
     ];
   }
-  const users = await User.find(filter).sort({ [sort.field]: sort.direction === "desc" ? -1 : 1 }).limit(limit + 1);
+  const users = await User.find(filter)
+    .sort({ [sort.field]: sort.direction === "desc" ? -1 : 1 })
+    .limit(limit + 1)
+    .populate({ path: "profile", populate: { path: "institution" } })
+    .populate("department");
   const hasMore = users.length > limit;
   const pageUsers = hasMore ? users.slice(0, limit) : users;
-  const items = await Promise.all(pageUsers.map(async (user) => serializeUser(await findHydratedUser(user._id), { includePrivate: true })));
+  const items = await serializeUsers(pageUsers, { includePrivate: true });
   const last = pageUsers.at(-1);
   sendSuccess(res, {
     items,

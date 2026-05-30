@@ -13,6 +13,7 @@ const analyticsEventSchema = new mongoose.Schema(
 
 analyticsEventSchema.index({ event: 1, occurredAt: -1 });
 analyticsEventSchema.index({ user: 1, occurredAt: -1 });
+analyticsEventSchema.index({ event: 1, user: 1, occurredAt: -1 });
 
 export const AnalyticsEvent = mongoose.model("AnalyticsEvent", analyticsEventSchema);
 

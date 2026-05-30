@@ -7,12 +7,14 @@ const sessionSchema = new mongoose.Schema(
     userAgent: String,
     ip: String,
     lastUsedAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     revokedAt: Date,
     rotatedTo: { type: mongoose.Schema.Types.ObjectId, ref: "Session", default: null },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
+
+sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 sessionSchema.virtual("id").get(function getId() {
   return this._id.toString();

@@ -33,6 +33,7 @@ const projectTaskSchema = new mongoose.Schema(
 );
 
 projectTaskSchema.index({ project: 1, status: 1, updatedAt: -1 });
+projectTaskSchema.index({ project: 1, assignedTo: 1, status: 1 });
 projectTaskSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });

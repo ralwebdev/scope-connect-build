@@ -2,12 +2,36 @@ import { PortfolioLink } from "../models/PortfolioLink.js";
 
 const idOf = (value) => value?._id?.toString?.() || value?.toString?.() || null;
 
+async function loadPortfolioLinksByUserIds(userIds = []) {
+  const dedupedIds = [...new Set(userIds.map((id) => idOf(id)).filter(Boolean))];
+  if (!dedupedIds.length) return new Map();
+
+  const links = await PortfolioLink.find({ user: { $in: dedupedIds } })
+    .sort({ position: 1, createdAt: 1 })
+    .lean();
+
+  const linksByUserId = new Map();
+  for (const link of links) {
+    const userId = idOf(link.user);
+    if (!userId) continue;
+    const bucket = linksByUserId.get(userId);
+    if (bucket) {
+      bucket.push(link);
+    } else {
+      linksByUserId.set(userId, [link]);
+    }
+  }
+
+  return linksByUserId;
+}
+
 export async function serializeUser(user, options = {}) {
-  const { includePrivate = false } = options;
+  const { includePrivate = false, portfolioLinksByUserId } = options;
   const profile = user.profile || null;
   const institution = profile?.institution || null;
+  const userId = idOf(user._id || user.id);
   const links = profile
-    ? await PortfolioLink.find({ user: user._id }).sort({ position: 1, createdAt: 1 }).lean()
+    ? (portfolioLinksByUserId?.get(userId) || await PortfolioLink.find({ user: user._id }).sort({ position: 1, createdAt: 1 }).lean())
     : [];
 
   const body = {
@@ -88,6 +112,11 @@ export async function serializeUser(user, options = {}) {
   }
 
   return body;
+}
+
+export async function serializeUsers(users, options = {}) {
+  const linksByUserId = options.portfolioLinksByUserId || await loadPortfolioLinksByUserIds(users.map((user) => user?._id || user?.id));
+  return Promise.all(users.map((user) => serializeUser(user, { ...options, portfolioLinksByUserId: linksByUserId })));
 }
 
 export function serializeProject(project, currentUserId = null) {

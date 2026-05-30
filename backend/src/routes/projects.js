@@ -979,29 +979,112 @@ projectsRouter.get("/:id/abuse-check", authMiddleware, asyncHandler(async (req, 
   if (!project) throw notFound("Project not found");
   const room = await ProjectRoom.findOne({ project: project._id });
   if (!canCoordinateProject(req, project, room)) throw forbidden();
-  const participants = await Application.find({ project: project._id, status: "accepted" });
+  const participants = await Application.find({ project: project._id, status: "accepted" })
+    .select("user projectRole contributionScore")
+    .lean();
+
+  if (!participants.length) {
+    sendSuccess(res, { flags: [] });
+    return;
+  }
+
+  const participantUserIds = [...new Map(participants.map((application) => [String(application.user), application.user])).values()];
   const since = new Date(Date.now() - XP_CONSTANTS.INACTIVITY_WARNING_DAYS * 24 * 60 * 60 * 1000);
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [
+    reportCounts,
+    taskCounts,
+    activeProjectCounts,
+    sameRoleCounts,
+    xp24hByUser,
+    xp7dByUser,
+  ] = await Promise.all([
+    DailyReport.aggregate([
+      {
+        $match: {
+          project: project._id,
+          user: { $in: participantUserIds },
+          createdAt: { $gte: since },
+        },
+      },
+      { $group: { _id: "$user", count: { $sum: 1 } } },
+    ]),
+    ProjectTask.aggregate([
+      { $match: { project: project._id, assignedTo: { $in: participantUserIds } } },
+      { $unwind: "$assignedTo" },
+      { $match: { assignedTo: { $in: participantUserIds } } },
+      {
+        $group: {
+          _id: "$assignedTo",
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] } },
+        },
+      },
+    ]),
+    Application.aggregate([
+      {
+        $match: {
+          user: { $in: participantUserIds },
+          status: "accepted",
+          commitmentStatus: { $in: ["reserved", "none"] },
+        },
+      },
+      { $group: { _id: "$user", count: { $sum: 1 } } },
+    ]),
+    Application.aggregate([
+      {
+        $match: {
+          user: { $in: participantUserIds },
+          status: "accepted",
+          projectRole: { $exists: true, $ne: null, $ne: "" },
+        },
+      },
+      { $group: { _id: { user: "$user", role: "$projectRole" }, count: { $sum: 1 } } },
+    ]),
+    XpTransaction.aggregate([
+      {
+        $match: {
+          user_id: { $in: participantUserIds },
+          amount: { $gt: 0 },
+          createdAt: { $gte: dayAgo },
+        },
+      },
+      { $group: { _id: "$user_id", total: { $sum: "$amount" }, count: { $sum: 1 } } },
+    ]),
+    XpTransaction.aggregate([
+      {
+        $match: {
+          user_id: { $in: participantUserIds },
+          amount: { $gt: 0 },
+          createdAt: { $gte: weekAgo },
+        },
+      },
+      { $group: { _id: "$user_id", total: { $sum: "$amount" }, count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const countMap = (rows, valueField = "count") => new Map(rows.map((row) => [String(row._id), row[valueField] || 0]));
+  const roleCountMap = new Map(sameRoleCounts.map((row) => [`${String(row._id.user)}|${row._id.role}`, row.count || 0]));
+  const reportCountMap = countMap(reportCounts);
+  const activeProjectCountMap = countMap(activeProjectCounts);
+  const taskCountMap = new Map(taskCounts.map((row) => [String(row._id), { total: row.total || 0, completed: row.completed || 0 }]));
+  const xp24hMap = new Map(xp24hByUser.map((row) => [String(row._id), { total: row.total || 0, count: row.count || 0 }]));
+  const xp7dMap = new Map(xp7dByUser.map((row) => [String(row._id), { total: row.total || 0, count: row.count || 0 }]));
+
   const flags = [];
   for (const application of participants) {
-    const reports = await DailyReport.countDocuments({ project: project._id, user: application.user, createdAt: { $gte: since } });
-    const completedTasks = await ProjectTask.countDocuments({ project: project._id, assignedTo: application.user, status: "Completed" });
-    const totalTasks = await ProjectTask.countDocuments({ project: project._id, assignedTo: application.user });
-    const activeProjects = await Application.countDocuments({ user: application.user, status: "accepted", commitmentStatus: { $in: ["reserved", "none"] } });
-    const sameRoleProjects = application.projectRole
-      ? await Application.countDocuments({ user: application.user, status: "accepted", projectRole: application.projectRole })
-      : 0;
-    const [xp24h] = await XpTransaction.aggregate([
-      { $match: { user_id: application.user, amount: { $gt: 0 }, createdAt: { $gte: dayAgo } } },
-      { $group: { _id: "$user_id", total: { $sum: "$amount" }, count: { $sum: 1 } } },
-    ]);
-    const [xp7d] = await XpTransaction.aggregate([
-      { $match: { user_id: application.user, amount: { $gt: 0 }, createdAt: { $gte: weekAgo } } },
-      { $group: { _id: "$user_id", total: { $sum: "$amount" }, count: { $sum: 1 } } },
-    ]);
+    const userId = String(application.user);
+    const reports = reportCountMap.get(userId) || 0;
+    const taskSummary = taskCountMap.get(userId) || { total: 0, completed: 0 };
+    const activeProjects = activeProjectCountMap.get(userId) || 0;
+    const sameRoleProjects = application.projectRole ? (roleCountMap.get(`${userId}|${application.projectRole}`) || 0) : 0;
+    const xp24h = xp24hMap.get(userId) || { total: 0, count: 0 };
+    const xp7d = xp7dMap.get(userId) || { total: 0, count: 0 };
+
     if (project.dailyReportingRequired && reports === 0) flags.push({ user_id: application.user, flag: "no_reporting", severity: "warning" });
-    if (totalTasks > 0 && completedTasks === 0) flags.push({ user_id: application.user, flag: "low_deliverables", severity: "warning" });
+    if (taskSummary.total > 0 && taskSummary.completed === 0) flags.push({ user_id: application.user, flag: "low_deliverables", severity: "warning" });
     if ((application.contributionScore?.total || 0) < 40) flags.push({ user_id: application.user, flag: "low_contribution_score", severity: "review" });
     if (activeProjects > XP_CONSTANTS.MAX_CONCURRENT_PROJECTS) {
       flags.push({ user_id: application.user, flag: "max_concurrent_projects", severity: "block", value: activeProjects });
@@ -1009,11 +1092,11 @@ projectsRouter.get("/:id/abuse-check", authMiddleware, asyncHandler(async (req, 
     if (sameRoleProjects >= 3) {
       flags.push({ user_id: application.user, flag: "repeated_same_role", severity: "review", role: application.projectRole, value: sameRoleProjects });
     }
-    if ((xp24h?.total || 0) >= 1000 || (xp24h?.count || 0) >= 8) {
-      flags.push({ user_id: application.user, flag: "too_fast_xp_growth", severity: "review", window: "24h", xp: xp24h?.total || 0, transactions: xp24h?.count || 0 });
+    if (xp24h.total >= 1000 || xp24h.count >= 8) {
+      flags.push({ user_id: application.user, flag: "too_fast_xp_growth", severity: "review", window: "24h", xp: xp24h.total, transactions: xp24h.count });
     }
-    if ((xp7d?.total || 0) >= 3000 || (xp7d?.count || 0) >= 25) {
-      flags.push({ user_id: application.user, flag: "suspicious_xp_velocity", severity: "review", window: "7d", xp: xp7d?.total || 0, transactions: xp7d?.count || 0 });
+    if (xp7d.total >= 3000 || xp7d.count >= 25) {
+      flags.push({ user_id: application.user, flag: "suspicious_xp_velocity", severity: "review", window: "7d", xp: xp7d.total, transactions: xp7d.count });
     }
   }
   sendSuccess(res, { flags });

@@ -21,6 +21,7 @@ const xpTransactionSchema = new mongoose.Schema(
 );
 
 xpTransactionSchema.index({ user_id: 1, source_type: 1, source_id: 1, action: 1 });
+xpTransactionSchema.index({ user_id: 1, createdAt: -1 });
 xpTransactionSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });

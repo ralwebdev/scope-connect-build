@@ -38,6 +38,8 @@ const publicSubmissionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+publicSubmissionSchema.index({ kind: 1, status: 1, user: 1, createdAt: -1 });
+
 publicSubmissionSchema.virtual("id").get(function getId() {
   return this._id.toString();
 });
