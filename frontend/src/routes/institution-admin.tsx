@@ -349,8 +349,8 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
   const items = [
     { label: "Active students", v: k.activeStudents, icon: Users },
     { label: "Total Faculty", v: k.totalFaculty, icon: TrendingUp, accent: true },
-    { label: "Profile completion", v: `${k.profile}%`, icon: Award },
-    { label: "Projects participation", v: k.projects, icon: FolderKanban },
+    // { label: "Profile completion", v: `${k.profile}%`, icon: Award },
+    // { label: "Projects participation", v: k.projects, icon: FolderKanban },
     { label: "Campus rank", v: k.rank, icon: Award, accent: true },
     { label: "Campus Engagement", v: k.totalXp?.toLocaleString() || "0", icon: Award, accent: true },
     { label: "Events conducted", v: k.events, icon: Calendar },
@@ -361,7 +361,7 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
       <div className="mb-6">
         <FeedComposer />
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((it) => (
           <Card key={it.label} className={`p-4 ${it.accent ? "border-brand/30 bg-gradient-to-br from-brand/5 to-transparent" : ""}`}>
             <div className="flex items-center justify-between">
