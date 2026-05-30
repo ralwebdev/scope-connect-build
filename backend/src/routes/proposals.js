@@ -1,12 +1,13 @@
 import express from "express";
 import { z } from "zod";
-import { Proposal, Notification, User } from "../models/index.js";
+import { Proposal, User } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { notFound, forbidden } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { hasPermission } from "../utils/roles.js";
+import { dispatchNotification, dispatchNotifications } from "../services/notification-dispatcher.js";
 
 export const proposalsRouter = express.Router();
 
@@ -43,17 +44,17 @@ proposalsRouter.post("/", validate(createProposalSchema), asyncHandler(async (re
     const admins = await User.find({ role: { $in: ["scope_admin", "scope_super_admin", "super_admin"] } }).select("_id");
     const adminIds = admins.map(a => a._id);
     if (adminIds.length > 0) {
-      await Notification.insertMany(
-        adminIds.map(adminId => ({
-          user: adminId,
-          kind: "admin_action",
-          title: "New Student Idea Suggested",
-          body: `A student has suggested an idea: "${proposal.title}".`,
-          link: "/scope-admin?tab=ideas",
-          dedupeKey: `proposal:${proposal._id}:${adminId}`,
-        })),
-        { ordered: false }
-      ).catch(() => null);
+      await dispatchNotifications(adminIds.map((adminId) => ({
+        user: adminId,
+        kind: "admin_action",
+        title: "New Student Idea Suggested",
+        body: `A student has suggested an idea: "${proposal.title}".`,
+        link: "/scope-admin?tab=ideas",
+        dedupeKey: `proposal:${proposal._id}:${adminId}`,
+      })), {
+        source: "proposal_created",
+        requestId: res.locals.requestId,
+      }).catch(() => null);
     }
   } catch (err) {
     console.error("Failed to notify admins of new proposal:", err);
@@ -88,13 +89,16 @@ proposalsRouter.patch("/:id", validate(patchProposalSchema), asyncHandler(async 
   await proposal.save();
 
   // Notify the student user about the update
-  await Notification.create({
+  await dispatchNotification({
     user: proposal.user,
     kind: "system",
     title: "Idea Suggestion Reviewed",
     body: `Your suggested idea "${proposal.title}" has been reviewed: status is now ${proposal.status}.`,
     link: "/projects",
     dedupeKey: `proposal:${proposal._id}:status:${proposal.status}`,
+  }, {
+    source: "proposal_reviewed",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   sendSuccess(res, { proposal });

@@ -1,11 +1,12 @@
 import express from "express";
 import { z } from "zod";
-import { FeedPost, User, Profile, Institution, Notification } from "../models/index.js";
+import { FeedPost, User, Profile, Institution } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
+import { dispatchNotifications } from "../services/notification-dispatcher.js";
 
 export const feedRouter = express.Router();
 
@@ -135,17 +136,17 @@ feedRouter.post("/", validate(createSchema), asyncHandler(async (req, res) => {
     const studentIds = students.map(s => s._id);
     if (studentIds.length > 0) {
       const authorName = user?.name || "Scope Team";
-      await Notification.insertMany(
-        studentIds.map((studentId) => ({
-          user: studentId,
-          kind: "system",
-          title: `New feed update from ${campusName || authorName}`,
-          body: req.body.content ? req.body.content.slice(0, 150) + (req.body.content.length > 150 ? "..." : "") : "New attachment shared in feed.",
-          link: "/feed",
-          dedupeKey: `feed:${post._id}:${studentId}`,
-        })),
-        { ordered: false }
-      ).catch(() => null);
+      await dispatchNotifications(studentIds.map((studentId) => ({
+        user: studentId,
+        kind: "system",
+        title: `New feed update from ${campusName || authorName}`,
+        body: req.body.content ? req.body.content.slice(0, 150) + (req.body.content.length > 150 ? "..." : "") : "New attachment shared in feed.",
+        link: "/feed",
+        dedupeKey: `feed:${post._id}:${studentId}`,
+      })), {
+        source: "feed_post_created",
+        requestId: res.locals.requestId,
+      }).catch(() => null);
     }
   } catch (err) {
     console.error("Failed to push feed notifications:", err);

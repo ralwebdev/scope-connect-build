@@ -10,7 +10,6 @@ import {
   DailyReport,
   ReportRecoveryRequest,
   Profile,
-  Notification,
 } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -20,6 +19,7 @@ import { serializeUser } from "../utils/serializers.js";
 import { hasPermission } from "../utils/roles.js";
 import { validate } from "../utils/validate.js";
 import { XP_CONSTANTS } from "../utils/xp-constants.js";
+import { dispatchNotification } from "../services/notification-dispatcher.js";
 
 export const reportsRouter = express.Router();
 
@@ -291,13 +291,16 @@ reportsRouter.patch("/recover/:id", validate(recoveryPatchSchema), asyncHandler(
     await Profile.findOneAndUpdate({ user: recovery.user }, { $inc: { trustScore: 2 } }).catch(() => null);
   }
 
-  await Notification.create({
+  await dispatchNotification({
     user: recovery.user,
     kind: "system",
     title: "Report recovery reviewed",
     body: `Your recovery request for ${recovery.dayKey} was ${recovery.status}.`,
     link: "/profile",
     dedupeKey: `report-recovery:${recovery.id}:${recovery.status}`,
+  }, {
+    source: "report_recovery_reviewed",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   sendSuccess(res, { recovery: serializeRecovery(recovery) });

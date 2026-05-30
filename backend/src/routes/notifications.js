@@ -9,6 +9,7 @@ import { hasPermission } from "../utils/roles.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { serializeNotification, serializeCommunication } from "../utils/serializers.js";
+import { dispatchNotifications } from "../services/notification-dispatcher.js";
 
 export const notificationsRouter = express.Router();
 
@@ -61,15 +62,18 @@ notificationsRouter.post("/", requirePermission("manage_moderation"), validate(c
     const users = await User.find({ role: req.body.audience.role }).select("_id");
     userIds = users.map((user) => user._id);
   }
-  const docs = await Notification.insertMany(userIds.map((userId) => ({
+  const result = await dispatchNotifications(userIds.map((userId) => ({
     user: userId,
     kind: req.body.kind,
     title: req.body.title,
     body: req.body.body,
     link: req.body.link,
     dedupeKey: req.body.dedupe_key,
-  })), { ordered: false }).catch((error) => error.insertedDocs || []);
-  sendSuccess(res, { created: docs.length }, "Notifications sent", 201);
+  })), {
+    source: "notifications_router_broadcast",
+    requestId: res.locals.requestId,
+  });
+  sendSuccess(res, { created: result.created, queued: result.queued }, "Notifications queued", 201);
 }));
 
 notificationsRouter.get("/institution", asyncHandler(async (req, res) => {
@@ -121,14 +125,17 @@ notificationsRouter.post("/institution", validate(institutionCreateSchema), asyn
   });
 
   if (userIds.length > 0) {
-    await Notification.insertMany(userIds.map((userId) => ({
+    await dispatchNotifications(userIds.map((userId) => ({
       user: userId,
       kind: "admin_action",
       title: req.body.title,
       body: req.body.body,
       link: "/notifications",
       dedupeKey: `inst:${institutionId}:${communication._id}:${userId}`,
-    })), { ordered: false }).catch(() => null);
+    })), {
+      source: "institution_communication",
+      requestId: res.locals.requestId,
+    }).catch(() => null);
   }
   
   sendSuccess(res, { created: userIds.length }, "Institution communication sent", 201);

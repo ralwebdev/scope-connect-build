@@ -8,6 +8,7 @@ import { forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { validate } from "../utils/validate.js";
 import { serializeCrmVisit, serializeInstitution, serializeLaunchChecklist } from "../utils/serializers.js";
+import { dispatchNotification } from "../services/notification-dispatcher.js";
 
 export const institutionsRouter = express.Router();
 
@@ -317,13 +318,15 @@ institutionsRouter.post("/:id/documents", requirePermission("manage_partnerships
   // Notify Institutional Admin if mapped
   const admin = await User.findOne({ institution: institution._id, role: "institutional_admin" });
   if (admin) {
-    const { Notification } = await import("../models/index.js");
-    await Notification.create({
+    await dispatchNotification({
       user: admin._id,
       kind: "system",
       title: "New Document Received",
       body: `Scope Admin has sent a new ${doc.kind}: ${doc.fileName}`,
       link: "/institution-admin",
+    }, {
+      source: "institution_document_shared",
+      requestId: res.locals.requestId,
     });
   }
 

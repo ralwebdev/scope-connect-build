@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { AnalyticsEvent, Department, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, Notification, PublicSubmission } from "../models/index.js";
+import { AnalyticsEvent, Department, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, PublicSubmission } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -15,6 +15,7 @@ import { serializeUser, serializeUsers } from "../utils/serializers.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
 import { awardXp } from "../utils/xp-engine.js";
 import { XP_ACTIONS } from "../utils/xp-constants.js";
+import { dispatchNotification } from "../services/notification-dispatcher.js";
 
 export const usersRouter = express.Router();
 export const adminUsersRouter = express.Router();
@@ -355,22 +356,28 @@ usersRouter.patch("/:id/member-status", validate(memberStatusSchema), asyncHandl
   try {
     if (req.body.student_status === "active") {
       await unlockAchievement(user._id, "verified_builder");
-      await Notification.create({
+      await dispatchNotification({
         user: user._id,
         kind: "achievement",
         title: "Account Verified!",
         body: `An administrator has approved your account. Welcome to Scope Connect!`,
         link: "/",
         dedupeKey: `user:${user._id}:verified:${Date.now()}`,
+      }, {
+        source: "student_verification_active",
+        requestId: res.locals.requestId,
       }).catch(() => null);
     } else if (req.body.student_status === "rejected") {
-      await Notification.create({
+      await dispatchNotification({
         user: user._id,
         kind: "system",
         title: "Account Verification Rejected",
         body: `Your account verification has been rejected by an administrator.`,
         link: "/",
         dedupeKey: `user:${user._id}:rejected:${Date.now()}`,
+      }, {
+        source: "student_verification_rejected",
+        requestId: res.locals.requestId,
       }).catch(() => null);
     }
   } catch (err) {
@@ -479,13 +486,16 @@ usersRouter.post("/me/student-verification", validate(studentVerificationRequest
     },
   });
 
-  await Notification.create({
+  await dispatchNotification({
     user: user._id,
     kind: "system",
     title: "Verification Request Submitted",
     body: `Your ${institution.name} verification request is now pending review.`,
     link: "/profile",
     dedupeKey: `student_verification_request:${user._id}:${submission._id}`,
+  }, {
+    source: "student_verification_requested",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   await AnalyticsEvent.create({
@@ -543,13 +553,16 @@ usersRouter.post("/join-chapter", validate(z.object({ institution_id: z.string()
   });
 
   // Create welcome notification
-  await Notification.create({
+  await dispatchNotification({
     user: user._id,
     kind: "system",
     title: `Joined ${institution.name}!`,
     body: `Welcome to the chapter. Your membership is pending verification by the campus coordinator.`,
     link: "/campus",
     dedupeKey: `chapter_joined:${user._id}:${institution._id}:${Date.now()}`,
+  }, {
+    source: "chapter_joined",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   // Hydrate user and return
@@ -1122,22 +1135,28 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
     try {
       if (status === "active") {
         await unlockAchievement(user._id, "verified_builder");
-        await Notification.create({
+        await dispatchNotification({
           user: user._id,
           kind: "achievement",
           title: "Account Verified!",
           body: `An administrator has approved your account. Welcome to Scope Connect!`,
           link: "/",
           dedupeKey: `user:${user._id}:verified:${Date.now()}`,
+        }, {
+          source: "admin_user_status_active",
+          requestId: res.locals.requestId,
         }).catch(() => null);
       } else if (status === "rejected" || status === "deactivated") {
-        await Notification.create({
+        await dispatchNotification({
           user: user._id,
           kind: "system",
           title: "Account Verification Rejected",
           body: `Your account verification has been rejected or deactivated by an administrator.`,
           link: "/",
           dedupeKey: `user:${user._id}:rejected:${Date.now()}`,
+        }, {
+          source: "admin_user_status_rejected",
+          requestId: res.locals.requestId,
         }).catch(() => null);
       }
     } catch (err) {
@@ -1271,7 +1290,7 @@ adminUsersRouter.patch("/feedback/:id", asyncHandler(async (req, res) => {
 
     // Notify user
     if (status === "verified" || status === "rejected") {
-      await Notification.create({
+      await dispatchNotification({
         user: submission.user,
         kind: status === "verified" ? "achievement" : "system",
         title: status === "verified" ? "Opportunities Unlocked!" : "Opportunity Verification Update",
@@ -1280,6 +1299,9 @@ adminUsersRouter.patch("/feedback/:id", asyncHandler(async (req, res) => {
           : "Your opportunity verification request was not approved. Please update your portfolio and try again.",
         link: "/opportunities",
         dedupeKey: `opp_verify:${submission.user}:${status}:${Date.now()}`
+      }, {
+        source: "opportunity_verification_status_changed",
+        requestId: res.locals.requestId,
       }).catch(() => null);
     }
   }

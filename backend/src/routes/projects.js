@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   Project,
   Application,
-  Notification,
   ProfileActivity,
   Profile,
   ProjectRoom,
@@ -23,6 +22,7 @@ import { serializeProject, serializeApplication } from "../utils/serializers.js"
 import { awardXp, forfeitReservedXp, refundReservedXp, reserveXp } from "../utils/xp-engine.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
 import { CONTRIBUTION_WEIGHTS, XP_ACTIONS, XP_CONSTANTS } from "../utils/xp-constants.js";
+import { dispatchNotification } from "../services/notification-dispatcher.js";
 
 
 export const projectsRouter = express.Router();
@@ -313,13 +313,16 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
 
   // If status changes to open, notify the creator
   if (oldStatus !== project.status && project.status === "open") {
-    await Notification.create({
+    await dispatchNotification({
       user: project.createdBy,
       kind: "admin_action",
       title: "Project Approved",
       body: `Your project "${project.title}" has been approved and is now open.`,
       link: `/projects/${project._id}`,
       dedupeKey: `project:${project._id}:approved:${Date.now()}`,
+    }, {
+      source: "project_status_opened",
+      requestId: res.locals.requestId,
     }).catch(() => null);
   }
 
@@ -543,13 +546,16 @@ async function joinProject(req, res) {
     committed_xp: stake,
     room_id: room.id,
   });
-  await Notification.create({
+  await dispatchNotification({
     user: project.createdBy,
     kind: "application_received",
     title: "New project participant",
     body: "A student committed XP and joined your project.",
     link: `/projects/${project.id}`,
     dedupeKey: `app:${application.id}:received`,
+  }, {
+    source: "project_joined",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   sendSuccess(res, {
@@ -584,13 +590,16 @@ projectsRouter.post("/:id/apply-legacy-disabled", authMiddleware, requirePermiss
   if (existing) throw new AppError(409, "ALREADY_APPLIED", "You have already applied");
   const application = await Application.create({ project: project._id, user: req.user._id, message: req.body.message });
   await logProfileActivity(req.user._id, "project_applied", `Applied to project: ${project.title}`, { project_id: project.id, application_id: application.id });
-  await Notification.create({
+  await dispatchNotification({
     user: project.createdBy,
     kind: "application_received",
     title: "New project application",
     body: "A student applied to your project.",
     link: `/projects/${project.id}`,
     dedupeKey: `app:${application.id}:received`,
+  }, {
+    source: "project_applied_legacy",
+    requestId: res.locals.requestId,
   }).catch(() => null);
   const xpResult = await awardXp({
     userId: req.user._id,
@@ -1139,13 +1148,16 @@ applicationsRouter.patch("/:id", validate(applicationPatchSchema), asyncHandler(
   if (isApplicant || req.user._id.toString() === application.user.toString()) {
     await logProfileActivity(application.user, "application_status", `Application status changed to ${application.status}`, { application_id: application.id });
   }
-  await Notification.create({
+  await dispatchNotification({
     user: application.user,
     kind: "application_status_changed",
     title: "Application status updated",
     body: `Your application is now ${application.status}.`,
     link: `/projects/${application.project.id}`,
     dedupeKey: `app:${application.id}:status:${application.status}`,
+  }, {
+    source: "project_application_status_changed",
+    requestId: res.locals.requestId,
   }).catch(() => null);
   sendSuccess(res, { application: serializeApplication(application) });
 }));
@@ -1173,13 +1185,16 @@ applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHand
   application.submissionReviewStatus = "submitted";
   await application.save();
 
-  await Notification.create({
+  await dispatchNotification({
     user: application.project.createdBy,
     kind: "project_submission_received",
     title: "Project submission received",
     body: "A student submitted their project deliverables for review.",
     link: `/projects/${application.project.id}`,
     dedupeKey: `app:${application.id}:submission:${application.updatedAt?.getTime?.() || Date.now()}`,
+  }, {
+    source: "project_submission_received",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   sendSuccess(res, { application: serializeApplication(application) }, "Submission received");
@@ -1239,13 +1254,16 @@ applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSche
 
   await application.save();
 
-  await Notification.create({
+  await dispatchNotification({
     user: application.user,
     kind: "project_submission_reviewed",
     title: "Project submission reviewed",
     body: `Your submission is marked as ${application.submissionReviewStatus.replace("_", " ")}.`,
     link: `/projects/${application.project.id}`,
     dedupeKey: `app:${application.id}:submission-review:${application.submissionReviewStatus}`,
+  }, {
+    source: "project_submission_reviewed",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   sendSuccess(res, { application: serializeApplication(application) }, "Submission review updated");

@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { Notification, Opportunity, OpportunityApplication, Profile, User } from "../models/index.js";
+import { Opportunity, OpportunityApplication, Profile, User } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -9,6 +9,7 @@ import { validate } from "../utils/validate.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { hasPermission } from "../utils/roles.js";
 import { serializeOpportunityApplication } from "../utils/serializers.js";
+import { dispatchNotification, dispatchNotifications } from "../services/notification-dispatcher.js";
 
 export const opportunitiesRouter = express.Router();
 
@@ -212,17 +213,17 @@ opportunitiesRouter.post("/", requirePermission("manage_projects"), validate(opp
     const students = await User.find({ role: "student" }).select("_id");
     const studentIds = students.map(s => s._id);
     if (studentIds.length > 0) {
-      await Notification.insertMany(
-        studentIds.map(studentId => ({
-          user: studentId,
-          kind: "system",
-          title: "New Opportunity Posted",
-          body: `${opportunity.company} is looking for a ${opportunity.title}. Check it out!`,
-          link: "/opportunities",
-          dedupeKey: `opportunity:${opportunity._id}:${studentId}`,
-        })),
-        { ordered: false }
-      ).catch(() => null);
+      await dispatchNotifications(studentIds.map((studentId) => ({
+        user: studentId,
+        kind: "system",
+        title: "New Opportunity Posted",
+        body: `${opportunity.company} is looking for a ${opportunity.title}. Check it out!`,
+        link: "/opportunities",
+        dedupeKey: `opportunity:${opportunity._id}:${studentId}`,
+      })), {
+        source: "opportunity_created",
+        requestId: res.locals.requestId,
+      }).catch(() => null);
     }
   } catch (err) {
     console.error("Failed to push opportunity notifications:", err);
@@ -294,13 +295,16 @@ opportunitiesRouter.post("/:id/apply", validate(opportunityApplySchema), asyncHa
     await logProfileActivity(req.user._id, "opportunity_unlocked", `Unlocked opportunity by eligibility: ${opportunity.title}`, { min_xp_required: minXpRequired, opportunity_id: opportunity._id });
   }
 
-  await Notification.create({
+  await dispatchNotification({
     user: req.user._id,
     kind: "opportunity_application_received",
     title: "Opportunity application submitted",
     body: `Your application for ${opportunity.title} is under review.`,
     link: "/opportunities",
     dedupeKey: `opp-app:${application.id}:submitted`,
+  }, {
+    source: "opportunity_applied",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   const hydrated = await OpportunityApplication.findById(application._id)
@@ -331,13 +335,16 @@ opportunitiesRouter.patch("/applications/:id", validate(opportunityApplicationPa
   }
   await application.save();
 
-  await Notification.create({
+  await dispatchNotification({
     user: application.user,
     kind: "opportunity_application_status_changed",
     title: "Opportunity application updated",
     body: `Your application is now ${application.status}.`,
     link: "/opportunities",
     dedupeKey: `opp-app:${application.id}:status:${application.status}`,
+  }, {
+    source: "opportunity_application_status_changed",
+    requestId: res.locals.requestId,
   }).catch(() => null);
 
   const hydrated = await OpportunityApplication.findById(application._id)

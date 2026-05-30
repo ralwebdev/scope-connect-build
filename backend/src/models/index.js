@@ -9,6 +9,7 @@ export { LaunchChecklist } from "./LaunchChecklist.js";
 export { Project } from "./Project.js";
 export { Application } from "./Application.js";
 export { Notification } from "./Notification.js";
+export { NotificationOutbox } from "./NotificationOutbox.js";
 export { Session } from "./Session.js";
 export { AnalyticsEvent } from "./AnalyticsEvent.js";
 export { FileAsset } from "./FileAsset.js";
