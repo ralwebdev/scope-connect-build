@@ -9,6 +9,7 @@
     "worker:notifications": "node src/workers/notifications.worker.js",
     "lint": "node --check src/server.js",
     "seed": "node src/scripts/seed.js",
+    "seed:scope-admins": "node src/scripts/seed-scope-admin-users.js",
     "test:integration": "node src/scripts/integration-test.js"
   },
   "dependencies": {
