@@ -36,18 +36,18 @@ function Chip({ kpi }: { kpi: Kpi }) {
   const Icon = kpi.icon;
   return (
     <div
-      className="flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors hover:bg-secondary/30"
+      className="flex items-center gap-1 rounded-full px-1.5 py-0.5 transition-colors hover:bg-secondary/30 sm:gap-1.5 sm:px-2"
       title={kpi.hint ?? `${kpi.label}: ${kpi.value}`}
     >
       <span className="flex items-center text-indigo-400/90"><Icon className="h-3.5 w-3.5 shrink-0" /></span>
-      <div className="flex items-baseline gap-1 leading-none">
-        <span className="text-[12px] font-bold tabular-nums text-[#1a1a1a]">{kpi.value}</span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
+      <div className="flex items-baseline gap-0.5 leading-none sm:gap-1">
+        <span className="text-[11px] font-bold tabular-nums text-[#1a1a1a] sm:text-[12px]">{kpi.value}</span>
+        <span className="hidden text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 sm:inline">
           {kpi.label}
         </span>
       </div>
       {typeof kpi.progress === "number" && (
-        <div className="ml-1 hidden h-1 w-10 overflow-hidden rounded-full bg-secondary/60 lg:block">
+        <div className="ml-1 hidden h-1 w-10 overflow-hidden rounded-full bg-secondary/60 md:block">
           <div
             className="h-full bg-blue-500/80 transition-[width] duration-700 ease-out"
             style={{ width: `${Math.max(0, Math.min(100, kpi.progress))}%` }}
@@ -86,9 +86,9 @@ export function StudentKpis() {
   }, [strength]);
 
   return (
-    <div className={cn("hidden items-center gap-1.5 rounded-full border border-border/40 bg-secondary/40 px-2 py-0.5 md:flex", burst && "animate-nav-burst")}>
+    <div className={cn("flex items-center gap-1.5 rounded-full border border-border/40 bg-secondary/40 px-1.5 py-0.5 sm:px-2", burst && "animate-nav-burst")}>
       {/* Profile completion ring */}
-      <div className="relative flex h-8 w-8 items-center justify-center rounded-full" title={`Profile ${strength}% complete`}>
+      <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full" title={`Profile ${strength}% complete`}>
         <svg viewBox="0 0 36 36" className="absolute inset-0 h-full w-full -rotate-90">
           <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeOpacity="0.15" strokeWidth="3" />
           <circle
@@ -101,9 +101,9 @@ export function StudentKpis() {
         <span className="text-[9px] font-bold tabular-nums text-foreground">{strength}</span>
       </div>
       {/* Level */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
         <Trophy className="h-3.5 w-3.5" style={{ color: "var(--nav-glow)" }} />
-        <span className="text-xs font-semibold text-foreground">{level.name}</span>
+        <span className="hidden text-xs font-semibold text-foreground sm:inline">{level.name}</span>
         <div className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-secondary lg:block">
           <div
             className="h-full transition-[width] duration-500"
@@ -112,13 +112,13 @@ export function StudentKpis() {
         </div>
       </div>
       {/* XP */}
-      <div className="hidden items-center gap-1 text-xs font-semibold text-foreground lg:flex">
+      <div className="hidden items-center gap-1 text-xs font-semibold text-foreground lg:flex shrink-0">
         <Zap className="h-3 w-3" style={{ color: "var(--nav-glow)" }} />
         <span className="tabular-nums">{xpTotal.toLocaleString()}</span>
         <span className="text-muted-foreground">XP</span>
       </div>
       {/* Streak */}
-      <div className="flex items-center gap-1 text-xs font-semibold text-foreground">
+      <div className="flex shrink-0 items-center gap-1 text-xs font-semibold text-foreground">
         <Flame className={cn("h-3 w-3", streak >= 3 && "animate-flame-pulse")} style={{ color: "var(--nav-glow)" }} />
         <span className="tabular-nums">{streak}d</span>
       </div>
@@ -129,12 +129,12 @@ export function StudentKpis() {
 /* ---------------- Reusable metrics rail (admin roles) ---------------- */
 function MetricsRail({ kpis }: { kpis: Kpi[] }) {
   return (
-    <div className="hidden items-center gap-0 rounded-full border border-border/20 bg-secondary/10 px-1.5 py-0.5 backdrop-blur-sm md:flex">
+    <div className="flex items-center gap-0 rounded-full border border-border/20 bg-secondary/10 px-0.5 py-0.5 backdrop-blur-sm sm:px-1.5">
       {kpis.map((k, i) => (
-        <div key={k.key} className="flex items-center">
+        <div key={k.key} className="flex items-center shrink-0">
           <Chip kpi={k} />
           {i < kpis.length - 1 && (
-            <span className="mx-0.5 h-3 w-px bg-border/30" />
+            <span className="mx-[1px] h-3 w-px bg-border/20 sm:mx-0.5" />
           )}
         </div>
       ))}

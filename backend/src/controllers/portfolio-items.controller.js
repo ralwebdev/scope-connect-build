@@ -9,11 +9,12 @@ async function logProfileActivity(userId, kind, text, meta = {}) {
 }
 
 function buildUpdatePatch(body) {
+  const skills = body.skills !== undefined ? body.skills.map(s => typeof s === 'string' && s.trim() ? s.trim().charAt(0).toUpperCase() + s.trim().slice(1) : s) : undefined;
   return {
     ...(body.type !== undefined && { type: body.type }),
     ...(body.title !== undefined && { title: body.title }),
     ...(body.description !== undefined && { description: body.description }),
-    ...(body.skills !== undefined && { skills: body.skills }),
+    ...(skills !== undefined && { skills }),
     ...(body.link !== undefined && { link: body.link || "" }),
     ...(body.cover !== undefined && { cover: body.cover }),
   };
@@ -29,12 +30,13 @@ export async function listMyPortfolioItems(req, res) {
 }
 
 export async function createPortfolioItem(req, res) {
+  const skills = req.body.skills ? req.body.skills.map(s => typeof s === 'string' && s.trim() ? s.trim().charAt(0).toUpperCase() + s.trim().slice(1) : s) : [];
   const item = await PortfolioItem.create({
     user: req.user._id,
     type: req.body.type,
     title: req.body.title,
     description: req.body.description,
-    skills: req.body.skills,
+    skills,
     link: req.body.link || "",
     cover: req.body.cover,
   });

@@ -339,7 +339,7 @@ reportsRouter.get("/institution/:id", asyncHandler(async (req, res) => {
   }
 
   // 2. Skill Distribution (Primary Domain)
-  const skillDistribution = await User.aggregate([
+  const skillDistributionRaw = await User.aggregate([
     { $match: { institution: institution._id, disabledAt: null, role: "student" } },
     { $lookup: { from: "profiles", localField: "_id", foreignField: "user", as: "profile" } },
     { $unwind: "$profile" },
@@ -347,6 +347,33 @@ reportsRouter.get("/institution/:id", asyncHandler(async (req, res) => {
     { $project: { name: { $ifNull: ["$_id", "Other"] }, value: 1, _id: 0 } },
     { $sort: { value: -1 } }
   ]);
+
+  const overrides = {
+    software_tech: "Software & Tech",
+    design_uiux: "Design / UI-UX",
+    animation_vfx: "Animation & VFX",
+    game_development: "Game Development",
+    digital_marketing: "Digital Marketing",
+    content_media: "Content & Media",
+    film_video: "Film & Video",
+    photography: "Photography",
+    architecture_civil: "Architecture / Civil",
+    business_management: "Business & Management",
+    finance_accounting: "Finance & Accounting",
+    law: "Law",
+    research_academia: "Research / Academia",
+    healthcare: "Healthcare",
+    fashion_lifestyle: "Fashion & Lifestyle",
+    music_audio: "Music & Audio",
+    education_training: "Education & Training",
+    entrepreneurship: "Entrepreneurship",
+    general_misc: "General / Other",
+  };
+
+  const skillDistribution = skillDistributionRaw.map(item => ({
+    value: item.value,
+    name: overrides[item.name] || item.name.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+  }));
 
   // 3. Project Metrics
   const projects = await Project.find({ institution: institutionId });

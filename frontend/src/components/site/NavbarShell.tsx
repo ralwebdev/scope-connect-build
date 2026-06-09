@@ -168,7 +168,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
 
   const handleLogout = () => {
     auth.logout();
-    toast.success("Signed out (secure reset). See you soon, Builder.");
+    toast.success("Signed out. See you soon, Builder.");
     navigate({ to: "/auth", replace: true });
   };
 
@@ -200,7 +200,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
         <div
           className={cn(
             "mx-auto w-full transition-all duration-500 ease-in-out transform-gpu",
-            collapsed ? "max-w-2xl" : "max-w-6xl"
+            collapsed ? "max-w-[860px]" : "max-w-6xl"
           )}
         >
           <div
@@ -220,9 +220,9 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
             />
 
             {/* LEFT GROUP — Identity + KPIs + Nav */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {/* Identity */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5">
                 {showAuthedUI && (
                   <button
                     aria-label="Open navigation"
@@ -230,7 +230,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                       const el = document.querySelector("aside");
                       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-foreground/40 transition-colors hover:bg-secondary lg:hidden"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-foreground/40 transition-colors hover:bg-secondary lg:hidden"
                   >
                     <Menu className="h-4 w-4" />
                   </button>
@@ -238,10 +238,10 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                 <Link
                   to="/"
                   onClick={handleLogoClick}
-                  className="flex items-center gap-2 rounded-full py-0.5 transition-transform hover:scale-[1.01]"
+                  className="flex shrink-0 items-center gap-2 rounded-full py-0.5 transition-transform hover:scale-[1.01]"
                 >
                   <span
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm overflow-hidden"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white shadow-sm overflow-hidden"
                     style={{ boxShadow: `0 0 10px -2px ${roleTheme.glow}33` }}
                   >
                     <img src="/favicon.png" alt="Logo" className="h-5 w-5 object-contain" />
@@ -260,14 +260,14 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                 </Link>
               </div>
 
-              {/* KPI Rail - Increased max-w to prevent cropping */}
+              {/* KPI Rail */}
               <div
                 className={cn(
-                  "overflow-hidden transition-all duration-500 ease-in-out",
-                  !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[600px] opacity-100"
+                  "min-w-0 transition-all duration-500 ease-in-out",
+                  !showAuthedUI ? "max-w-0 opacity-0" : "flex-1 opacity-100"
                 )}
               >
-                <div className="mx-0 flex items-center justify-center px-1">
+                <div className="mx-0 flex items-center justify-center px-0.5">
                   {centerSlot}
                 </div>
               </div>
@@ -321,11 +321,11 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
               </div>
             </div>
 
-            <div className="flex-1" />
+            <div className="min-w-0 flex-1" />
 
             {/* RIGHT GROUP — actions */}
-            <div className="relative flex items-center gap-1">
-              <div className="flex items-center gap-0.5">
+            <div className="relative flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-0.5">
                 {showAuthedUI ? (
                   <>
                     <div ref={bellRef} className="relative">
@@ -357,7 +357,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                     <div
                       className={cn(
                         "overflow-hidden transition-all duration-500 ease-in-out",
-                        collapsed ? "max-w-[96px] opacity-100" : "max-w-0 opacity-0"
+                        collapsed ? "max-w-0 opacity-0" : "max-w-[96px] opacity-100"
                       )}
                     >
                       <span className="block truncate px-1 text-xs font-semibold text-[#1a1a1a]">
@@ -365,7 +365,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                       </span>
                     </div>
 
-                    <div ref={userRef} className="relative">
+                    <div ref={userRef} className="relative shrink-0">
                       <button
                         onClick={() => setUserOpen((v) => !v)}
                         key={session.user!.avatarUrl || "nav-avatar"}
@@ -403,7 +403,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                           </div>
                           <div className="border-t border-border py-1">
                             <button onClick={handleLogout} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
-                              <LogOut className="h-4 w-4" /> Sign out (secure reset)
+                              <LogOut className="h-4 w-4" /> Sign out
                             </button>
                           </div>
                         </div>

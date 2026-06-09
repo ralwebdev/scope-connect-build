@@ -430,7 +430,7 @@ function ProjectsPage() {
       })()}
 
       {/* APPLIED STRIP */}
-      {userApps.length > 0 && (
+      {userApps.length > 0 && !isAdmin && (
         <section className="border-b border-border/40 bg-secondary/30">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
             <div className="text-sm">
@@ -923,15 +923,17 @@ function ModalShell({ children, onClose, title, subtitle }: {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
-      <Card className="w-full max-w-lg p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
+      <Card className="w-full max-w-lg p-5 animate-scale-in flex flex-col max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between shrink-0 mb-3">
           <div>
             <h3 className="text-lg font-bold text-foreground">{title}</h3>
             {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-secondary shrink-0"><X className="h-4 w-4" /></button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1">
+          {children}
+        </div>
       </Card>
     </div>
   );
@@ -1749,24 +1751,24 @@ function SubmissionModal({ project, application, onClose, onSubmitted, isAdmin =
       <div className="mt-4 space-y-3">
         {/* Admin-only: student assignment */}
         {isAdmin && (
-          <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-amber-600">Admin Submission</span>
-              <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-700">On behalf of student</span>
+          <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Admin Submission</span>
+              <span className="rounded bg-amber-400/15 px-1 py-0.5 text-[9px] text-amber-700">On behalf of student</span>
             </div>
-            <p className="mb-3 text-xs text-muted-foreground">
-              You are submitting this project as an institutional admin. Select the student whose work is being submitted.
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Select the student whose work is being submitted.
             </p>
-            <label className="text-xs font-medium text-foreground">Student Profile</label>
+            <label className="text-[11px] font-semibold text-foreground">Student Profile</label>
             {loadingStudents ? (
-              <div className="mt-1.5 h-9 animate-pulse rounded-md bg-secondary" />
+              <div className="mt-1 h-8 animate-pulse rounded-md bg-secondary" />
             ) : students.length === 0 ? (
-              <p className="mt-1.5 text-xs text-muted-foreground">No students found in your institution.</p>
+              <p className="mt-1 text-xs text-muted-foreground">No students found in your institution.</p>
             ) : (
               <select
                 value={selectedStudentId}
                 onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>{s.name} — {s.email}</option>

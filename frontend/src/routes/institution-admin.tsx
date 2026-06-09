@@ -372,7 +372,7 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
           </Card>
         ))}
       </div>
-      <QuickActionsPanel />
+      {/* <QuickActionsPanel /> */}
       <ReceivedDocuments institutionId={institutionId} />
       <InstitutionProfileEditor institutionId={institutionId} institutionName={institutionName} />
     </div>
@@ -534,8 +534,9 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
   };
 
   const addSkill = () => {
-    const trimmed = skill.trim();
+    let trimmed = skill.trim();
     if (!trimmed) return;
+    trimmed = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
     if (p.topSkills.includes(trimmed)) {
       toast.error("Skill already listed!");
       return;
@@ -804,7 +805,10 @@ function MemberRoster({
                     {!isLocked && (
                       <>
                         {m.status === "pending" && (
-                          <Button size="sm" onClick={() => onUpdate(m.id, { status: "active" })}><CheckCircle2 className="mr-1 h-3 w-3" /> Approve</Button>
+                          <>
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white animate-in fade-in" onClick={() => onUpdate(m.id, { status: "active" })}><CheckCircle2 className="mr-1 h-3 w-3" /> Approve</Button>
+                            <Button size="sm" variant="destructive" className="animate-in fade-in" onClick={() => onUpdate(m.id, { status: "deactivated" })}><XCircle className="mr-1 h-3 w-3" /> Reject</Button>
+                          </>
                         )}
                         {m.status === "active" && (
                           <Button size="sm" variant="outline" onClick={() => onUpdate(m.id, { status: "deactivated" })}>Deactivate</Button>

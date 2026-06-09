@@ -67,7 +67,7 @@ const PILLARS = [
 
 function WhatIsScope() {
   return (
-    <section className="border-t border-border/40 py-16 sm:py-20">
+    <section className="border-t border-border/40 py-8 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <Badge className="mb-3 bg-brand/10 text-brand">In 10 seconds</Badge>
@@ -85,7 +85,7 @@ function WhatIsScope() {
             </Card>
           ))}
         </div>
-        <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-3 rounded-xl border border-border bg-secondary/30 p-4 text-xs text-muted-foreground">
+        <div className="mx-auto mt-12 flex max-w-2xl flex-wrap items-center justify-center gap-3 rounded-xl border border-border bg-secondary/30 p-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-brand" /> No spam, no fake listings</span>
           <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-brand" /> Every challenge curated by Scope</span>
           <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5 text-brand" /> Your ideas remain private</span>
@@ -140,20 +140,20 @@ function Hero() {
       <div className="pointer-events-none absolute -left-20 top-20 h-72 w-72 rounded-full bg-brand/30 blur-3xl animate-pulse-glow" />
       <div className="pointer-events-none absolute -right-20 bottom-10 h-80 w-80 rounded-full bg-cyan/20 blur-3xl animate-pulse-glow" />
 
-      <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-16 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <Badge className="mb-6 border-cyan/30 bg-cyan/10 text-cyan hover:bg-cyan/15">
             <Sparkles className="mr-1.5 h-3 w-3" /> India's Curated Campus Opportunity Platform
           </Badge>
           <h1 className="text-balance text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-            Where campuses build
+            Where Campuses Build
             <br />
             <span className="bg-gradient-to-r from-cyan via-cyan to-brand bg-clip-text text-transparent">
-              real opportunities.
+              Real Opportunities.
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-primary-foreground/80 sm:text-xl">
-            Verified challenges, campus growth programs, and real opportunities for ambitious students. Join 12,000+ builders across 142 campuses.
+          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg font-normal leading-relaxed tracking-wide text-primary-foreground/80 sm:text-xl sm:leading-loose">
+            Verified Challenges, Campus Growth Programs, and Real Opportunities for Ambitious Students. Join 12,000+ Students across 142 Institutions.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" className="bg-gradient-brand text-brand-foreground shadow-brand hover:opacity-95">
@@ -162,14 +162,14 @@ function Hero() {
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground hover:bg-primary-foreground/10">
-              <Link to="/projects" onClick={trackSecondary}>Explore live projects</Link>
+              <Link to="/projects" onClick={trackSecondary}>Explore Live Projects</Link>
             </Button>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-primary-foreground/70">
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> 10+ campuses live</span>
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> Curated challenges only</span>
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> Student-first network</span>
+            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> 10+ Campuses Live</span>
+            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> Curated Challenges Only</span>
+            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> Student-First Network</span>
             <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5 text-cyan" /> Privacy safe</span>
           </div>
 
@@ -187,19 +187,68 @@ function Hero() {
   );
 }
 
+import { motion } from "framer-motion";
+
 function Partners() {
+  const half = Math.ceil(campusPartners.length / 2);
+  const row1 = campusPartners.slice(0, half);
+  const row2 = campusPartners.slice(half);
+
+  // Triple the rows for smooth infinite scrolling loop
+  const tickerRow1 = [...row1, ...row1, ...row1];
+  const tickerRow2 = [...row2, ...row2, ...row2];
+
   return (
-    <section className="border-b border-border/40 bg-background py-12">
+    <section className="border-b border-border/40 bg-background py-14 overflow-hidden relative">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Trusted by builders at
+        <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-8">
+          Trusted by Students at
         </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-          {campusPartners.map((p) => (
-            <div key={p.name} className="text-sm font-semibold text-muted-foreground/80">
-              {p.name}
-            </div>
-          ))}
+      </div>
+
+      <div className="relative flex flex-col gap-6 w-full">
+        {/* Row 1: Left to Right */}
+        <div className="relative flex overflow-hidden w-full [mask-image:linear-gradient(to_right,transparent,white_20%,white_80%,transparent)]">
+          <motion.div
+            className="flex items-center gap-10 whitespace-nowrap shrink-0"
+            animate={{ x: ["-33.33%", "0%"] }}
+            transition={{
+              ease: "linear",
+              duration: 25,
+              repeat: Infinity,
+            }}
+          >
+            {tickerRow1.map((p, idx) => (
+              <div
+                key={`row1-${p.name}-${idx}`}
+                className="text-base font-semibold text-muted-foreground/60 transition-colors hover:text-foreground/95 cursor-pointer shrink-0"
+              >
+                {p.name}
+              </div>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* Row 2: Right to Left */}
+        <div className="relative flex overflow-hidden w-full [mask-image:linear-gradient(to_right,transparent,white_20%,white_80%,transparent)]">
+          <motion.div
+            className="flex items-center gap-10 whitespace-nowrap shrink-0"
+            animate={{ x: ["0%", "-33.33%"] }}
+            transition={{
+              ease: "linear",
+              duration: 25,
+              repeat: Infinity,
+            }}
+          >
+            {tickerRow2.map((p, idx) => (
+              <div
+                key={`row2-${p.name}-${idx}`}
+                className="text-base font-semibold text-muted-foreground/60 transition-colors hover:text-foreground/95 cursor-pointer shrink-0"
+              >
+                {p.name}
+              </div>
+            ))}
+          </motion.div>
         </div>
       </div>
     </section>
@@ -231,7 +280,7 @@ const whyJoinItems = [
 
 function WhyJoin() {
   return (
-    <section className="py-20 sm:py-28">
+    <section className="py-1 sm:py-3">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
@@ -411,8 +460,8 @@ function EventsSection() {
             <Card key={e.title} className="overflow-hidden p-5 transition-all hover:-translate-y-1 hover:shadow-elegant">
               <Badge className={
                 e.color === "brand" ? "bg-brand text-brand-foreground" :
-                e.color === "cyan" ? "bg-cyan/20 text-cyan-foreground" :
-                "bg-primary text-primary-foreground"
+                  e.color === "cyan" ? "bg-cyan/20 text-cyan-foreground" :
+                    "bg-primary text-primary-foreground"
               }>
                 {e.type}
               </Badge>

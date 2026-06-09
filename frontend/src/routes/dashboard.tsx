@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Trophy, Flame, TrendingUp, Calendar, Users, Sparkles, ArrowRight, Target, Zap, Rocket, Briefcase, Lightbulb, ShieldCheck, MapPin, ClipboardList } from "lucide-react";
+import { Trophy, Flame, TrendingUp, Calendar, Users, Sparkles, ArrowRight, Target, Zap, Rocket, Briefcase, Lightbulb, ShieldCheck, MapPin, ClipboardList, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -322,6 +322,8 @@ function DashboardPage() {
         </div>
       </section>
 
+
+
       <RetentionLayer />
 
       <DropoffNudge />
@@ -371,46 +373,60 @@ function DashboardPage() {
           </Card>
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          <Card className="flex flex-col lg:col-span-2">
-            <div className="flex items-center justify-between border-b border-border p-5">
-              <h3 className="font-semibold text-foreground">Recent feed</h3>
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/feed">View all <ArrowRight className="ml-1 h-3 w-3" /></Link>
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto bg-card rounded-b-xl border-t-0 p-5">
-              <div className="flex flex-col gap-6">
-              {recentFeedHydrated.map((p) => (
-                <div key={p.id} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{p.author}</span>
-                      <Badge variant="secondary" className="text-[9px]">{p.type || "Update"}</Badge>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">{p.time}</span>
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">{p.campus}</div>
-                  <p className="mt-2 text-sm text-foreground whitespace-pre-wrap leading-relaxed">{p.content}</p>
-                  
-                  {p.media && p.media.length > 0 && (
-                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {p.media.map((m, idx) => (
-                        <div key={idx} className="overflow-hidden rounded-xl border border-border bg-secondary/20">
-                          {m.type === "image" ? (
-                            <img src={m.url} alt="Post media" className="h-auto w-full object-cover" />
-                          ) : (
-                            <video src={m.url} controls className="h-auto w-full" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+        <div className="mt-8 grid gap-6 lg:grid-cols-3 items-start">
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            <Card className="flex flex-col">
+              <div className="flex items-center justify-between border-b border-border p-5">
+                <h3 className="font-semibold text-foreground">Recent feed</h3>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/feed">View all <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                </Button>
               </div>
-            </div>
-          </Card>
+              <div className="flex-1 overflow-y-auto bg-card rounded-b-xl border-t-0 p-5 max-h-[500px]">
+                <div className="flex flex-col gap-6">
+                {recentFeedHydrated.map((p) => (
+                  <div key={p.id} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{p.author}</span>
+                        <Badge variant="secondary" className="text-[9px]">{p.type || "Update"}</Badge>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{p.time}</span>
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">{p.campus}</div>
+                    <p className="mt-2 text-sm text-foreground whitespace-pre-wrap leading-relaxed">{p.content}</p>
+                    
+                    {p.media && p.media.length > 0 && (
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {p.media.map((m, idx) => (
+                          <div key={idx} className="overflow-hidden rounded-xl border border-border bg-secondary/20">
+                            {m.type === "image" ? (
+                              <img src={m.url} alt="Post media" className="h-auto w-full object-cover" />
+                            ) : (
+                              <video src={m.url} controls className="h-auto w-full" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                </div>
+              </div>
+            </Card>
+
+            <Card className="bg-gradient-hero p-5 text-primary-foreground hover-lift">
+              <Trophy className="h-5 w-5 text-cyan" />
+              <h3 className="mt-3 font-semibold">Leaderboard position</h3>
+              <p className="mt-1 text-sm text-primary-foreground/70">You're #{rankInfo.global || "—"} on the national board.</p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-cyan">
+                <TrendingUp className="h-3.5 w-3.5" /> You're {Math.max(0, rankInfo.global - 10)} moves from Top 10.
+              </div>
+              <Button asChild variant="outline" size="sm" className="mt-4 w-full border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground hover:bg-primary-foreground/10">
+                <Link to="/leaderboards">View leaderboards</Link>
+              </Button>
+            </Card>
+          </div>
 
           <div className="space-y-6">
             <CredibilityPanel />
@@ -472,18 +488,6 @@ function DashboardPage() {
                   <Link to="/projects">Browse More</Link>
                 </Button>
               </div>
-            </Card>
-
-            <Card className="bg-gradient-hero p-5 text-primary-foreground hover-lift">
-              <Trophy className="h-5 w-5 text-cyan" />
-              <h3 className="mt-3 font-semibold">Leaderboard position</h3>
-              <p className="mt-1 text-sm text-primary-foreground/70">You're #{rankInfo.global || "—"} on the national board.</p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-cyan">
-                <TrendingUp className="h-3.5 w-3.5" /> You're {Math.max(0, rankInfo.global - 10)} moves from Top 10.
-              </div>
-              <Button asChild variant="outline" size="sm" className="mt-4 w-full border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground hover:bg-primary-foreground/10">
-                <Link to="/leaderboards">View leaderboards</Link>
-              </Button>
             </Card>
           </div>
         </div>

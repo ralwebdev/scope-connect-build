@@ -975,7 +975,9 @@ usersRouter.patch("/:id", validate(patchUserSchema), asyncHandler(async (req, re
       ...(req.body.handle !== undefined && { handle: req.body.handle }),
       ...(req.body.headline !== undefined && { headline: req.body.headline }),
       ...(req.body.bio !== undefined && { bio: req.body.bio }),
-      ...(req.body.skills !== undefined && { skills: req.body.skills }),
+      ...(req.body.skills !== undefined && {
+        skills: req.body.skills.map(s => typeof s === 'string' && s.trim() ? s.trim().charAt(0).toUpperCase() + s.trim().slice(1) : s)
+      }),
       ...(req.body.interests !== undefined && { interests: req.body.interests }),
       ...(req.body.availability !== undefined && { availability: req.body.availability }),
       ...(req.body.avatar_color !== undefined && { avatarColor: req.body.avatar_color }),

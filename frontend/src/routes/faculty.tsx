@@ -5,7 +5,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   UserCheck, ClipboardList, FileBarChart, Activity, ArrowRight, GraduationCap,
-  ShieldCheck, FolderKanban, Calendar, AlertTriangle, CheckCircle2,
+  ShieldCheck, FolderKanban, Calendar, AlertTriangle, CheckCircle2, XCircle
 } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { RbacSidebar } from "@/components/site/RbacSidebar";
@@ -125,6 +125,16 @@ function FacultyDashboard() {
     }
   };
 
+  const handleReject = async (id: string) => {
+    try {
+      await backendUsers.updateMemberStatus(id, "rejected");
+      toast.success("Student verification rejected successfully");
+      fetchDashboardData();
+    } catch (error) {
+      toast.error("Failed to reject student");
+    }
+  };
+
   if (loading || !data) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -195,13 +205,20 @@ function FacultyDashboard() {
                     {s.reason} · {formatDistanceToNow(new Date(s.when))} ago
                   </div>
                 </div>
-                <Button size="sm" variant="outline">View</Button>
                 <Button 
                   size="sm" 
-                  className="bg-gradient-brand text-brand-foreground"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white animate-in fade-in"
                   onClick={() => handleVerify(s.id)}
                 >
-                  <ShieldCheck className="mr-1 h-3 w-3" /> Verify
+                  <CheckCircle2 className="mr-1 h-3 w-3" /> Verify
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  className="animate-in fade-in"
+                  onClick={() => handleReject(s.id)}
+                >
+                  <XCircle className="mr-1 h-3 w-3" /> Reject
                 </Button>
               </div>
             ))}

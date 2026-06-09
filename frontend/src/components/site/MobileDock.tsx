@@ -156,7 +156,7 @@ export function MobileDock() {
                   onClick={() => {
                     setQuickOpen(false);
                     auth.logout();
-                    toast.success("Signed out (secure reset). See you soon, Builder.");
+                    toast.success("Signed out. See you soon, Builder.");
                     navigate({ to: "/auth", replace: true });
                   }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/20"

@@ -1166,7 +1166,8 @@ applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHand
   const application = await Application.findById(req.params.id).populate("project");
   if (!application) throw notFound("Application not found");
   const isApplicant = application.user.toString() === req.user.id;
-  if (!isApplicant) throw forbidden();
+  const isAdmin = hasPermission(req.user, "manage_projects");
+  if (!isApplicant && !isAdmin) throw forbidden();
   if (["rejected", "withdrawn"].includes(application.status)) {
     throw new AppError(422, "BUSINESS_RULE_VIOLATION", "This application can no longer receive submissions");
   }

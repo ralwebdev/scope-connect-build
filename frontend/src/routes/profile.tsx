@@ -31,6 +31,11 @@ import { backendAuth, backendDepartments, backendInstitutions, backendPortfolio,
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/profile")({
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+    return {
+      tab: (search.tab as string) || undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Profile — Scope Connect" },
@@ -65,6 +70,7 @@ type BackendOverview = {
 };
 
 function ProfilePage() {
+  const { tab } = Route.useSearch();
   const user = useUser();
   const session = useUserSession();
   const role = session.role;
@@ -73,6 +79,15 @@ function ProfilePage() {
   const [overviewFromBackend, setOverviewFromBackend] = useState<BackendOverview | null>(null);
   const [overviewPortfolioItems, setOverviewPortfolioItems] = useState<BackendPortfolioItem[]>([]);
   const [overviewPortfolioItemsLoading, setOverviewPortfolioItemsLoading] = useState(true);
+
+  const defaultTab = tab || ((isStudentLike && (!user?.institution?.id || user?.student_status !== "active")) ? "verification" : "overview");
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [tab]);
 
   const strength = useProfileStrength();
   const xpValue = useXP();
@@ -154,7 +169,7 @@ function ProfilePage() {
       />
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <TabsList className="inline-flex h-auto w-max gap-1 rounded-xl bg-muted p-1">
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -845,7 +860,7 @@ function VerificationTab({ user, accent }: { user: ScopeUser; accent: string }) 
   const [institutionMemberId, setInstitutionMemberId] = useState(user.institution_member_id ?? "");
   const v = user.verification ?? { email_verified: false, institution_verified: false, trust_score: 0 };
   const oppStatus = user.opportunitiesVerificationStatus ?? "none";
-  const isInstitutionVerified = v.institution_verified || user.student_status === "active";
+  const isInstitutionVerified = (v.institution_verified || user.student_status === "active") && Boolean(user.institution?.id);
   const isInstitutionVerificationPending = user.student_status === "pending_verification";
   const canSubmitStudentVerification = Boolean(
     selectedInstitutionId && selectedDepartmentId && institutionMemberId.trim(),
@@ -1451,7 +1466,10 @@ function StudentPortfolioEditor({ user, onUpdate }: { user: ScopeUser; onUpdate?
     try { new URL(value.startsWith("http") ? value : `https://${value}`); return true; } catch { return false; }
   };
   const addSkill = (s: string) => {
-    const v = s.trim(); if (!v || skills.includes(v)) return;
+    let v = s.trim();
+    if (!v) return;
+    v = v.charAt(0).toUpperCase() + v.slice(1);
+    if (skills.includes(v)) return;
     setSkills([...skills, v]); setSkillDraft("");
   };
   const removeSkill = (s: string) => setSkills(skills.filter((x) => x !== s));

@@ -51,12 +51,16 @@ export function DropoffNudge() {
 
     // Highest-priority unmet milestone wins.
     const candidates: Nudge[] = [];
-    if (!user.campus) {
+    if (!user.institution || user.student_status !== "active") {
       candidates.push({
-        id: "campus_selected",
-        prompt: "Select your campus to unlock chapter rankings and local opportunities.",
-        cta: "Choose campus",
-        to: "/campus",
+        id: "student_verified",
+        prompt: user.student_status === "pending_verification"
+          ? "Your verification request is pending review by your institution admin."
+          : user.student_status === "rejected"
+          ? "Your verification request was rejected. Please re-submit your details."
+          : "Verify your student status to unlock campus rankings and local opportunities.",
+        cta: "Verify now",
+        to: "/profile",
       });
     } else if (strength < 70) {
       candidates.push({
@@ -117,7 +121,7 @@ export function DropoffNudge() {
             <p className="mt-1 text-sm font-semibold text-foreground">{nudge.prompt}</p>
           </div>
           <Button asChild size="sm" className="bg-gradient-brand text-brand-foreground" onClick={onClick}>
-            <Link to={nudge.to}>{nudge.cta} <ArrowRight className="ml-1 h-3 w-3" /></Link>
+            <Link to={nudge.to} search={nudge.id === "student_verified" ? { tab: "verification" } as any : undefined}>{nudge.cta} <ArrowRight className="ml-1 h-3 w-3" /></Link>
           </Button>
         </div>
       </Card>

@@ -40,7 +40,7 @@ export function Footer() {
               {eventsOn && <li><Link to="/events" className="hover:text-primary-foreground">Events</Link></li>}
               {leaderboardsOn && <li><Link to="/leaderboards" className="hover:text-primary-foreground">Leaderboards</Link></li>}
               {portfolioOn && <li><Link to="/portfolio" className="hover:text-primary-foreground">Portfolio</Link></li>}
-              {feedOn && <li><Link to="/feed" className="hover:text-primary-foreground">Feed</Link></li>}
+              {/* {feedOn && <li><Link to="/feed" className="hover:text-primary-foreground">Feed</Link></li>} */}
             </ul>
           </div>
 
@@ -62,7 +62,7 @@ export function Footer() {
               {/* <li><Link to="/partnerships" className="hover:text-primary-foreground">Partnerships</Link></li> */}
               <li><Link to={brand.supportUrl as "/support"} className="hover:text-primary-foreground">Support</Link></li>
               <li><Link to="/updates" className="hover:text-primary-foreground">Platform updates</Link></li>
-              <li><Link to="/feedback" className="hover:text-primary-foreground">Feedback</Link></li>
+              {/* <li><Link to="/feedback" className="hover:text-primary-foreground">Feedback</Link></li> */}
             </ul>
           </div>
 
@@ -78,21 +78,21 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-primary-foreground/10 pt-6 text-xs text-primary-foreground/60 sm:flex-row sm:items-center">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 border-t border-primary-foreground/10 pt-6 text-xs text-primary-foreground/60">
+          <div className="flex flex-wrap items-center justify-center gap-3 text-center">
             <p>© {new Date().getFullYear()} {brand.operator.replace(/^Operated by |^Powered by /, "")}. {brand.tagline.split(".")[0]}.</p>
-            <Link
+            {/* <Link
               to="/feedback"
               className="inline-flex items-center gap-1.5 rounded-full border border-primary-foreground/25 px-3 py-1 text-[11px] font-medium text-primary-foreground/85 transition-colors hover:border-primary-foreground/60 hover:text-primary-foreground"
             >
               <MessageSquarePlus className="h-3 w-3" /> Share Feedback
-            </Link>
+            </Link> */}
           </div>
-          <div className="flex flex-wrap gap-4">
+          {/* <div className="flex flex-wrap gap-4">
             <Link to="/privacy" className="hover:text-primary-foreground">Privacy</Link>
             <Link to="/terms" className="hover:text-primary-foreground">Terms</Link>
             <Link to="/community-guidelines" className="hover:text-primary-foreground">Community</Link>
-          </div>
+          </div> */}
         </div>
       </div>
     </footer>

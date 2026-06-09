@@ -16,7 +16,7 @@ const createSchema = z.object({
   target_institution_id: z.string().optional().nullable(),
   media: z.array(z.object({
     type: z.enum(["image", "video"]),
-    url: z.string().url(),
+    url: z.string(),
     fileId: z.string().optional()
   })).optional()
 }).refine(data => data.content.trim().length > 0 || (data.media && data.media.length > 0), {

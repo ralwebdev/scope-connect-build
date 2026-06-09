@@ -31,13 +31,13 @@ const STAGES = [
   "Calibrating your campus rank...",
 ];
 
-type LoginRoleTab = "student" | "institutional_admin" | "faculty_coordinator";
+type LoginRoleTab = "student" | "institutional_admin" | "faculty_coordinator" | "scope_admin";
 
 const LOGIN_ROLE_TABS: Array<{ key: LoginRoleTab; label: string; emailPlaceholder: string }> = [
   { key: "student", label: "Students", emailPlaceholder: "Enter Student Email" },
   { key: "institutional_admin", label: "Institute", emailPlaceholder: "Enter Institution Email" },
   { key: "faculty_coordinator", label: "Faculty", emailPlaceholder: "Enter Faculty Email" },
-  // { key: "scope_admin", label: "Scope Admin", emailPlaceholder: "admin@scopeconnect.in" },
+  { key: "scope_admin", label: "Scope Admin", emailPlaceholder: "admin@scopeconnect.in" },
 ];
 
 function AuthPage() {
@@ -112,12 +112,14 @@ function AuthPage() {
           apiRole = "institution_admin";
         } else if (loginRoleTab === "faculty_coordinator") {
           apiRole = "faculty";
+        } else if (loginRoleTab === "scope_admin") {
+          apiRole = "scope_admin";
         }
         signedInUser = await auth.login(email, password, apiRole);
         analytics.track("login_success");
         const role = (signedInUser.role_variant as Parameters<typeof landingRouteForRole>[0] | undefined) ?? roleFromEmail(signedInUser.email);
         const matchesSelectedTab =
-          // (loginRoleTab === "scope_admin" && (role === "scope_admin" || role === "scope_super_admin" || role === "super_admin")) ||
+          (loginRoleTab === "scope_admin" && (role === "scope_admin" || role === "scope_super_admin" || role === "super_admin")) ||
           (loginRoleTab === "institutional_admin" && role === "institutional_admin") ||
           (loginRoleTab === "faculty_coordinator" && role === "faculty_coordinator") ||
           (loginRoleTab === "student" && role === "student");
@@ -153,15 +155,15 @@ function AuthPage() {
             <h2 className="text-balance text-4xl font-bold leading-tight">
               Welcome to India's
               <br />
-              <span className="text-cyan">campus innovation network.</span>
+              <span className="text-cyan">Campus Innovation Network.</span>
             </h2>
             <p className="mt-4 max-w-md text-primary-foreground/70">
-              12,000+ builders. 142 campuses. One ecosystem for projects, hackathons, leadership, and hiring.
+              12,000+ Students. 142 Institutions. One Ecosystem for Projects, Hackathons, Leadership, and Hiring.
             </p>
             <div className="mt-8 flex gap-6">
               {[
-                { v: "12.4k", l: "Members" },
-                { v: "142", l: "Campuses" },
+                { v: "12.4k", l: "Students" },
+                { v: "142", l: "Institutions" },
                 { v: "3.2k", l: "Projects" },
               ].map((s) => (
                 <div key={s.l}>
@@ -212,14 +214,14 @@ function AuthPage() {
           </p>}
 
           {mode === "login" && (
-            <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-2">
-              <div className="grid grid-cols-3 gap-2">
+            <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-1">
+              <div className="grid grid-cols-4 gap-1">
                 {LOGIN_ROLE_TABS.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setLoginRoleTab(tab.key)}
-                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all cursor-pointer ${loginRoleTab === tab.key ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
+                    className={`rounded-lg py-2 text-[11px] font-semibold transition-all cursor-pointer text-center truncate ${loginRoleTab === tab.key ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
                       }`}
                   >
                     {tab.label}

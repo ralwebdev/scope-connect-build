@@ -575,7 +575,6 @@ export function stageAccess(stage: PipelineStage): StageAccess {
     case "Launch Pending":
       return { loginAccess: "institutional_admin_only", credentialGeneration: true, fullModuleAccess: false, restricted: false,
         description: "Activation stage. Generate institutional admin credentials." };
-    case "Live Chapter" as any: // Handle legacy or casing mismatches if needed
     case "Live Chapter":
       return { loginAccess: "full", credentialGeneration: false, fullModuleAccess: true, restricted: false,
         description: "Fully operational. All modules enabled." };
