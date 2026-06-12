@@ -191,7 +191,7 @@ function AuthPage() {
             <button
               type="button"
               onClick={() => setMode("signup")}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all cursor-pointer ${mode === "signup" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all cursor-pointer ${mode === "signup" ? "bg-gradient-brand text-brand-foreground shadow-brand" : "text-muted-foreground"
                 }`}
             >
               Sign Up
@@ -199,7 +199,7 @@ function AuthPage() {
             <button
               type="button"
               onClick={() => setMode("login")}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all cursor-pointer ${mode === "login" ? "bg-background text-foreground shadow-soft" : "text-muted-foreground"
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all cursor-pointer ${mode === "login" ? "bg-gradient-brand text-brand-foreground shadow-brand" : "text-muted-foreground"
                 }`}
             >
               Log in
@@ -221,7 +221,7 @@ function AuthPage() {
                     key={tab.key}
                     type="button"
                     onClick={() => setLoginRoleTab(tab.key)}
-                    className={`rounded-lg py-2 text-[11px] font-semibold transition-all cursor-pointer text-center truncate ${loginRoleTab === tab.key ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
+                    className={`rounded-lg py-2 text-[11px] font-semibold transition-all cursor-pointer text-center truncate ${loginRoleTab === tab.key ? "bg-gradient-brand text-brand-foreground shadow-brand" : "text-muted-foreground hover:text-foreground"
                       }`}
                   >
                     {tab.label}
