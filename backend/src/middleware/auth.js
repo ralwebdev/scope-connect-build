@@ -10,19 +10,22 @@ export async function optionalAuthMiddleware(req, _res, next) {
     }
 
     const token = header.replace("Bearer ", "").trim();
+    if (!token || token === "null" || token === "undefined") {
+      return next();
+    }
+
     let payload;
     try {
       payload = verifyAccessToken(token);
     } catch (error) {
-      if (error.name === "TokenExpiredError") {
-        throw unauthenticated("TOKEN_EXPIRED", "Access token expired");
-      }
-      throw unauthenticated();
+      // For optional auth, ignore token errors and treat as guest
+      return next();
     }
 
     const user = await User.findById(payload.sub);
     if (!user || user.disabledAt) {
-      throw new AppError(403, "ACCOUNT_DISABLED", "Account disabled");
+      // If user is not found or disabled, treat as guest
+      return next();
     }
 
     req.user = {
@@ -38,7 +41,7 @@ export async function optionalAuthMiddleware(req, _res, next) {
     };
     next();
   } catch (error) {
-    next(error);
+    next();
   }
 }
 

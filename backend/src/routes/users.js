@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { AnalyticsEvent, Department, Institution, User, Profile, PortfolioLink, ProfileActivity, Session, PublicSubmission } from "../models/index.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
@@ -218,10 +218,8 @@ async function logProfileActivity(userId, kind, text, meta = {}) {
   await ProfileActivity.create({ user: userId, kind, text, meta }).catch(() => null);
 }
 
-usersRouter.use(authMiddleware);
-
-usersRouter.get("/leaderboard/students", asyncHandler(async (req, res) => {
-  if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
+usersRouter.get("/leaderboard/students", optionalAuthMiddleware, asyncHandler(async (req, res) => {
+  if (req.user && !hasPermission(req.user, "view_dashboard")) throw forbidden();
   
   // Rank only students by XP
   const rows = await Profile.aggregate([
@@ -238,8 +236,8 @@ usersRouter.get("/leaderboard/students", asyncHandler(async (req, res) => {
   sendSuccess(res, { items: items.filter(Boolean), next_cursor: null, has_more: false });
 }));
 
-usersRouter.get("/leaderboard/campuses", asyncHandler(async (req, res) => {
-  if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
+usersRouter.get("/leaderboard/campuses", optionalAuthMiddleware, asyncHandler(async (req, res) => {
+  if (req.user && !hasPermission(req.user, "view_dashboard")) throw forbidden();
   const rows = await User.aggregate([
     { $match: { role: "student", disabledAt: null, institution: { $ne: null } } },
     { $group: { _id: "$institution", members: { $sum: 1 } } },
@@ -262,8 +260,8 @@ usersRouter.get("/leaderboard/campuses", asyncHandler(async (req, res) => {
   });
 }));
 
-usersRouter.get("/leaderboard/chapters", asyncHandler(async (req, res) => {
-  if (!hasPermission(req.user, "view_dashboard")) throw forbidden();
+usersRouter.get("/leaderboard/chapters", optionalAuthMiddleware, asyncHandler(async (req, res) => {
+  if (req.user && !hasPermission(req.user, "view_dashboard")) throw forbidden();
   
   // Rank institutions by Total XP of their students
   const rows = await Profile.aggregate([
@@ -294,6 +292,8 @@ usersRouter.get("/leaderboard/chapters", asyncHandler(async (req, res) => {
     has_more: false,
   });
 }));
+
+usersRouter.use(authMiddleware);
 
 usersRouter.get("/", asyncHandler(async (req, res) => {
   const requestedInstitutionId = req.query.institution_id;

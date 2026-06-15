@@ -53,8 +53,15 @@ const institutionSchema = z.object({
   departments: z.array(z.string().max(100)).optional(),
 });
 
-institutionsRouter.get("/public", asyncHandler(async (_req, res) => {
-  const institutions = await Institution.find().sort({ name: 1 });
+institutionsRouter.get("/public", asyncHandler(async (req, res) => {
+  const filter = {};
+  if (req.query.stage) {
+    const stages = Array.isArray(req.query.stage)
+      ? req.query.stage
+      : String(req.query.stage).split(",").map(s => s.trim());
+    filter.pipelineStage = { $in: stages };
+  }
+  const institutions = await Institution.find(filter).sort({ name: 1 });
   sendSuccess(res, { items: institutions.map(serializeInstitution), next_cursor: null, has_more: false });
 }));
 

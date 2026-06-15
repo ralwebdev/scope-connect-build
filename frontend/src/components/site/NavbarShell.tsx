@@ -45,6 +45,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
   const [userOpen, setUserOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [shimmer, setShimmer] = useState(false);
+  const [scrollPastHero, setScrollPastHero] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +149,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
         if (y < 8) setCollapsed(false);
         else if (goingDown && y > 32) setCollapsed(true);
         else if (!goingDown && y < 24) setCollapsed(false);
+        setScrollPastHero(y > 450);
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -421,9 +423,18 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                     <Button asChild variant="ghost" size="sm" className="h-8 rounded-full px-3 text-xs">
                       <Link to="/auth">Log in</Link>
                     </Button>
-                    <Button asChild size="sm" className="h-8 rounded-full bg-gradient-brand px-3 text-xs text-brand-foreground shadow-brand hover:opacity-95">
-                      <Link to="/auth">Join Scope</Link>
-                    </Button>
+                    <div
+                      className={cn(
+                        "overflow-hidden whitespace-nowrap transition-all duration-300 ease-out transform-gpu",
+                        scrollPastHero 
+                          ? "max-w-[120px] opacity-100 scale-100 translate-x-0 ml-1" 
+                          : "max-w-0 opacity-0 scale-95 translate-x-2 pointer-events-none"
+                      )}
+                    >
+                      <Button asChild size="sm" className="h-8 rounded-full bg-gradient-brand px-3.5 text-xs text-brand-foreground shadow-brand hover:scale-[1.03] active:scale-[0.97] transition-all duration-200">
+                        <Link to="/auth">Join Scope</Link>
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>

@@ -260,8 +260,11 @@ export type BackendInstitution = {
 };
 
 export const backendInstitutions = {
-  publicList() {
-    return api<{ items: BackendInstitution[]; next_cursor: string | null; has_more: boolean }>("/api/v1/institutions/public");
+  publicList(params?: { stage?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.stage) qs.set("stage", params.stage);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ items: BackendInstitution[]; next_cursor: string | null; has_more: boolean }>(`/api/v1/institutions/public${suffix}`);
   },
   campusSummary() {
     return api<{
