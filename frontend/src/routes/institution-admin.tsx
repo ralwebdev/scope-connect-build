@@ -707,8 +707,10 @@ type Member = {
   role: "student" | "campus_leader" | "faculty_coordinator" | "institutional_admin";
   status: "pending" | "active" | "deactivated";
   department?: string;
+  departmentId?: string | null;
   institutionMemberId?: string;
   verificationRequestedAt?: string | null;
+  phone?: string | null;
 };
 function readMembers(id: string): Member[] {
   if (typeof window === "undefined") return seedMembers();
@@ -738,6 +740,7 @@ function MemberRoster({
   loading,
   user,
   onUpdate,
+  onEdit,
   onDelete,
   showDepartment = false,
   showVerificationColumns = false,
@@ -746,6 +749,7 @@ function MemberRoster({
   loading: boolean;
   user: any;
   onUpdate: (id: string, patch: Partial<Member>) => void;
+  onEdit?: (member: Member) => void;
   onDelete?: (id: string) => void;
   showDepartment?: boolean;
   showVerificationColumns?: boolean;
@@ -805,6 +809,11 @@ function MemberRoster({
                   <div className="flex justify-end gap-1.5">
                     {!isLocked && (
                       <>
+                        {onEdit && (
+                          <Button size="sm" variant="outline" onClick={() => onEdit(m)}>
+                            <Edit className="mr-1 h-3 w-3" /> Edit
+                          </Button>
+                        )}
                         {m.status === "pending" && (
                           <>
                             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white animate-in fade-in" onClick={() => onUpdate(m.id, { status: "active" })}><CheckCircle2 className="mr-1 h-3 w-3" /> Approve</Button>
@@ -843,6 +852,17 @@ function MembersView({ institutionId }: { institutionId: string }) {
   const facultyOnly = user?.role_variant === "faculty_coordinator" || user?.role === "faculty";
   const [remoteMembers, setRemoteMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    departmentId: "",
+    institutionMemberId: "",
+  });
   useEffect(() => {
     let cancelled = false;
     setLoadingMembers(true);
@@ -858,6 +878,19 @@ function MembersView({ institutionId }: { institutionId: string }) {
       .finally(() => {
         if (!cancelled) setLoadingMembers(false);
       });
+    return () => { cancelled = true; };
+  }, [institutionId]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { backendDepartments } = await import("@/lib/api/endpoints");
+        const items = await backendDepartments.list(institutionId);
+        if (!cancelled) setDepartments(items.map((item) => ({ id: item.id, name: item.name, code: item.code })));
+      } catch (error) {
+        if (!cancelled) setDepartments([]);
+      }
+    })();
     return () => { cancelled = true; };
   }, [institutionId]);
   const members = remoteMembers;
@@ -920,6 +953,49 @@ function MembersView({ institutionId }: { institutionId: string }) {
     }
   };
 
+  const openEdit = (member: Member) => {
+    setEditingMember(member);
+    setEditForm({
+      name: member.name || "",
+      email: member.email || "",
+      phone: member.phone || "",
+      departmentId: member.departmentId || "",
+      institutionMemberId: member.institutionMemberId || "",
+    });
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editingMember) return;
+    const normalizedName = editForm.name.trim();
+    const normalizedEmail = editForm.email.trim();
+
+    if (!normalizedName || !normalizedEmail) {
+      toast.error("Name and email are required.");
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const payload = {
+        name: normalizedName,
+        email: normalizedEmail,
+        phone: editForm.phone.trim() || null,
+        department_id: editForm.departmentId || null,
+        institution_member_id: editForm.institutionMemberId.trim() || null,
+      };
+      const { user: updatedUser } = await backendUsers.adminUpdate(editingMember.id, payload);
+      setRemoteMembers((current) => current.map((member) => member.id === updatedUser.id ? memberFromUser(updatedUser) : member));
+      setEditOpen(false);
+      setEditingMember(null);
+      toast.success("Student details updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update student details.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <Card className="p-5">
       <Tabs defaultValue="students">
@@ -943,6 +1019,7 @@ function MembersView({ institutionId }: { institutionId: string }) {
             loading={loadingMembers}
             user={user}
             onUpdate={update}
+            onEdit={openEdit}
             showDepartment={true}
             showVerificationColumns={true}
           />
@@ -968,6 +1045,53 @@ function MembersView({ institutionId }: { institutionId: string }) {
           />
         </TabsContent>}
       </Tabs>
+
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditingMember(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Student Details</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input value={editForm.name} onChange={(e) => setEditForm((current) => ({ ...current, name: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm((current) => ({ ...current, email: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm((current) => ({ ...current, phone: e.target.value }))} placeholder="+91 9876543210" />
+            </div>
+            <div className="space-y-2">
+              <Label>Department</Label>
+              <select
+                value={editForm.departmentId}
+                onChange={(e) => setEditForm((current) => ({ ...current, departmentId: e.target.value }))}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">No department</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.code ? `${department.name} (${department.code})` : department.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Roll Number</Label>
+              <Input value={editForm.institutionMemberId} onChange={(e) => setEditForm((current) => ({ ...current, institutionMemberId: e.target.value }))} placeholder="Institution roll number" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={savingEdit} className="bg-gradient-brand text-brand-foreground">
+              {savingEdit ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -990,8 +1114,10 @@ function memberFromUser(user: ScopeUser): Member {
     role,
     status,
     department: user.department_name || user.primary_domain || undefined,
+    departmentId: user.department_id || null,
     institutionMemberId: user.institution_member_id || undefined,
     verificationRequestedAt: user.verification_requested_at || null,
+    phone: user.phone || null,
   };
 }
 
