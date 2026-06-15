@@ -63,8 +63,9 @@ export const Route = createFileRoute("/institution-admin")({
 function useMyInstitution() {
   const user = useUser();
   const data = useStoreValue(() => crm.all());
+  const institutions = data?.institutions ?? [];
   return useMemo(() => {
-    if (!user) return data.institutions[0] ?? null;
+    if (!user) return institutions[0] ?? null;
     if (user.institution?.id) {
       const fallback: Institution = {
         id: user.institution.id,
@@ -83,22 +84,23 @@ function useMyInstitution() {
         notes: "",
         updatedAt: Date.now(),
       };
-      return data.institutions.find((i) => i.id === user.institution?.id) ?? fallback;
+      return institutions.find((i) => i.id === user.institution?.id) ?? fallback;
     }
     const handle = user.email?.split("@")[0]?.toLowerCase() ?? "";
-    const match = data.institutions.find((i) => handle && i.name.toLowerCase().includes(handle.split(".")[0]));
-    return match ?? data.institutions[0] ?? null;
-  }, [user, data.institutions]);
+    const match = institutions.find((i) => handle && i.name.toLowerCase().includes(handle.split(".")[0]));
+    return match ?? institutions[0] ?? null;
+  }, [institutions, user]);
 }
 
 function useAccessibleInstitutions() {
   const role = useRole();
   const data = useStoreValue(() => crm.all());
+  const institutions = data?.institutions ?? [];
   const mapped = useMyInstitution();
   return useMemo(() => {
-    if (role === "scope_super_admin" || role === "super_admin") return data.institutions;
+    if (role === "scope_super_admin" || role === "super_admin") return institutions;
     return mapped ? [mapped] : [];
-  }, [role, data.institutions, mapped]);
+  }, [institutions, mapped, role]);
 }
 
 function normalizeInstitutionName(value?: string | null) {
@@ -3217,7 +3219,8 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
 
 function ReceivedDocuments({ institutionId }: { institutionId: string }) {
   const data = useStoreValue(() => crm.all());
-  const inst = data.institutions.find((i) => i.id === institutionId);
+  const institutions = data?.institutions ?? [];
+  const inst = institutions.find((i) => i.id === institutionId);
   const docs = inst?.documents || [];
 
   return (
