@@ -2556,6 +2556,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [manageProject, setManageProject] = useState<any>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [customIsTeam, setCustomIsTeam] = useState(true);
   const defaultProjectForm = () => ({
     title: "",
@@ -2574,6 +2575,43 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
   const [newProject, setNewProject] = useState({
     ...defaultProjectForm(),
   });
+
+  const resetProjectForm = () => {
+    setEditingProjectId(null);
+    setCustomIsTeam(true);
+    setNewProject(defaultProjectForm());
+  };
+
+  const openCreateModal = () => {
+    resetProjectForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (project: any) => {
+    setEditingProjectId(project.id);
+    const isTeamProject = (project.team_members_limit ?? 1) > 1 || (project.teams_allowed ?? 0) > 1;
+    setCustomIsTeam(isTeamProject);
+    setNewProject({
+      title: project.title ?? "",
+      summary: project.summary ?? "",
+      description: project.description ?? "",
+      domain: project.domain ?? "Software",
+      capacity: Number(project.capacity ?? 5) || 5,
+      teams_allowed: Number(project.teams_allowed ?? 1) || 1,
+      team_members_limit: Number(project.team_members_limit ?? 1) || 1,
+      status: (project.status as "open" | "closed" | "draft") ?? "open",
+      visibility: project.visibility ?? "institution",
+      minimum_xp_required: Number(project.minimum_xp_required ?? 0) || 0,
+      xp_commitment_stake: Number(project.xp_commitment_stake ?? 50) || 50,
+      reward_pool_xp: Number(project.reward_pool_xp ?? 0) || 0,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleModalChange = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open) resetProjectForm();
+  };
 
   // Resolve the real MongoDB institution ID from the logged-in user's session
   // (user.institution.id is the backend ObjectId) with the CRM store ID as fallback.
@@ -2602,25 +2640,29 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
     fetchProjects();
   }, [backendInstitutionId]);
 
-  const handleCreate = async () => {
+  const handleSaveProject = async () => {
     if (!newProject.title.trim()) return toast.error("Project title is required");
     if (!newProject.summary.trim()) return toast.error("Project summary is required");
     try {
       const { backendProjects } = await import("@/lib/api/endpoints");
-      // Explicitly pass institution_id so the project is linked to this institution
-      await backendProjects.create({
+      const payload = {
         ...newProject,
         team_members_limit: customIsTeam ? newProject.team_members_limit : 1,
         teams_allowed: customIsTeam ? newProject.teams_allowed : newProject.capacity,
         institution_id: backendInstitutionId,
-      });
-      toast.success("Project launched successfully!");
+      };
+      if (editingProjectId) {
+        await backendProjects.update(editingProjectId, payload);
+        toast.success("Project updated successfully!");
+      } else {
+        await backendProjects.create(payload);
+        toast.success("Project launched successfully!");
+      }
       setIsModalOpen(false);
-      setCustomIsTeam(true);
-      setNewProject(defaultProjectForm());
+      resetProjectForm();
       fetchProjects();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to launch project");
+      toast.error(error?.message || (editingProjectId ? "Failed to update project" : "Failed to launch project"));
     }
   };
 
@@ -2649,7 +2691,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
           <h3 className="text-lg font-bold">Campus Projects</h3>
           <p className="text-sm text-muted-foreground">Manage exclusive opportunities for your students.</p>
         </div>
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <Dialog open={isModalOpen} onOpenChange={handleModalChange}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-brand text-brand-foreground shadow-brand">
               <Plus className="mr-2 h-4 w-4" /> Launch Project
@@ -2657,12 +2699,12 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
           </DialogTrigger>
           <DialogContent className="max-w-5xl">
             <DialogHeader>
-              <DialogTitle>Launch New Project</DialogTitle>
+              <DialogTitle>{editingProjectId ? "Edit Project" : "Launch New Project"}</DialogTitle>
             </DialogHeader>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleCreate();
+                handleSaveProject();
               }}
               className="grid gap-4 py-4"
             >
@@ -2815,7 +2857,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                 </div>
               </div>
               <Button type="submit" className="justify-self-end bg-gradient-brand text-brand-foreground">
-                Create Project
+                {editingProjectId ? "Save Changes" : "Create Project"}
               </Button>
             </form>
           </DialogContent>
@@ -2832,7 +2874,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-2xl">🚀</div>
             <h4 className="mt-4 font-semibold text-foreground">No campus projects yet</h4>
             <p className="mt-1 text-sm text-muted-foreground">Launch your first exclusive opportunity to engage your students.</p>
-            <Button variant="outline" className="mt-4" onClick={() => setIsModalOpen(true)}>Launch First Project</Button>
+            <Button variant="outline" className="mt-4" onClick={openCreateModal}>Launch First Project</Button>
           </Card>
         ) : (
           projects.map((project) => (
@@ -2852,7 +2894,9 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"><Edit className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => openEditModal(project)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(project.id)} className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>

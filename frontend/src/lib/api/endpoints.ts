@@ -383,7 +383,7 @@ export const backendProjects = {
   apply(id: string, message: string) {
     return this.join(id, message);
   },
-  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string; minimum_xp_required: number; xp_commitment_stake: number; reward_pool_xp: number }>) {
+  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string; minimum_xp_required: number; xp_commitment_stake: number; reward_pool_xp: number; capacity: number; teams_allowed: number; team_members_limit: number; visibility: string; institution_id: string | null }>) {
     return api<{ project: BackendProject }>(`/api/v1/projects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
