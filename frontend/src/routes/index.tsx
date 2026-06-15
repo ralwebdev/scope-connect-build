@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { backendInstitutions, backendReports, backendUsers } from "@/lib/api/endpoints";
 import {
   ArrowRight,
   Sparkles,
@@ -118,6 +119,7 @@ function LandingPage() {
       </section>
       <TopChaptersSection />
       <TopBuildersSection />
+      <TopInstitutionsSection />
       <ProjectsShowcase />
       <EventsSection />
       <Testimonials />
@@ -134,46 +136,69 @@ function LandingPage() {
 function Hero() {
   const trackPrimary = () => analytics.track("cta_click_primary");
   const trackSecondary = () => analytics.track("cta_click_secondary");
+
   return (
-    <section className="relative overflow-hidden bg-gradient-hero text-primary-foreground">
+    <section className="relative overflow-hidden bg-gradient-hero text-primary-foreground py-16 sm:py-24">
       <div className="pointer-events-none absolute inset-0 bg-gradient-glow" />
       <div className="pointer-events-none absolute -left-20 top-20 h-72 w-72 rounded-full bg-brand/30 blur-3xl animate-pulse-glow" />
       <div className="pointer-events-none absolute -right-20 bottom-10 h-80 w-80 rounded-full bg-cyan/20 blur-3xl animate-pulse-glow" />
 
-      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-16 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
-          <Badge className="mb-6 border-cyan/30 bg-cyan/10 text-cyan hover:bg-cyan/15">
+          <Badge className="mb-6 border-cyan/35 bg-cyan/10 text-cyan hover:bg-cyan/15 px-3 py-1 text-xs font-semibold tracking-wide">
             <Sparkles className="mr-1.5 h-3 w-3" /> India's Curated Campus Opportunity Platform
           </Badge>
-          <h1 className="text-balance text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+          <h1 className="text-balance text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl leading-[1.15] sm:leading-[1.1]">
             Where Campuses Build
             <br />
             <span className="bg-gradient-to-r from-cyan via-cyan to-brand bg-clip-text text-transparent">
               Real Opportunities.
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg font-normal leading-relaxed tracking-wide text-primary-foreground/80 sm:text-xl sm:leading-loose">
+          <p className="mx-auto mt-6 max-w-2xl text-balance text-base font-normal leading-relaxed tracking-wide text-primary-foreground/80 sm:text-lg sm:leading-loose">
             Verified Challenges, Campus Growth Programs, and Real Opportunities for Ambitious Students. Join 12,000+ Students across 142 Institutions.
           </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button asChild size="lg" className="bg-gradient-brand text-brand-foreground shadow-brand hover:opacity-95">
+
+          {/* Standard CTAs */}
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Button
+              asChild
+              size="lg"
+              className="bg-gradient-brand text-brand-foreground shadow-brand hover:shadow-brand/60 hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold px-8 py-3.5"
+            >
               <Link to="/auth" onClick={trackPrimary}>
                 Join Scope Connect <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-primary-foreground/20 bg-primary-foreground/5 text-primary-foreground hover:bg-primary-foreground/10">
-              <Link to="/projects" onClick={trackSecondary}>Explore Live Projects</Link>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border border-primary-foreground/15 bg-transparent text-primary-foreground hover:border-primary-foreground/35 hover:bg-primary-foreground/5 active:scale-[0.98] transition-all duration-200 rounded-xl font-semibold px-8 py-3.5"
+            >
+              <Link to="/projects" onClick={trackSecondary}>
+                Explore Live Projects
+              </Link>
             </Button>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-primary-foreground/70">
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> 10+ Campuses Live</span>
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> Curated Challenges Only</span>
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> Student-First Network</span>
-            <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5 text-cyan" /> Privacy safe</span>
+          {/* Minimalist Trust Signal Badges */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-primary-foreground/75">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-foreground/5 border border-primary-foreground/10 font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5 text-cyan" /> 10+ Campuses Live
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-foreground/5 border border-primary-foreground/10 font-medium">
+              <ShieldCheck className="h-3.5 w-3.5 text-cyan" /> Curated Challenges Only
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-foreground/5 border border-primary-foreground/10 font-medium">
+              <Users className="h-3.5 w-3.5 text-cyan" /> Student-First Network
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-foreground/5 border border-primary-foreground/10 font-medium">
+              <Lock className="h-3.5 w-3.5 text-cyan" /> Privacy Safe
+            </span>
           </div>
 
-          <div className="mt-12 grid grid-cols-2 gap-6 sm:grid-cols-4">
+          <div className="mt-12 grid grid-cols-2 gap-6 sm:grid-cols-4 border-t border-primary-foreground/10 pt-8">
             {liveMetrics.map((m) => (
               <div key={m.label} className="text-center">
                 <div className="text-3xl font-bold tracking-tight sm:text-4xl">{m.value}</div>
@@ -189,10 +214,56 @@ function Hero() {
 
 import { motion } from "framer-motion";
 
+type LeaderboardRow = {
+  id: string;
+  name: string;
+  sub: string;
+  value: number;
+  icon?: string;
+};
+
+function asLeaderboardRows(items: Array<{ id: string; name: string; sub: string; value: number }>, fallback: Array<{ id: string; name: string; sub: string; value: number; icon?: string }>): LeaderboardRow[] {
+  const source = items.length > 0 ? items : fallback;
+  return source.slice(0, 6).map((item, index) => ({
+    ...item,
+    icon: item.icon ?? (index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⚡"),
+  }));
+}
+
 function Partners() {
-  const half = Math.ceil(campusPartners.length / 2);
-  const row1 = campusPartners.slice(0, half);
-  const row2 = campusPartners.slice(half);
+  const [dynamicPartners, setDynamicPartners] = useState<{ name: string; city: string; members: number; }[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    backendInstitutions
+      .publicList({ stage: "Launch Pending,Live Chapter" })
+      .then((res) => {
+        if (active && res?.items) {
+          const fetched = res.items.map((item) => ({
+            name: item.name,
+            city: item.city || "",
+            members: 0,
+          }));
+          setDynamicPartners(fetched);
+        }
+      })
+      .catch((err) => console.error("Failed to load dynamic partners:", err));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Combine defaults with dynamically loaded partners (avoid duplicates by name)
+  const combinedPartners = [...campusPartners];
+  dynamicPartners.forEach((dp) => {
+    if (!combinedPartners.some((p) => p.name.toLowerCase() === dp.name.toLowerCase())) {
+      combinedPartners.push(dp);
+    }
+  });
+
+  const half = Math.ceil(combinedPartners.length / 2);
+  const row1 = combinedPartners.slice(0, half);
+  const row2 = combinedPartners.slice(half);
 
   // Triple the rows for smooth infinite scrolling loop
   const tickerRow1 = [...row1, ...row1, ...row1];
@@ -214,7 +285,7 @@ function Partners() {
             animate={{ x: ["-33.33%", "0%"] }}
             transition={{
               ease: "linear",
-              duration: 25,
+              duration: 35,
               repeat: Infinity,
             }}
           >
@@ -236,7 +307,7 @@ function Partners() {
             animate={{ x: ["0%", "-33.33%"] }}
             transition={{
               ease: "linear",
-              duration: 25,
+              duration: 35,
               repeat: Infinity,
             }}
           >
@@ -339,71 +410,277 @@ function LiveMetricsSection() {
 }
 
 function TopChaptersSection() {
+  const [chapters, setChapters] = useState<LeaderboardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    backendUsers.listChaptersByXp()
+      .then((res) => {
+        if (!active) return;
+        setChapters(asLeaderboardRows(
+          res.items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            sub: item.sub || "Live chapter",
+            value: item.value || 0,
+          })),
+          topChapters.map((chapter, index) => ({
+            id: chapter.name,
+            name: chapter.name,
+            sub: `${chapter.campus} · ${chapter.growth}`,
+            value: chapter.members,
+            icon: index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⚡",
+          })),
+        ));
+      })
+      .catch((err) => {
+        console.error("Failed to load top chapters:", err);
+        if (active) {
+          setChapters(asLeaderboardRows(
+            [],
+            topChapters.map((chapter, index) => ({
+              id: chapter.name,
+              name: chapter.name,
+              sub: `${chapter.campus} · ${chapter.growth}`,
+              value: chapter.members,
+              icon: index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⚡",
+            })),
+          ));
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <section className="py-20 sm:py-28">
+    <section className="bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Top chapters this month</h2>
-            <p className="mt-2 text-muted-foreground">The campus chapters setting the pace.</p>
+        <div className="mx-auto max-w-2xl text-center">
+          <Badge variant="outline" className="border-cyan/20 bg-cyan/10 text-cyan">Live chapter rankings</Badge>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Top Chapters</h2>
+          <p className="mt-3 text-sm text-muted-foreground">The campus chapters setting the pace by total builder XP.</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12 text-sm text-muted-foreground">Loading chapters...</div>
+        ) : (
+          <div className="mx-auto mt-12 grid gap-4 md:grid-cols-2">
+            {chapters.map((c, i) => (
+              <Card key={c.name} className="flex items-center gap-4 border-border/60 p-4 transition-all hover:-translate-y-0.5 hover:shadow-elegant">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-sm font-bold text-brand-foreground shadow-brand">
+                  {c.icon ?? "⚡"}
+                </div>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-muted-foreground">
+                  #{i + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
+                  <div className="text-xs text-muted-foreground">{c.sub}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-sm font-bold text-foreground">{c.value.toLocaleString()}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground ml-1">XP</span>
+                </div>
+              </Card>
+            ))}
           </div>
-          <Button asChild variant="outline">
-            <Link to="/leaderboards">See full leaderboard <ArrowRight className="ml-2 h-4 w-4" /></Link>
+        )}
+
+        <div className="mt-10 text-center">
+          <Button asChild variant="outline" size="sm" className="rounded-xl border border-border px-5 py-2 hover:bg-secondary/60">
+            <Link to="/leaderboards">See Full Leaderboard →</Link>
           </Button>
         </div>
-        <Card className="mt-8 divide-y divide-border overflow-hidden">
-          {topChapters.map((c) => (
-            <div key={c.name} className="flex items-center gap-4 p-5 transition-colors hover:bg-secondary/50">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-hero text-sm font-bold text-primary-foreground">
-                #{c.rank}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold text-foreground">{c.name}</div>
-                <div className="text-xs text-muted-foreground">{c.campus}</div>
-              </div>
-              <div className="hidden text-right sm:block">
-                <div className="text-sm font-semibold text-foreground">{c.members} members</div>
-                <div className="text-xs text-success">{c.growth} this month</div>
-              </div>
-              <Badge className="bg-cyan/15 text-cyan-foreground hover:bg-cyan/20">{c.growth}</Badge>
-            </div>
-          ))}
-        </Card>
       </div>
     </section>
   );
 }
 
 function TopBuildersSection() {
+  const [builders, setBuilders] = useState<LeaderboardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    backendUsers.listStudentsByXp()
+      .then((res) => {
+        if (!active) return;
+        setBuilders(asLeaderboardRows(
+          res.items.map((member) => ({
+            id: member.id,
+            name: member.name,
+            sub: `${member.campus || "Scope Connect"} · Level ${member.stats?.level ?? 1}`,
+            value: member.stats?.xp ?? 0,
+          })),
+          topBuilders.slice(0, 6).map((builder, index) => ({
+            id: builder.name,
+            name: builder.name,
+            sub: `${builder.campus} · ${builder.level}`,
+            value: builder.points,
+            icon: builder.badge ?? (index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⚡"),
+          })),
+        ));
+      })
+      .catch((err) => {
+        console.error("Failed to load top builders:", err);
+        if (active) {
+          setBuilders(asLeaderboardRows(
+            [],
+            topBuilders.slice(0, 6).map((builder, index) => ({
+              id: builder.name,
+              name: builder.name,
+              sub: `${builder.campus} · ${builder.level}`,
+              value: builder.points,
+              icon: builder.badge ?? (index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⚡"),
+            })),
+          ));
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <section className="bg-secondary/40 py-20 sm:py-28">
+    <section className="bg-secondary/20 py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Top builders</h2>
-            <p className="mt-2 text-muted-foreground">Members earning serious Scope Points this month.</p>
-          </div>
+        <div className="mx-auto max-w-2xl text-center">
+          <Badge variant="outline" className="border-brand/20 bg-brand/10 text-brand">Live builder rankings</Badge>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Top Builders</h2>
+          <p className="mt-3 text-sm text-muted-foreground">Gen Z builders shipping projects and earning Scope XP.</p>
         </div>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {topBuilders.map((b, i) => (
-            <Card key={b.name} className="flex items-center gap-4 p-5 transition-all hover:-translate-y-0.5 hover:shadow-elegant">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-lg font-bold text-brand-foreground shadow-brand">
-                {b.name.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-semibold text-foreground">{b.name}</span>
-                  <span aria-hidden>{b.badge}</span>
+
+        {loading ? (
+          <div className="flex justify-center py-12 text-sm text-muted-foreground">Loading builders...</div>
+        ) : (
+          <div className="mx-auto mt-12 grid gap-4 md:grid-cols-2">
+            {builders.map((b, i) => {
+              return (
+                <Card key={b.name} className="flex items-center gap-4 border-border/60 p-4 transition-all hover:-translate-y-0.5 hover:shadow-elegant">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-sm font-bold text-brand-foreground shadow-brand">
+                    {b.icon ?? "⚡"}
+                  </div>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-muted-foreground">
+                    #{i + 1}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-foreground">{b.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{b.sub}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-sm font-bold text-foreground">{b.value.toLocaleString()}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground ml-1">XP</span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-10 text-center">
+          <Button asChild variant="outline" size="sm" className="rounded-xl border border-border px-5 py-2 hover:bg-secondary/60">
+            <Link to="/leaderboards">See Full Leaderboard →</Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TopInstitutionsSection() {
+  const [institutes, setInstitutes] = useState<LeaderboardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    backendReports.globalLeaderboard()
+      .then((res) => {
+        if (!active) return;
+        setInstitutes(asLeaderboardRows(
+          res.items.map((institution) => ({
+            id: institution.id,
+            name: institution.name,
+            sub: "Ranked by total campus XP",
+            value: institution.xp,
+          })),
+          topChapters.slice(0, 6).map((chapter, index) => ({
+            id: chapter.campus,
+            name: chapter.campus,
+            sub: `${chapter.name} · ${chapter.growth}`,
+            value: chapter.members * 100,
+            icon: index === 0 ? "🏛️" : index === 1 ? "🏫" : index === 2 ? "🎓" : "📍",
+          })),
+        ));
+      })
+      .catch((err) => {
+        console.error("Failed to load top institutions:", err);
+        if (active) {
+          setInstitutes(asLeaderboardRows(
+            [],
+            topChapters.slice(0, 6).map((chapter, index) => ({
+              id: chapter.campus,
+              name: chapter.campus,
+              sub: `${chapter.name} · ${chapter.growth}`,
+              value: chapter.members * 100,
+              icon: index === 0 ? "🏛️" : index === 1 ? "🏫" : index === 2 ? "🎓" : "📍",
+            })),
+          ));
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <section className="bg-background py-16 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <Badge variant="outline" className="border-success/20 bg-success/10 text-success">Institute ranking</Badge>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Top Institutes</h2>
+          <p className="mt-3 text-sm text-muted-foreground">Campuses ranked by total builder XP across their chapters.</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12 text-sm text-muted-foreground">Loading institutions...</div>
+        ) : (
+          <div className="mx-auto mt-12 grid gap-4 md:grid-cols-2">
+            {institutes.map((c, i) => (
+              <Card key={c.name} className="flex items-center gap-4 border-border/60 p-4 transition-all hover:-translate-y-0.5 hover:shadow-elegant">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-success/90 to-cyan/90 text-sm font-bold text-white shadow-brand">
+                  {c.icon ?? "🏛️"}
                 </div>
-                <div className="text-xs text-muted-foreground">{b.campus} · {b.level}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-bold text-foreground">{b.points.toLocaleString()}</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pts</div>
-              </div>
-              <Badge variant="outline" className="hidden sm:inline-flex">#{i + 1}</Badge>
-            </Card>
-          ))}
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-muted-foreground">
+                  #{i + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
+                  <div className="text-xs text-muted-foreground">{c.sub}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-sm font-bold text-foreground">{c.value.toLocaleString()}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground ml-1">XP</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-10 text-center">
+          <Button asChild variant="outline" size="sm" className="rounded-xl border border-border px-5 py-2 hover:bg-secondary/60">
+            <Link to="/leaderboards">See Full Leaderboard →</Link>
+          </Button>
         </div>
       </div>
     </section>

@@ -2,20 +2,7 @@
 // Hand-tuned for "launch full, not empty": realistic Indian campus context,
 // rich variety, and enough volume that every page feels in motion.
 
-export const campusPartners = [
-  { name: "IIT Bombay", city: "Mumbai", members: 842 },
-  { name: "BITS Pilani", city: "Pilani", members: 654 },
-  { name: "VIT Vellore", city: "Vellore", members: 591 },
-  { name: "NIT Trichy", city: "Trichy", members: 478 },
-  { name: "IIIT Hyderabad", city: "Hyderabad", members: 433 },
-  { name: "Manipal University", city: "Manipal", members: 402 },
-  { name: "DTU Delhi", city: "New Delhi", members: 388 },
-  { name: "SRM University", city: "Chennai", members: 365 },
-  { name: "Jadavpur University", city: "Kolkata", members: 342 },
-  { name: "St. Xavier's", city: "Kolkata", members: 298 },
-  { name: "Heritage Institute", city: "Kolkata", members: 264 },
-  { name: "Amity Kolkata", city: "Kolkata", members: 231 },
-];
+export const campusPartners = [];
 
 export const liveMetrics = [
   { label: "Campus Partners", value: "142+", change: "+18 this month" },

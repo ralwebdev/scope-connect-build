@@ -1,7 +1,7 @@
 import { env } from "../config/env.js";
 import { getRedisConnection } from "./redis.js";
 
-const NOTIFICATION_QUEUE_NAME = "notifications:deliveries";
+const NOTIFICATION_QUEUE_NAME = "notifications-deliveries";
 
 let bullmqModulePromise = null;
 let notificationQueuePromise = null;
