@@ -323,7 +323,7 @@ reportsRouter.get("/institution/:id", asyncHandler(async (req, res) => {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
   // 1. Student Metrics & Growth Trend
-  const users = await User.find({ institution: institutionId, disabledAt: null, role: "student" }).populate("profile");
+  const users = await User.find({ institution: institutionId, disabledAt: null, role: "student" }).populate("profile department");
   
   const growthTrend = [];
   for (let i = 0; i < 6; i++) {
@@ -377,6 +377,17 @@ reportsRouter.get("/institution/:id", asyncHandler(async (req, res) => {
     name: overrides[item.name] || item.name.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
   }));
 
+  // Department-wise Distribution
+  const departmentCounts = {};
+  for (const u of users) {
+    const deptName = u.department?.name || "General / Unassigned";
+    departmentCounts[deptName] = (departmentCounts[deptName] || 0) + 1;
+  }
+  const departmentDistribution = Object.entries(departmentCounts).map(([name, value]) => ({
+    name,
+    value
+  })).sort((a, b) => b.value - a.value);
+
   // 3. Project Metrics
   const projects = await Project.find({ institution: institutionId });
   const projectMetrics = {
@@ -418,6 +429,7 @@ reportsRouter.get("/institution/:id", asyncHandler(async (req, res) => {
     },
     growthTrend,
     skillDistribution,
+    departmentDistribution,
     projectMetrics,
     topPerformers
   });

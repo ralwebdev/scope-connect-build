@@ -1413,6 +1413,7 @@ function ReportsView({ institutionId, institutionName }: { institutionId: string
     metrics: { totalStudents: number; activeStudents: number; verifiedStudents: number; completionRate: number };
     growthTrend: Array<{ month: string; students: number }>;
     skillDistribution: Array<{ name: string; value: number }>;
+    departmentDistribution?: Array<{ name: string; value: number }>;
     projectMetrics: { total: number; open: number; inProgress: number; completed: number };
     topPerformers: any[];
   } | null>(null);
@@ -1499,7 +1500,7 @@ function ReportsView({ institutionId, institutionName }: { institutionId: string
             </Card>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-6">
             <Card className="p-5">
               <h4 className="mb-4 text-xs font-bold uppercase text-muted-foreground">Campus Growth</h4>
               <div className="h-[240px] w-full">
@@ -1524,29 +1525,55 @@ function ReportsView({ institutionId, institutionName }: { institutionId: string
               </div>
             </Card>
 
-            <Card className="p-5">
-              <h4 className="mb-4 text-xs font-bold uppercase text-muted-foreground">Skill Distribution</h4>
-              <div className="h-[240px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={data.skillDistribution}
-                      innerRadius={50}
-                      outerRadius={70}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {data.skillDistribution.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", color: "#000" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card className="p-5">
+                <h4 className="mb-4 text-xs font-bold uppercase text-muted-foreground">Skill Distribution</h4>
+                <div className="h-[240px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.skillDistribution}
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {data.skillDistribution.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", color: "#000" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <h4 className="mb-4 text-xs font-bold uppercase text-muted-foreground">Department Distribution</h4>
+                <div className="h-[240px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.departmentDistribution || []}
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {(data.departmentDistribution || []).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", color: "#000" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </div>
           </div>
 
           <Card className="overflow-x-auto p-5">

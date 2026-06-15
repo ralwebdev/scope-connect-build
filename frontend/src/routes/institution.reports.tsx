@@ -60,6 +60,7 @@ function InstitutionReportsPage() {
     metrics: { totalStudents: number; activeStudents: number; verifiedStudents: number; completionRate: number };
     growthTrend: Array<{ month: string; students: number }>;
     skillDistribution: Array<{ name: string; value: number }>;
+    departmentDistribution?: Array<{ name: string; value: number }>;
     projectMetrics: { total: number; open: number; inProgress: number; completed: number };
     topPerformers: any[];
   } | null>(null);
@@ -152,7 +153,7 @@ function InstitutionReportsPage() {
                 <Stat label="Total Projects" value={data.projectMetrics.total} icon={FolderKanban} />
               </div>
 
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="space-y-6">
                 {/* Growth Trend */}
                 <Card className="p-6 bg-card/30 backdrop-blur-sm">
                   <div className="flex items-center justify-between mb-6">
@@ -181,33 +182,63 @@ function InstitutionReportsPage() {
                   </div>
                 </Card>
 
-                {/* Skill Distribution */}
-                <Card className="p-6 bg-card/30 backdrop-blur-sm">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Skill Distribution</h3>
-                  </div>
-                  <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={data.skillDistribution}
-                          innerRadius={70}
-                          outerRadius={90}
-                          paddingAngle={8}
-                          dataKey="value"
-                        >
-                          {data.skillDistribution.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", color: "#000" }}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Skill Distribution */}
+                  <Card className="p-6 bg-card/30 backdrop-blur-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Skill Distribution</h3>
+                    </div>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={data.skillDistribution}
+                            innerRadius={70}
+                            outerRadius={90}
+                            paddingAngle={8}
+                            dataKey="value"
+                          >
+                            {data.skillDistribution.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", color: "#000" }}
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  {/* Department Distribution */}
+                  <Card className="p-6 bg-card/30 backdrop-blur-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Department Distribution</h3>
+                    </div>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={data.departmentDistribution || []}
+                            innerRadius={70}
+                            outerRadius={90}
+                            paddingAngle={8}
+                            dataKey="value"
+                          >
+                            {(data.departmentDistribution || []).map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", color: "#000" }}
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                </div>
               </div>
 
               {/* Top Performers */}
