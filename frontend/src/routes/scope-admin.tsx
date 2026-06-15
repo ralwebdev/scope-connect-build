@@ -430,6 +430,19 @@ function ScopeAnalyticsDashboard({
     "all",
   );
   const [membersSearch, setMembersSearch] = useState("");
+  const [editingMember, setEditingMember] = useState<ScopeUser | null>(null);
+  const [memberEditOpen, setMemberEditOpen] = useState(false);
+  const [memberEditLoading, setMemberEditLoading] = useState(false);
+  const [memberEditForm, setMemberEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    primaryDomain: "",
+    specialization: "",
+    institutionMemberId: "",
+    xp: "0",
+  });
 
   const liveInstitutions = useMemo(
     () =>
@@ -438,6 +451,8 @@ function ScopeAnalyticsDashboard({
       ),
     [institutions],
   );
+  const selectedInstitution =
+    liveInstitutions.find((institution) => institution.id === selectedInstId) ?? null;
 
   // Load global analytics once on mount
   useEffect(() => {
@@ -515,6 +530,11 @@ function ScopeAnalyticsDashboard({
     }
   }, [selectedInstId]);
 
+  useEffect(() => {
+    setEditingMember(null);
+    setMemberEditOpen(false);
+  }, [selectedInstId]);
+
   const handleUpdateStatus = async (
     userId: string,
     nextStatus: "active" | "rejected" | "pending_verification",
@@ -540,6 +560,63 @@ function ScopeAnalyticsDashboard({
     } catch (error) {
       console.error("Failed to update role:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update member role.");
+    }
+  };
+
+  const openMemberEditor = (member: ScopeUser) => {
+    setEditingMember(member);
+    setMemberEditForm({
+      name: member.name || "",
+      email: member.email || "",
+      phone: member.phone || "",
+      location: member.location || "",
+      primaryDomain: member.primary_domain || member.primaryDomain || "",
+      specialization: member.specialization || "",
+      institutionMemberId: member.institution_member_id || "",
+      xp: String(member.stats?.xp ?? 0),
+    });
+    setMemberEditOpen(true);
+  };
+
+  const saveMemberEdit = async () => {
+    if (!editingMember) return;
+
+    const normalizedName = memberEditForm.name.trim();
+    const normalizedEmail = memberEditForm.email.trim();
+    const normalizedXp = Number(memberEditForm.xp);
+
+    if (!normalizedName || !normalizedEmail) {
+      toast.error("Name and email are required.");
+      return;
+    }
+    if (!Number.isInteger(normalizedXp) || normalizedXp < 0) {
+      toast.error("XP must be a whole number greater than or equal to 0.");
+      return;
+    }
+
+    setMemberEditLoading(true);
+    try {
+      const { user: updatedUser } = await backendUsers.adminUpdate(editingMember.id, {
+        name: normalizedName,
+        email: normalizedEmail,
+        phone: memberEditForm.phone.trim() || null,
+        location: memberEditForm.location.trim() || null,
+        primary_domain: memberEditForm.primaryDomain.trim() || null,
+        specialization: memberEditForm.specialization.trim() || null,
+        institution_member_id: memberEditForm.institutionMemberId.trim() || null,
+        xp: normalizedXp,
+      });
+      setInstMembers((prev) =>
+        prev.map((member) => (member.id === updatedUser.id ? updatedUser : member)),
+      );
+      setEditingMember(updatedUser);
+      setMemberEditOpen(false);
+      toast.success("Member details updated.");
+    } catch (error) {
+      console.error("Failed to edit member:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update member details.");
+    } finally {
+      setMemberEditLoading(false);
     }
   };
 
@@ -829,6 +906,7 @@ function ScopeAnalyticsDashboard({
                   ))}
                 </div>
               </Card>
+
             </>
           )}
         </div>
@@ -856,7 +934,7 @@ function ScopeAnalyticsDashboard({
               </select>
               {selectedInstId && (
                 <Badge className="bg-brand/10 text-brand border-none">
-                  {liveInstitutions.find((i) => i.id === selectedInstId)?.stage}
+                  {selectedInstitution?.stage}
                 </Badge>
               )}
             </div>
@@ -1053,6 +1131,7 @@ function ScopeAnalyticsDashboard({
                           <th className="px-4 py-3">Role</th>
                           <th className="px-4 py-3">Phone</th>
                           <th className="px-4 py-3">Location</th>
+                          <th className="px-4 py-3">XP</th>
                           <th className="px-4 py-3">Status</th>
                           <th className="px-4 py-3 text-right">Actions</th>
                         </tr>
@@ -1150,6 +1229,16 @@ function ScopeAnalyticsDashboard({
                                 )}
                               </td>
 
+                              {/* XP */}
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="font-mono text-foreground">
+                                  {(m.stats?.xp ?? 0).toLocaleString()}
+                                </div>
+                                <div className="text-[10px] font-normal text-muted-foreground">
+                                  Level {m.stats?.level ?? 1}
+                                </div>
+                              </td>
+
                               {/* Status Badges */}
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {isDeactivated ? (
@@ -1179,6 +1268,15 @@ function ScopeAnalyticsDashboard({
                                   </span>
                                 ) : (
                                   <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-[10px] font-bold"
+                                      onClick={() => openMemberEditor(m)}
+                                    >
+                                      <Edit2 className="mr-1 h-3 w-3" />
+                                      Edit
+                                    </Button>
                                     {/* Verification controls */}
                                     {!isDeactivated &&
                                       m.student_status === "pending_verification" && (
@@ -1235,6 +1333,126 @@ function ScopeAnalyticsDashboard({
                   )}
                 </div>
               </Card>
+
+              <Dialog open={memberEditOpen} onOpenChange={setMemberEditOpen}>
+                <DialogContent className="sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Edit Member Details</DialogTitle>
+                    <DialogDescription>
+                      Update student details and XP for {editingMember?.name || "this member"}
+                      {selectedInstitution ? ` at ${selectedInstitution.name}.` : "."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label>Name</Label>
+                      <Input
+                        value={memberEditForm.name}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={memberEditForm.email}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({ ...current, email: event.target.value }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Phone</Label>
+                      <Input
+                        value={memberEditForm.phone}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({ ...current, phone: event.target.value }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Institution Member ID</Label>
+                      <Input
+                        value={memberEditForm.institutionMemberId}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({
+                            ...current,
+                            institutionMemberId: event.target.value,
+                          }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Location</Label>
+                      <Input
+                        value={memberEditForm.location}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({ ...current, location: event.target.value }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>XP</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={memberEditForm.xp}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({ ...current, xp: event.target.value }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Primary Domain</Label>
+                      <Input
+                        value={memberEditForm.primaryDomain}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({
+                            ...current,
+                            primaryDomain: event.target.value,
+                          }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Specialization</Label>
+                      <Input
+                        value={memberEditForm.specialization}
+                        onChange={(event) =>
+                          setMemberEditForm((current) => ({
+                            ...current,
+                            specialization: event.target.value,
+                          }))
+                        }
+                        className="mt-1.5"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setMemberEditOpen(false)}
+                      disabled={memberEditLoading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={saveMemberEdit} disabled={memberEditLoading}>
+                      {memberEditLoading ? "Saving..." : "Save changes"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </div>

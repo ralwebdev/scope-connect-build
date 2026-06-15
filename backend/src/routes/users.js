@@ -13,7 +13,7 @@ import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { deriveRoleFromEmail, hasPermission, roles, roleVariants } from "../utils/roles.js";
 import { serializeUser, serializeUsers } from "../utils/serializers.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
-import { awardXp } from "../utils/xp-engine.js";
+import { awardXp, revokeXp } from "../utils/xp-engine.js";
 import { XP_ACTIONS } from "../utils/xp-constants.js";
 import { dispatchNotification } from "../services/notification-dispatcher.js";
 
@@ -84,11 +84,21 @@ const adminCreateSchema = z.object({
 });
 
 const adminPatchSchema = z.object({
+  email: z.string().email().optional(),
+  name: z.string().min(1).max(120).optional(),
+  phone: z.string().max(20).optional().nullable(),
   role: z.enum(roles).optional(),
   role_variant: z.enum(roleVariants).optional(),
   institution_id: z.string().nullable().optional(),
+  department_id: z.string().nullable().optional(),
   disabled_at: z.string().datetime().nullable().optional(),
   founder: z.boolean().optional(),
+  location: z.string().max(120).optional().nullable(),
+  graduation_year: z.number().int().min(1950).max(2100).optional().nullable(),
+  primary_domain: z.string().max(80).optional().nullable(),
+  specialization: z.string().max(120).optional().nullable(),
+  institution_member_id: z.string().trim().min(2).max(80).optional().nullable(),
+  xp: z.number().int().min(0).max(1000000).optional(),
 });
 
 const memberStatusSchema = z.object({
@@ -1131,6 +1141,12 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (!user) throw notFound("User not found");
   let passwordChanged = false;
   const previousDepartmentId = user.department?.toString() || null;
+  const shouldUpdateProfile =
+    req.body.institution_id !== undefined
+    || req.body.location !== undefined
+    || req.body.graduation_year !== undefined
+    || req.body.primary_domain !== undefined
+    || req.body.specialization !== undefined;
 
   // Permission Check: Super Admin OR Scope Admin OR Institutional Admin for their own campus members
   const isSuperAdmin = hasPermission(req.user, "manage_users");
@@ -1218,6 +1234,11 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (req.body.middleName !== undefined) user.middleName = req.body.middleName?.trim?.() || null;
   if (req.body.lastName !== undefined) user.lastName = req.body.lastName?.trim?.() || null;
   if (req.body.phone !== undefined) user.phone = req.body.phone ? String(req.body.phone).trim() : null;
+  if (req.body.institution_member_id !== undefined) {
+    user.institutionMemberId = req.body.institution_member_id
+      ? String(req.body.institution_member_id).trim()
+      : null;
+  }
   if (req.body.name !== undefined) user.name = String(req.body.name).trim();
 
   if (req.body.role !== undefined) user.role = req.body.role;
@@ -1260,12 +1281,72 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
 
   await user.save();
 
-  if (req.body.institution_id !== undefined) {
+  if (shouldUpdateProfile) {
     await Profile.findOneAndUpdate(
       { user: user._id },
-      { institution: institution?._id ?? null, institutionVerified: Boolean(institution) },
+      {
+        ...(req.body.institution_id !== undefined && {
+          institution: institution?._id ?? null,
+          institutionVerified: Boolean(institution),
+        }),
+        ...(req.body.location !== undefined && { location: req.body.location ? String(req.body.location).trim() : null }),
+        ...(req.body.graduation_year !== undefined && { graduationYear: req.body.graduation_year ?? null }),
+        ...(req.body.primary_domain !== undefined && {
+          primaryDomain: req.body.primary_domain ? String(req.body.primary_domain).trim() : null,
+        }),
+        ...(req.body.specialization !== undefined && {
+          specialization: req.body.specialization ? String(req.body.specialization).trim() : null,
+        }),
+      },
       { upsert: true },
     );
+  }
+
+  if (req.body.xp !== undefined) {
+    const targetXp = Number(req.body.xp);
+    if (!Number.isFinite(targetXp) || targetXp < 0 || !Number.isInteger(targetXp)) {
+      throw new AppError(400, "INVALID_XP", "XP must be a whole number greater than or equal to 0");
+    }
+
+    const profile = await Profile.findOne({ user: user._id });
+    if (!profile) throw notFound("Profile not found");
+
+    const currentXp = profile.xp || 0;
+    const institutionIdForXp = user.institution?.toString() || institution?.id || null;
+
+    if (targetXp > currentXp) {
+      await awardXp({
+        userId: user._id,
+        institutionId: institutionIdForXp,
+        rule: "manual_adjustment",
+        amountOverride: targetXp - currentXp,
+        sourceType: "admin",
+        sourceId: req.user._id.toString(),
+        action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+        meta: {
+          reason: "Admin member edit",
+          target_user_id: user._id.toString(),
+          target_xp: targetXp,
+        },
+        text: `Admin adjusted XP to ${targetXp} (+${targetXp - currentXp})`,
+      });
+    } else if (targetXp < currentXp) {
+      await revokeXp({
+        userId: user._id,
+        institutionId: institutionIdForXp,
+        rule: "manual_adjustment",
+        amountOverride: currentXp - targetXp,
+        sourceType: "admin",
+        sourceId: req.user._id.toString(),
+        action: XP_ACTIONS.ADMIN_ADJUSTMENT,
+        meta: {
+          reason: "Admin member edit",
+          target_user_id: user._id.toString(),
+          target_xp: targetXp,
+        },
+        text: `Admin adjusted XP to ${targetXp} (-${currentXp - targetXp})`,
+      });
+    }
   }
 
   if ((user.role !== "faculty" || previousDepartmentId !== (user.department?.toString() || null)) && previousDepartmentId) {
