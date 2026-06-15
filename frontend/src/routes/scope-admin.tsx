@@ -3779,6 +3779,7 @@ function KpiCard({
 function InstitutionAccountForm({ institutions }: { institutions: Institution[] }) {
   const firstInstitution = institutions[0];
   const [loading, setLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [institutionId, setInstitutionId] = useState(firstInstitution?.id ?? "");
@@ -3811,6 +3812,7 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
       return;
     }
 
+    setExistingAdmin(null);
     setLookupLoading(true);
     void backendUsers
       .list({ institutionId, role: "institution_admin" })
@@ -3833,6 +3835,15 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
     };
   }, [institutionId]);
 
+  useEffect(() => {
+    if (!existingAdmin) return;
+    setForm((current) => ({
+      ...current,
+      name: existingAdmin.name || current.name,
+      email: existingAdmin.email || current.email,
+    }));
+  }, [existingAdmin]);
+
   const selectInstitution = (id: string) => {
     const institution = institutions.find((item) => item.id === id);
     setInstitutionId(id);
@@ -3854,13 +3865,17 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
       toast.error("Credential generation is only available at Launch Pending stage.");
       return;
     }
+    if (existingAdmin) {
+      toast.error("A linked institution admin already exists. Use Edit linked account instead.");
+      return;
+    }
     if (!form.name || !form.email || form.password.length < 8) {
       toast.error("Name, email, and an 8+ character password are required.");
       return;
     }
     setLoading(true);
     try {
-      await backendAdminUsers.create({
+      const { user } = await backendAdminUsers.create({
         name: form.name,
         email: form.email,
         password: form.password,
@@ -3868,12 +3883,42 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
         role_variant: "institutional_admin",
         institution_id: selected.id,
       });
+      setExistingAdmin(user);
       toast.success(`${selected.name} login created.`);
-      setForm({ name: `${selected.name} Admin`, email: "", password: "Password123!" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create institution login.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const editLinkedAccount = async () => {
+    if (!selected) {
+      toast.error("Select an institution first.");
+      return;
+    }
+    if (!existingAdmin) {
+      toast.error("No linked institution admin account exists yet.");
+      return;
+    }
+    if (!form.name || !form.email) {
+      toast.error("Name and email are required.");
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      const { user } = await backendAdminUsers.update(existingAdmin.id, {
+        name: form.name,
+        email: form.email,
+        institution_id: selected.id,
+      });
+      setExistingAdmin(user);
+      toast.success(`${selected.name} linked account updated.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update linked institution login.");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -3966,13 +4011,23 @@ function InstitutionAccountForm({ institutions }: { institutions: Institution[] 
           />
         </div>
         <div className="lg:col-span-5">
-          <Button
-            type="submit"
-            disabled={loading || !selected || !eligible}
-            className="bg-gradient-brand text-brand-foreground"
-          >
-            {loading ? "Creating..." : "Create linked account"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              disabled={loading || editLoading || lookupLoading || !selected || !eligible}
+              className="bg-gradient-brand text-brand-foreground"
+            >
+              {loading ? "Creating..." : "Create linked account"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={editLinkedAccount}
+              disabled={loading || editLoading || lookupLoading || !selected || !existingAdmin}
+            >
+              {editLoading ? "Saving..." : "Edit linked account"}
+            </Button>
+          </div>
           {!eligible && selected && (
             <p className="mt-2 text-xs text-muted-foreground">
               Institution login unlocks only when the institution reaches Launch Pending.
