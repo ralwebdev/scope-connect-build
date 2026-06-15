@@ -135,8 +135,22 @@ function ProjectsPage() {
         const mapped: CuratedProject[] = (projectsData.items || []).map((p: any) => {
           const summary = p.summary || p.description || "";
           const seatsMatch = summary.match(/(\d+)\s*of\s*(\d+)\s*seats\s*left/i);
-          const seatsLeft = seatsMatch ? Number(seatsMatch[1]) : 6;
-          const seatsTotal = seatsMatch ? Number(seatsMatch[2]) : 10;
+          const derivedSeatsTotal = Number(
+            p.capacity ??
+            p.maximum_participants ??
+            (seatsMatch ? Number(seatsMatch[2]) : 0),
+          );
+          const seatsTotal = Math.max(1, Number.isFinite(derivedSeatsTotal) && derivedSeatsTotal > 0 ? derivedSeatsTotal : 1);
+          const derivedSeatsFilled = Number(
+            p.participant_count ??
+            p.accepted_count ??
+            p.seats_filled ??
+            (seatsMatch ? seatsTotal - Number(seatsMatch[1]) : 0),
+          );
+          const seatsFilled = Math.min(
+            seatsTotal,
+            Math.max(0, Number.isFinite(derivedSeatsFilled) ? derivedSeatsFilled : 0),
+          );
           const timeline = (summary.split("·")[0] || "6 weeks").trim();
           const skills = (summary.split("·")[2] || p.domain || "General").split(",").map((s: string) => s.trim()).filter(Boolean);
           const rewardsMatch = (p.description || "").match(/Rewards:\s*([^\n]+)/i);
@@ -152,7 +166,7 @@ function ProjectsPage() {
             difficulty: "Intermediate",
             timeline,
             seatsTotal,
-            seatsFilled: Math.max(0, seatsTotal - seatsLeft),
+            seatsFilled,
             skills,
             rewards: rewardsMatch?.[1] || "Growth rewards",
             status: p.status === "cancelled" ? "closed" : "live",
