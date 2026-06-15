@@ -101,6 +101,52 @@ function useAccessibleInstitutions() {
   }, [role, data.institutions, mapped]);
 }
 
+function normalizeInstitutionName(value?: string | null) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function useResolvedBackendInstitutionId(institution: Institution | null) {
+  const user = useUser();
+  const [backendInstitutionId, setBackendInstitutionId] = useState<string | null>(() => {
+    if (!institution) return null;
+    return user?.institution?.id && normalizeInstitutionName(user.institution.name) === normalizeInstitutionName(institution.name)
+      ? user.institution.id
+      : null;
+  });
+
+  useEffect(() => {
+    if (!institution) {
+      setBackendInstitutionId(null);
+      return;
+    }
+
+    if (user?.institution?.id && normalizeInstitutionName(user.institution.name) === normalizeInstitutionName(institution.name)) {
+      setBackendInstitutionId(user.institution.id);
+      return;
+    }
+
+    let cancelled = false;
+    setBackendInstitutionId(null);
+    backendInstitutions.list()
+      .then(({ items }) => {
+        if (cancelled) return;
+        const matchedInstitution =
+          items.find((item) => item.id === institution.id) ||
+          items.find((item) => normalizeInstitutionName(item.name) === normalizeInstitutionName(institution.name));
+        setBackendInstitutionId(matchedInstitution?.id ?? institution.id);
+      })
+      .catch(() => {
+        if (!cancelled) setBackendInstitutionId(institution.id);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [institution?.id, institution?.name, user?.institution?.id, user?.institution?.name]);
+
+  return backendInstitutionId;
+}
+
 function InstitutionAdminPortal() {
   const role = useRole();
   const allowed =
@@ -117,6 +163,7 @@ function InstitutionAdminPortal() {
     setSelectedInstitutionId(institutions[0].id);
   }, [institutions, selectedInstitutionId]);
   const inst = institutions.find((i) => i.id === selectedInstitutionId) ?? institutions[0] ?? null;
+  const backendInstitutionId = useResolvedBackendInstitutionId(inst);
 
   if (!allowed) {
     return (
@@ -147,7 +194,8 @@ function InstitutionAdminPortal() {
     <AppShell>
       <RbacSidebar title="Institution Hub">
         <InstitutionRouteSwitcher
-          institutionId={inst.id}
+          crmInstitutionId={inst.id}
+          backendInstitutionId={backendInstitutionId}
           institutionName={inst.name}
           institutions={institutions}
           canSwitchInstitution={role === "scope_super_admin" || role === "super_admin"}
@@ -162,14 +210,16 @@ function InstitutionAdminPortal() {
 /* The institution-admin layout uses a single component that switches body by
  * pathname so we don't have to maintain a child route tree just for tabs. */
 function InstitutionRouteSwitcher({
-  institutionId,
+  crmInstitutionId,
+  backendInstitutionId,
   institutionName,
   institutions,
   canSwitchInstitution,
   selectedInstitutionId,
   onSelectInstitution,
 }: {
-  institutionId: string;
+  crmInstitutionId: string;
+  backendInstitutionId: string | null;
   institutionName: string;
   institutions: Institution[];
   canSwitchInstitution: boolean;
@@ -238,16 +288,24 @@ function InstitutionRouteSwitcher({
         )}
       </nav>
 
-      {!facultyOnly && <FirstLoginBanner institutionId={institutionId} />}
+      {!facultyOnly && <FirstLoginBanner institutionId={crmInstitutionId} />}
 
       <div className="mt-6">
-        {effectiveTab === "hub" && <HubView institutionId={institutionId} institutionName={institutionName} />}
-        {effectiveTab === "departments" && <DepartmentsView institutionId={institutionId} />}
-        {effectiveTab === "projects" && <AdminProjectsView institutionId={institutionId} />}
-        {effectiveTab === "events" && <AdminEventsView institutionId={institutionId} />}
-        {effectiveTab === "members" && <MembersView institutionId={institutionId} />}
-        {effectiveTab === "analytics" && <AnalyticsView institutionId={institutionId} />}
-        {effectiveTab === "reports" && <ReportsView institutionId={institutionId} institutionName={institutionName} />}
+        {!backendInstitutionId ? (
+          <Card className="p-6 text-center text-sm text-muted-foreground">
+            Resolving institution data...
+          </Card>
+        ) : (
+          <>
+            {effectiveTab === "hub" && <HubView crmInstitutionId={crmInstitutionId} institutionId={backendInstitutionId} institutionName={institutionName} />}
+            {effectiveTab === "departments" && <DepartmentsView institutionId={backendInstitutionId} />}
+            {effectiveTab === "projects" && <AdminProjectsView institutionId={backendInstitutionId} institutionName={institutionName} />}
+            {effectiveTab === "events" && <AdminEventsView institutionId={backendInstitutionId} />}
+            {effectiveTab === "members" && <MembersView institutionId={backendInstitutionId} />}
+            {effectiveTab === "analytics" && <AnalyticsView institutionId={backendInstitutionId} />}
+            {effectiveTab === "reports" && <ReportsView institutionId={backendInstitutionId} institutionName={institutionName} />}
+          </>
+        )}
         {effectiveTab === "communications" && <CommunicationsView institutionName={institutionName} />}
       </div>
     </section>
@@ -305,7 +363,15 @@ function FirstLoginBanner({ institutionId }: { institutionId: string }) {
   );
 }
 
-function HubView({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
+function HubView({
+  crmInstitutionId,
+  institutionId,
+  institutionName,
+}: {
+  crmInstitutionId: string;
+  institutionId: string;
+  institutionName: string;
+}) {
   const [k, setK] = useState({ activeStudents: 0, totalFaculty: 0, profile: 0, projects: 0, rank: "-", events: 0, totalXp: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -374,8 +440,8 @@ function HubView({ institutionId, institutionName }: { institutionId: string; in
         ))}
       </div>
       {/* <QuickActionsPanel /> */}
-      <ReceivedDocuments institutionId={institutionId} />
-      <InstitutionProfileEditor institutionId={institutionId} institutionName={institutionName} />
+      <ReceivedDocuments institutionId={crmInstitutionId} />
+      <InstitutionProfileEditor crmInstitutionId={crmInstitutionId} backendInstitutionId={institutionId} institutionName={institutionName} />
     </div>
   );
 }
@@ -434,9 +500,17 @@ function QuickActionsPanel() {
 
 type InstProfile = { logoText: string; description: string; departments: string[]; topSkills: string[] };
 
-function InstitutionProfileEditor({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
+function InstitutionProfileEditor({
+  crmInstitutionId,
+  backendInstitutionId,
+  institutionName,
+}: {
+  crmInstitutionId: string;
+  backendInstitutionId: string;
+  institutionName: string;
+}) {
   const user = useUser();
-  const cred = useStoreValue(() => crm.credential(institutionId));
+  const cred = useStoreValue(() => crm.credential(crmInstitutionId));
 
   const [p, setP] = useState<InstProfile>({
     logoText: "",
@@ -447,40 +521,30 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [visible, setVisible] = useState(true);
   const [dept, setDept] = useState("");
   const [skill, setSkill] = useState("");
 
-  // Load from backend when institutionId changes
+  // Load profile data from backend only; if unavailable, hide the section instead of showing mock fallbacks.
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setVisible(true);
 
-    backendInstitutions.get(institutionId)
+    backendInstitutions.get(backendInstitutionId)
       .then(({ institution }) => {
         if (!active) return;
 
         setP({
           logoText: institution.logo_text || "",
-          description: institution.description || "Building India's most ambitious student community.",
-          departments: institution.departments && institution.departments.length > 0
-            ? institution.departments
-            : ["CSE", "ECE", "ME"],
-          topSkills: institution.top_skills && institution.top_skills.length > 0
-            ? institution.top_skills
-            : ["AI/ML", "Web", "Design"],
+          description: institution.description || "",
+          departments: institution.departments || [],
+          topSkills: institution.top_skills || [],
         });
       })
       .catch((err) => {
         console.error("Failed to fetch institution profile:", err);
-        // Fall back to localStorage or standard defaults if backend is unreachable
-        if (active) {
-          try {
-            const raw = localStorage.getItem(`sc_inst_profile:${institutionId}`);
-            if (raw) {
-              setP(JSON.parse(raw));
-            }
-          } catch { }
-        }
+        if (active) setVisible(false);
       })
       .finally(() => {
         if (active) {
@@ -491,27 +555,22 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
     return () => {
       active = false;
     };
-  }, [institutionId]);
+  }, [backendInstitutionId]);
 
   const save = async () => {
     setSaving(true);
     try {
-      await backendInstitutions.update(institutionId, {
+      await backendInstitutions.update(backendInstitutionId, {
         logo_text: p.logoText,
         description: p.description,
         departments: p.departments,
         top_skills: p.topSkills,
       });
 
-      // Synchronize back to the localStorage simulator if needed
-      try {
-        localStorage.setItem(`sc_inst_profile:${institutionId}`, JSON.stringify(p));
-      } catch { }
-
       // Tick off checklist if active
       const userEmail = user?.email || cred?.email || "";
       if (userEmail) {
-        crm.markFirstLoginStep(institutionId, "profileCompletedAt", userEmail);
+        crm.markFirstLoginStep(crmInstitutionId, "profileCompletedAt", userEmail);
       }
 
       toast.success("Institution profile successfully saved to MongoDB database!");
@@ -522,6 +581,8 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
       setSaving(false);
     }
   };
+
+  if (!visible) return null;
 
   const addDepartment = () => {
     const trimmed = dept.trim();
@@ -699,7 +760,6 @@ function InstitutionProfileEditor({ institutionId, institutionName }: { institut
   );
 }
 
-const MEMBERS_KEY = "sc_inst_members";
 type Member = {
   id: string;
   name: string;
@@ -712,28 +772,6 @@ type Member = {
   verificationRequestedAt?: string | null;
   phone?: string | null;
 };
-function readMembers(id: string): Member[] {
-  if (typeof window === "undefined") return seedMembers();
-  try {
-    const raw = localStorage.getItem(`${MEMBERS_KEY}:${id}`);
-    if (!raw) { const s = seedMembers(); localStorage.setItem(`${MEMBERS_KEY}:${id}`, JSON.stringify(s)); return s; }
-    return JSON.parse(raw);
-  } catch { return seedMembers(); }
-}
-function writeMembers(id: string, m: Member[]) {
-  if (typeof window === "undefined") return;
-  try { localStorage.setItem(`${MEMBERS_KEY}:${id}`, JSON.stringify(m)); window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: [MEMBERS_KEY] } })); } catch { /* noop */ }
-}
-function seedMembers(): Member[] {
-  return [
-    { id: "m1", name: "Aarav Sharma", email: "aarav@stud.in", role: "student", status: "pending" },
-    { id: "m2", name: "Riya Sen", email: "riya@stud.in", role: "student", status: "active" },
-    { id: "m3", name: "Karan Bose", email: "karan.leader@stud.in", role: "campus_leader", status: "active" },
-    { id: "m4", name: "Prof. Mitra", email: "mitra.faculty@inst.in", role: "faculty_coordinator", status: "pending" },
-    { id: "m5", name: "Dev Iyer", email: "dev@stud.in", role: "student", status: "active" },
-    { id: "m6", name: "Anya Roy", email: "anya@stud.in", role: "student", status: "deactivated" },
-  ];
-}
 
 function MemberRoster({
   list,
@@ -2548,9 +2586,7 @@ function ProjectApplicationsDialog({
   );
 }
 
-function AdminProjectsView({ institutionId }: { institutionId: string }) {
-  const user = useUser();
-  const institutionName = user?.institution?.name || "Current Institution";
+function AdminProjectsView({ institutionId, institutionName }: { institutionId: string; institutionName: string }) {
   const [projects, setProjects] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2589,7 +2625,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
 
   const openEditModal = (project: any) => {
     setEditingProjectId(project.id);
-    const isTeamProject = (project.team_members_limit ?? 1) > 1 || (project.teams_allowed ?? 0) > 1;
+    const isTeamProject = (project.team_members_limit ?? 1) > 1;
     setCustomIsTeam(isTeamProject);
     setNewProject({
       title: project.title ?? "",
@@ -2613,9 +2649,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
     if (!open) resetProjectForm();
   };
 
-  // Resolve the real MongoDB institution ID from the logged-in user's session
-  // (user.institution.id is the backend ObjectId) with the CRM store ID as fallback.
-  const backendInstitutionId = user?.institution?.id || institutionId;
+  const backendInstitutionId = institutionId;
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -2648,7 +2682,7 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
       const payload = {
         ...newProject,
         team_members_limit: customIsTeam ? newProject.team_members_limit : 1,
-        teams_allowed: customIsTeam ? newProject.teams_allowed : newProject.capacity,
+        teams_allowed: customIsTeam ? newProject.teams_allowed : 1,
         institution_id: backendInstitutionId,
       };
       if (editingProjectId) {
@@ -3004,7 +3038,7 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
     }
     try {
       const { backendEvents } = await import("@/lib/api/endpoints");
-      await backendEvents.create(newEvent as any);
+      await backendEvents.create({ ...newEvent, institution: institutionId } as any);
       toast.success("Event created successfully!");
       setIsModalOpen(false);
       setNewEvent({
