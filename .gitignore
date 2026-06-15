@@ -10,3 +10,4 @@ PATCH_REPORT.md
 design.md
 SkillMatch.md
 XP_ENGINE_WORKFLOW_AUDIT.md
+mongorestore --uri="mongodb://127.0.0.1:27017/scope_connect_prod" --archive="backend/dumps/scope_connect_prod_2026-06-09.archive.gz" --gzip --drop

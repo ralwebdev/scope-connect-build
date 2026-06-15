@@ -3,7 +3,12 @@ import mongoose from "mongoose";
 const projectRoomSchema = new mongoose.Schema(
   {
     project: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true, unique: true, index: true },
-    status: { type: String, enum: ["open", "locked", "completed"], default: "open", index: true },
+    status: {
+      type: String,
+      enum: ["forming", "ready", "active", "completed", "open", "locked"],
+      default: "forming",
+      index: true,
+    },
     temporaryCoordinator: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     participants: [{
       user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },

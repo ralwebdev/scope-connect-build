@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as XpTransactionsRouteImport } from './routes/xp-transactions'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as UpdatesRouteImport } from './routes/updates'
 import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
@@ -67,6 +68,11 @@ import { Route as DevBuildDiagnosticsRouteImport } from './routes/dev.build-diag
 import { Route as AdminConfigRouteImport } from './routes/admin.config'
 import { Route as AdminCampusesNewRouteImport } from './routes/admin.campuses.new'
 
+const XpTransactionsRoute = XpTransactionsRouteImport.update({
+  id: '/xp-transactions',
+  path: '/xp-transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WaitlistRoute = WaitlistRouteImport.update({
   id: '/waitlist',
   path: '/waitlist',
@@ -398,6 +404,7 @@ export interface FileRoutesByFullPath {
   '/unauthorized': typeof UnauthorizedRoute
   '/updates': typeof UpdatesRoute
   '/waitlist': typeof WaitlistRoute
+  '/xp-transactions': typeof XpTransactionsRoute
   '/admin/config': typeof AdminConfigRoute
   '/dev/build-diagnostics': typeof DevBuildDiagnosticsRoute
   '/forms/$formSlug': typeof FormsFormSlugRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByTo {
   '/unauthorized': typeof UnauthorizedRoute
   '/updates': typeof UpdatesRoute
   '/waitlist': typeof WaitlistRoute
+  '/xp-transactions': typeof XpTransactionsRoute
   '/admin/config': typeof AdminConfigRoute
   '/dev/build-diagnostics': typeof DevBuildDiagnosticsRoute
   '/forms/$formSlug': typeof FormsFormSlugRoute
@@ -517,6 +525,7 @@ export interface FileRoutesById {
   '/unauthorized': typeof UnauthorizedRoute
   '/updates': typeof UpdatesRoute
   '/waitlist': typeof WaitlistRoute
+  '/xp-transactions': typeof XpTransactionsRoute
   '/admin/config': typeof AdminConfigRoute
   '/dev/build-diagnostics': typeof DevBuildDiagnosticsRoute
   '/forms/$formSlug': typeof FormsFormSlugRoute
@@ -578,6 +587,7 @@ export interface FileRouteTypes {
     | '/unauthorized'
     | '/updates'
     | '/waitlist'
+    | '/xp-transactions'
     | '/admin/config'
     | '/dev/build-diagnostics'
     | '/forms/$formSlug'
@@ -637,6 +647,7 @@ export interface FileRouteTypes {
     | '/unauthorized'
     | '/updates'
     | '/waitlist'
+    | '/xp-transactions'
     | '/admin/config'
     | '/dev/build-diagnostics'
     | '/forms/$formSlug'
@@ -696,6 +707,7 @@ export interface FileRouteTypes {
     | '/unauthorized'
     | '/updates'
     | '/waitlist'
+    | '/xp-transactions'
     | '/admin/config'
     | '/dev/build-diagnostics'
     | '/forms/$formSlug'
@@ -756,6 +768,7 @@ export interface RootRouteChildren {
   UnauthorizedRoute: typeof UnauthorizedRoute
   UpdatesRoute: typeof UpdatesRoute
   WaitlistRoute: typeof WaitlistRoute
+  XpTransactionsRoute: typeof XpTransactionsRoute
   DevBuildDiagnosticsRoute: typeof DevBuildDiagnosticsRoute
   FormsFormSlugRoute: typeof FormsFormSlugRoute
   InstitutionReportsRoute: typeof InstitutionReportsRoute
@@ -764,6 +777,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/xp-transactions': {
+      id: '/xp-transactions'
+      path: '/xp-transactions'
+      fullPath: '/xp-transactions'
+      preLoaderRoute: typeof XpTransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/waitlist': {
       id: '/waitlist'
       path: '/waitlist'
@@ -1269,6 +1289,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnauthorizedRoute: UnauthorizedRoute,
   UpdatesRoute: UpdatesRoute,
   WaitlistRoute: WaitlistRoute,
+  XpTransactionsRoute: XpTransactionsRoute,
   DevBuildDiagnosticsRoute: DevBuildDiagnosticsRoute,
   FormsFormSlugRoute: FormsFormSlugRoute,
   InstitutionReportsRoute: InstitutionReportsRoute,

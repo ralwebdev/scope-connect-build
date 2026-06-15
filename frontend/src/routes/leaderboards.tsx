@@ -11,7 +11,7 @@ import { backendUsers } from "@/lib/api/endpoints";
 export const Route = createFileRoute("/leaderboards")({
   head: () => ({
     meta: [
-      { title: "Leaderboards — Scope Connect" },
+      { title: "Scope Connect | Leaderboards" },
       { name: "description", content: "Top members, chapters, and campuses on Scope Connect." },
     ],
   }),

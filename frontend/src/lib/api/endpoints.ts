@@ -176,6 +176,70 @@ export const backendUsers = {
   },
 };
 
+export type BackendXpTransaction = {
+  id: string;
+  action: string;
+  amount: number;
+  source_type: string;
+  source_id: string;
+  balance_before: number;
+  balance_after: number;
+  status: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BackendXpWallet = {
+  available: number;
+  locked: number;
+  lifetime: number;
+  activity: number;
+  execution: number;
+  reputation: number;
+  reliability_score: number;
+  contribution_average: number;
+  active_projects: number;
+  completed_projects: number;
+  challenge_score: number;
+  cooldown_until: string | null;
+  institution_treasury: null | {
+    treasury: number;
+    allocated: number;
+    used: number;
+    carry_forward: number;
+  };
+};
+
+export type BackendXpWalletResponse = {
+  wallet: BackendXpWallet;
+  ledger: BackendXpTransaction[];
+  stake_history: BackendXpTransaction[];
+  reward_history: BackendXpTransaction[];
+};
+
+export type BackendXpTransactionsResponse = {
+  wallet: BackendXpWallet;
+  items: BackendXpTransaction[];
+  filters: {
+    limit: number;
+    bucket: "all" | "stakes" | "rewards" | "adjustments";
+  };
+};
+
+export const backendXp = {
+  getWallet() {
+    return api<BackendXpWalletResponse>("/api/v1/xp");
+  },
+  listTransactions(params: { limit?: number; bucket?: "all" | "stakes" | "rewards" | "adjustments" } = {}) {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set("limit", String(params.limit));
+    if (params.bucket) qs.set("bucket", params.bucket);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<BackendXpTransactionsResponse>(`/api/v1/xp/transactions${suffix}`);
+  },
+};
+
 export type BackendInstitution = {
   id: string;
   name: string;
@@ -399,7 +463,7 @@ export const backendProjects = {
 
 export type BackendProjectRoom = {
   id: string;
-  status: "open" | "locked" | "completed";
+  status: "forming" | "ready" | "active" | "completed" | "open" | "locked";
   temporaryCoordinator?: string | null;
   participants: Array<{
     user: string | { _id?: string; id?: string; name?: string; email?: string; role?: string };
@@ -545,6 +609,27 @@ export const backendAdminUsers = {
   }) {
     return api<{ user: ScopeUser; invite_token?: string | null }>("/api/v1/admin/users", {
       method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  update(id: string, body: {
+    email?: string;
+    name?: string;
+    salutation?: "Dr" | "Mrs" | "Mr" | null;
+    firstName?: string | null;
+    middleName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+    password?: string;
+    role?: "student" | "faculty" | "institution_admin" | "scope_admin" | "super_admin";
+    role_variant?: string;
+    institution_id?: string | null;
+    department_id?: string | null;
+    disabled_at?: string | null;
+    founder?: boolean;
+  }) {
+    return api<{ user: ScopeUser }>(`/api/v1/admin/users/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(body),
     });
   },

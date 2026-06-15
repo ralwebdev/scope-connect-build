@@ -14,7 +14,7 @@ export const CONTRIBUTION_WEIGHTS = {
   reporting: 20,
   peer_review: 15,
   mentor_review: 15,
-  attendance: 10,
+  engagement: 10,
 };
 
 export const XP_ACTIONS = {

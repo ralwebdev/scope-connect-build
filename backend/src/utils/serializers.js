@@ -1,4 +1,5 @@
 import { PortfolioLink } from "../models/PortfolioLink.js";
+import { buildXpWallet } from "./xp-engine.js";
 
 const idOf = (value) => value?._id?.toString?.() || value?.toString?.() || null;
 
@@ -33,6 +34,8 @@ export async function serializeUser(user, options = {}) {
   const links = profile
     ? (portfolioLinksByUserId?.get(userId) || await PortfolioLink.find({ user: user._id }).sort({ position: 1, createdAt: 1 }).lean())
     : [];
+
+  const wallet = buildXpWallet(profile, institution);
 
   const body = {
     id: user.id || idOf(user._id),
@@ -76,6 +79,12 @@ export async function serializeUser(user, options = {}) {
       reserved_xp: profile?.reservedXp || 0,
       level: profile?.level || 1,
       streak_days: profile?.streakDays || 0,
+      wallet,
+      reliability_score: wallet.reliability_score,
+      contribution_average: wallet.contribution_average,
+      active_projects: wallet.active_projects,
+      completed_projects: wallet.completed_projects,
+      challenge_score: wallet.challenge_score,
     },
     achievements: profile?.achievements || ["early_adopter"],
     opportunitiesVerified: profile?.opportunitiesVerified || false,

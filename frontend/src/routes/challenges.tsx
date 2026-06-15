@@ -14,7 +14,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/challenges")({
   head: () => ({
     meta: [
-      { title: "Challenges & Chapter Wars — Scope Connect" },
+      { title: "Scope Connect | Challenges & Chapter Wars" },
       { name: "description", content: "Weekly builder challenges, XP bounties and chapter wars across India's campus network." },
       { property: "og:title", content: "Challenges & Chapter Wars — Scope Connect" },
       { property: "og:description", content: "Weekly builder challenges, XP bounties and chapter wars across India's campus network." },

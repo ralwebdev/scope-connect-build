@@ -9,7 +9,15 @@ import { requirePermission } from "../middleware/rbac.js";
 import { AppError, forbidden, notFound } from "../utils/errors.js";
 import { sendSuccess } from "../utils/response.js";
 import { hasPermission } from "../utils/roles.js";
-import { awardXp, forfeitReservedXp, refundReservedXp, reserveXp } from "../utils/xp-engine.js";
+import {
+  adjustReliabilityScore,
+  awardXp,
+  computeStakeReward,
+  forfeitReservedXp,
+  refreshChallengeScore,
+  refundReservedXp,
+  reserveXp,
+} from "../utils/xp-engine.js";
 import { XP_ACTIONS } from "../utils/xp-constants.js";
 
 export const challengesRouter = express.Router();
@@ -189,7 +197,11 @@ challengesRouter.patch("/:id/score/:participationId", authMiddleware, requirePer
 
   participation.score = req.body.score;
   participation.badge = req.body.badge || "";
-  participation.xpReward = req.body.xp_reward || 0;
+  participation.xpReward = req.body.xp_reward || computeStakeReward({
+    stake: participation.stakeXp || challenge.stakeXp || 0,
+    difficulty: challenge.difficulty,
+    quality: req.body.score,
+  });
   participation.certificateUrl = req.body.certificate_url || "";
   participation.status = "scored";
   participation.scoredBy = req.user._id;
@@ -207,6 +219,8 @@ challengesRouter.patch("/:id/score/:participationId", authMiddleware, requirePer
       dedupeKey: `challenge_reward:${participation.id}`,
       meta: { challenge_id: challenge.id, participation_id: participation.id, score: participation.score },
       text: `Challenge reward granted: ${challenge.title}`,
+      bucket: "execution",
+      enforceMintCap: true,
     });
     participation.xpReward = xpResult.awarded;
   }
@@ -222,6 +236,8 @@ challengesRouter.patch("/:id/score/:participationId", authMiddleware, requirePer
     });
   }
   await participation.save();
+  await adjustReliabilityScore(participation.user, participation.score >= (challenge.minimumScoreToRefund ?? 50) ? 1 : -2).catch(() => null);
+  await refreshChallengeScore(participation.user).catch(() => null);
 
   const ranked = await ChallengeParticipation.find({ challenge: challenge._id, status: "scored" }).sort({ score: -1, scoredAt: 1 });
   for (let index = 0; index < ranked.length; index += 1) {

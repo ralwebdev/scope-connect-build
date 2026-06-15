@@ -4,7 +4,7 @@ import { Route as Parent } from "./institution-admin";
 const ParentComponent = Parent.options.component!;
 
 export const Route = createFileRoute("/institution-admin/analytics")({
-  head: () => ({ meta: [{ title: "Institution Analytics · Scope Connect" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Scope Connect | Institution Analytics" }, { name: "robots", content: "noindex" }] }),
   component: AnalyticsRoute,
 });
 

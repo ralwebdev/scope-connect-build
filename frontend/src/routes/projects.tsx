@@ -1394,7 +1394,12 @@ function ProjectRoomModal({ project, application, onClose, onOpenSubmission }: {
             <TabsContent value="workspace" className="flex-1 overflow-y-auto space-y-5 pr-1 focus-visible:outline-none focus-visible:ring-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge variant={room.status === "locked" ? "secondary" : "outline"} className="capitalize">{room.status}</Badge>
+                  <Badge
+                    variant={["ready", "active", "completed", "locked"].includes(room.status) ? "secondary" : "outline"}
+                    className="capitalize"
+                  >
+                    {room.status}
+                  </Badge>
                   <Badge variant="outline" className="capitalize">{application.status}</Badge>
                   <Badge variant="outline">{room.participants.length} participant{room.participants.length === 1 ? "" : "s"}</Badge>
                 </div>

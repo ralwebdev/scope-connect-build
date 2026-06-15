@@ -22,6 +22,7 @@ const applicationSchema = new mongoose.Schema(
       reporting: { type: Number, min: 0, max: 100, default: 0 },
       peerReview: { type: Number, min: 0, max: 100, default: 0 },
       mentorReview: { type: Number, min: 0, max: 100, default: 0 },
+      engagement: { type: Number, min: 0, max: 100, default: 0 },
       attendance: { type: Number, min: 0, max: 100, default: 0 },
       total: { type: Number, min: 0, max: 100, default: 0 },
     },

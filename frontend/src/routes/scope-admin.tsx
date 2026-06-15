@@ -2995,7 +2995,7 @@ function ScopeProjectsManager() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div className={customIsTeam ? "" : "col-span-3"}>
-                  <Label>Capacity</Label>
+                  <Label>Capacity (Total number of members who can participate)</Label>
                   <Input
                     type="number"
                     min={1}
@@ -3006,7 +3006,7 @@ function ScopeProjectsManager() {
                 {customIsTeam && (
                   <>
                     <div>
-                      <Label>Teams Allowed</Label>
+                      <Label>Team Allowed (for more than one team specify the number of teams you will allow)</Label>
                       <Input
                         type="number"
                         min={1}
@@ -3017,7 +3017,7 @@ function ScopeProjectsManager() {
                       />
                     </div>
                     <div>
-                      <Label>Members / Team</Label>
+                      <Label>Members (Maximum members in each team)</Label>
                       <Input
                         type="number"
                         min={1}

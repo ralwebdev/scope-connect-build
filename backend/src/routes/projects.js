@@ -19,7 +19,17 @@ import { validate } from "../utils/validate.js";
 import { hasPermission } from "../utils/roles.js";
 import { parsePagination, cursorFilter } from "../utils/pagination.js";
 import { serializeProject, serializeApplication } from "../utils/serializers.js";
-import { awardXp, forfeitReservedXp, refundReservedXp, reserveXp } from "../utils/xp-engine.js";
+import {
+  adjustProjectCounters,
+  adjustReliabilityScore,
+  awardXp,
+  computeStakeReward,
+  distributeProjectRewards,
+  forfeitReservedXp,
+  refundReservedXp,
+  refreshContributionAverage,
+  reserveXp,
+} from "../utils/xp-engine.js";
 import { unlockAchievement } from "../utils/achievement-engine.js";
 import { CONTRIBUTION_WEIGHTS, XP_ACTIONS, XP_CONSTANTS } from "../utils/xp-constants.js";
 import { dispatchNotification } from "../services/notification-dispatcher.js";
@@ -117,6 +127,7 @@ const scoreSchema = z.object({
     reporting: z.number().min(0).max(100).optional().default(0),
     peer_review: z.number().min(0).max(100).optional().default(0),
     mentor_review: z.number().min(0).max(100).optional().default(0),
+    engagement: z.number().min(0).max(100).optional(),
     attendance: z.number().min(0).max(100).optional().default(0),
   })).min(1).max(200),
 });
@@ -461,7 +472,7 @@ async function ensureProjectRoom(project, application, projectRole = "") {
   if (!room) {
     room = await ProjectRoom.create({
       project: project._id,
-      status: acceptedCount >= maxParticipants ? "locked" : "open",
+      status: acceptedCount >= maxParticipants ? "ready" : "forming",
       temporaryCoordinator: application.user,
       participants: [{
         user: application.user,
@@ -484,7 +495,17 @@ async function ensureProjectRoom(project, application, projectRole = "") {
       contributionScore: 0,
     });
   }
-  if (acceptedCount >= maxParticipants && XP_CONSTANTS.PROJECT_ROOM_LOCK) room.status = "locked";
+  if (room.status !== "active" && room.status !== "completed") {
+    room.status = acceptedCount >= maxParticipants && XP_CONSTANTS.PROJECT_ROOM_LOCK ? "ready" : "forming";
+  }
+  await room.save();
+  return room;
+}
+
+async function activateProjectRoom(projectId) {
+  const room = await ProjectRoom.findOne({ project: projectId });
+  if (!room || room.status === "active" || room.status === "completed") return room;
+  room.status = "active";
   await room.save();
   return room;
 }
@@ -540,6 +561,7 @@ async function joinProject(req, res) {
   }
 
   const room = await ensureProjectRoom(project, application, req.body.project_role);
+  await adjustProjectCounters(req.user._id, { activeDelta: 1 }).catch(() => null);
   await logProfileActivity(req.user._id, "project_joined", `Committed XP to project: ${project.title}`, {
     project_id: project.id,
     application_id: application.id,
@@ -647,6 +669,7 @@ projectsRouter.patch("/:id/room", authMiddleware, validate(roomUpdateSchema), as
     const participant = room.participants.find((item) => item.user.toString() === update.user_id);
     if (participant) participant.progress = update.progress;
   }
+  if (room.status !== "completed") room.status = "active";
   await room.save();
   
   const populated = await ProjectRoom.findOne({ project: project._id })
@@ -677,9 +700,13 @@ projectsRouter.delete("/:id/room/participants/:userId", authMiddleware, asyncHan
   // Update student's application status to withdrawn
   const application = await Application.findOne({ project: project._id, user: req.params.userId });
   if (application) {
+    const countedAsActive = application.status === "accepted" && ["reserved", "none"].includes(application.commitmentStatus || "none");
     application.status = "withdrawn";
     application.coordinator = false;
     await application.save();
+    if (countedAsActive) {
+      await adjustProjectCounters(req.params.userId, { activeDelta: -1 }).catch(() => null);
+    }
   }
   
   const updatedRoom = await ProjectRoom.findOne({ project: project._id })
@@ -824,6 +851,7 @@ projectsRouter.post("/:id/tasks", authMiddleware, validate(taskSchema), asyncHan
     priority: req.body.priority || "Medium",
     createdBy: req.user._id,
   });
+  await activateProjectRoom(project._id).catch(() => null);
   sendSuccess(res, { task }, "Task created", 201);
 }));
 
@@ -841,6 +869,7 @@ projectsRouter.patch("/:id/tasks/:taskId", authMiddleware, validate(taskStatusSc
     task.reviewedAt = new Date();
   }
   await task.save();
+  await activateProjectRoom(project._id).catch(() => null);
   sendSuccess(res, { task });
 }));
 
@@ -854,16 +883,18 @@ projectsRouter.post("/:id/tasks/:taskId/evidence", authMiddleware, validate(task
   task.evidence.push({ kind: req.body.kind, value: req.body.value, createdBy: req.user._id });
   task.status = "Submitted";
   await task.save();
+  await activateProjectRoom(project._id).catch(() => null);
   sendSuccess(res, { task }, "Task evidence submitted");
 }));
 
 function weightedContribution(raw) {
+  const engagement = raw.engagement ?? raw.attendance ?? 0;
   return Math.round(
     ((raw.deliverables || 0) * CONTRIBUTION_WEIGHTS.deliverables
       + (raw.reporting || 0) * CONTRIBUTION_WEIGHTS.reporting
       + (raw.peer_review || 0) * CONTRIBUTION_WEIGHTS.peer_review
       + (raw.mentor_review || 0) * CONTRIBUTION_WEIGHTS.mentor_review
-      + (raw.attendance || 0) * CONTRIBUTION_WEIGHTS.attendance) / 100,
+      + engagement * CONTRIBUTION_WEIGHTS.engagement) / 100,
   );
 }
 
@@ -874,20 +905,35 @@ projectsRouter.post("/:id/contribution-scores", authMiddleware, validate(scoreSc
   if (!canCoordinateProject(req, project, room)) throw forbidden();
 
   const updates = [];
+  const affectedUsers = new Set();
   for (const score of req.body.scores) {
     const application = await Application.findOne({ _id: score.application_id, project: project._id, status: "accepted" });
     if (!application) continue;
     const total = weightedContribution(score);
-    application.contributionScore = { ...score, total };
+    const engagement = score.engagement ?? score.attendance ?? 0;
+    application.contributionScore = {
+      deliverables: score.deliverables || 0,
+      reporting: score.reporting || 0,
+      peerReview: score.peer_review || 0,
+      mentorReview: score.mentor_review || 0,
+      engagement,
+      attendance: engagement,
+      total,
+    };
     application.rewardEligible = total >= (project.minimumContributionScore || XP_CONSTANTS.MIN_PROJECT_CONTRIBUTION_SCORE);
     await application.save();
+    affectedUsers.add(application.user.toString());
     if (room) {
       const participant = room.participants.find((item) => item.user.toString() === application.user.toString());
       if (participant) participant.contributionScore = total;
     }
     updates.push(serializeApplication(application));
   }
-  if (room) await room.save();
+  if (room) {
+    room.status = room.status === "completed" ? "completed" : "active";
+    await room.save();
+  }
+  await Promise.all([...affectedUsers].map((userId) => refreshContributionAverage(userId).catch(() => null)));
   sendSuccess(res, { items: updates });
 }));
 
@@ -899,13 +945,19 @@ projectsRouter.post("/:id/complete", authMiddleware, validate(completeSchema), a
   if (!canVerify) throw forbidden();
 
   const participants = await Application.find({ project: project._id, status: "accepted" });
-  const eligible = participants.filter((item) => item.rewardEligible || (item.contributionScore?.total || 0) >= (project.minimumContributionScore || XP_CONSTANTS.MIN_PROJECT_CONTRIBUTION_SCORE));
-  const perUserReward = eligible.length ? Math.floor((project.rewardPoolXp || 0) / eligible.length) : 0;
+  const rewardPlan = distributeProjectRewards({
+    participants,
+    stake: Math.max(50, project.xpCommitmentStake || 0),
+    difficulty: project.difficulty,
+    explicitPoolXp: project.rewardPoolXp || 0,
+    minimumContributionScore: project.minimumContributionScore || XP_CONSTANTS.MIN_PROJECT_CONTRIBUTION_SCORE,
+  });
   const settled = [];
 
   for (const application of participants) {
+    const wasSettled = application.settlementStatus === "settled";
     const score = application.contributionScore?.total || 0;
-    const isEligible = eligible.some((item) => item.id === application.id);
+    const isEligible = rewardPlan.eligibleIds.has(application.id);
     if (application.committedXp > 0 && application.commitmentStatus === "reserved") {
       if (isEligible || project.stakeRefundPolicy === "enabled") {
         await refundReservedXp({
@@ -950,9 +1002,8 @@ projectsRouter.post("/:id/complete", authMiddleware, validate(completeSchema), a
       }
     }
 
-    if (isEligible && perUserReward > 0) {
-      const multiplier = score >= 90 ? (project.performanceMultiplier || 1) : 1;
-      const reward = Math.floor(perUserReward * multiplier);
+    const reward = rewardPlan.rewards.get(application.id) || 0;
+    if (isEligible && reward > 0) {
       const xpResult = await awardXp({
         userId: application.user,
         institutionId: req.user.institution || null,
@@ -962,14 +1013,28 @@ projectsRouter.post("/:id/complete", authMiddleware, validate(completeSchema), a
         sourceId: project._id,
         action: XP_ACTIONS.PROJECT_REWARD_GRANTED,
         dedupeKey: `project_reward:${application.id}`,
-        meta: { project_id: project.id, application_id: application.id, score, multiplier },
+        meta: {
+          project_id: project.id,
+          application_id: application.id,
+          score,
+          reward_pool_xp: rewardPlan.pool,
+        },
         text: `Project reward granted: ${project.title}`,
+        bucket: "execution",
+        enforceMintCap: true,
       });
       application.rewardXp = xpResult.awarded;
     }
     application.rewardEligible = isEligible;
     application.settlementStatus = "settled";
     await application.save();
+    if (!wasSettled) {
+      await adjustProjectCounters(application.user, {
+        activeDelta: -1,
+        completedDelta: isEligible ? 1 : 0,
+      }).catch(() => null);
+      await adjustReliabilityScore(application.user, isEligible ? 2 : -5).catch(() => null);
+    }
     settled.push(serializeApplication(application));
   }
 
@@ -1141,10 +1206,15 @@ applicationsRouter.patch("/:id", validate(applicationPatchSchema), asyncHandler(
   const isReviewer = application.project.createdBy.toString() === req.user.id || hasPermission(req.user, "review_application");
   if (isApplicant && req.body.status !== "withdrawn") throw forbidden();
   if (!isApplicant && !isReviewer) throw forbidden();
+  const wasActive = application.status === "accepted" && ["reserved", "none"].includes(application.commitmentStatus || "none");
   application.status = req.body.status;
   application.reviewedBy = isReviewer ? req.user._id : application.reviewedBy;
   application.reviewedAt = isReviewer ? new Date() : application.reviewedAt;
   await application.save();
+  const isActive = application.status === "accepted" && ["reserved", "none"].includes(application.commitmentStatus || "none");
+  if (wasActive && !isActive) {
+    await adjustProjectCounters(application.user, { activeDelta: -1 }).catch(() => null);
+  }
   if (isApplicant || req.user._id.toString() === application.user.toString()) {
     await logProfileActivity(application.user, "application_status", `Application status changed to ${application.status}`, { application_id: application.id });
   }
@@ -1185,6 +1255,7 @@ applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHand
   };
   application.submissionReviewStatus = "submitted";
   await application.save();
+  await activateProjectRoom(application.project._id).catch(() => null);
 
   await dispatchNotification({
     user: application.project.createdBy,
@@ -1231,8 +1302,12 @@ applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSche
       application.commitmentStatus = "refunded";
     }
 
-    // 2. Award reward XP if project has rewardPoolXp
-    const rewardAmount = application.project.rewardPoolXp || 0;
+    // 2. Award reward XP using the configured reward pool or the XP engine formula.
+    const rewardAmount = application.project.rewardPoolXp || computeStakeReward({
+      stake: Math.max(50, application.committedXp || application.project.xpCommitmentStake || 0),
+      difficulty: application.project.difficulty,
+      quality: application.contributionScore?.total || 100,
+    });
     if (rewardAmount > 0) {
       const xpResult = await awardXp({
         userId: application.user,
@@ -1245,12 +1320,16 @@ applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSche
         dedupeKey: `project_reward:${application.id}`,
         meta: { project_id: application.project._id, application_id: application.id },
         text: `Project reward granted: ${application.project.title}`,
+        bucket: "execution",
+        enforceMintCap: true,
       });
       application.rewardXp = xpResult.awarded;
     }
 
     application.rewardEligible = true;
     application.settlementStatus = "settled";
+    await adjustProjectCounters(application.user, { activeDelta: -1, completedDelta: 1 }).catch(() => null);
+    await adjustReliabilityScore(application.user, 2).catch(() => null);
   }
 
   await application.save();

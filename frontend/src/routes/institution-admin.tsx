@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1575,149 +1576,293 @@ function ReportsView({ institutionId, institutionName }: { institutionId: string
   );
 }
 
-function FacultyAddDialog({
+type FacultyFormState = {
+  salutation: "Dr" | "Mrs" | "Mr";
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  password: string;
+};
+
+const EMPTY_FACULTY_FORM: FacultyFormState = {
+  salutation: "Dr",
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  phone: "",
+  email: "",
+  password: "",
+};
+
+function facultyNameFromForm(form: FacultyFormState) {
+  return [form.firstName, form.middleName, form.lastName].map((value) => value.trim()).filter(Boolean).join(" ");
+}
+
+function FacultyManagementDialog({
   institutionId,
   departmentId,
   departmentName,
+  currentHodId,
   onSuccess
 }: {
   institutionId: string;
   departmentId: string;
   departmentName: string;
-  onSuccess: () => void
+  currentHodId?: string | null;
+  onSuccess: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    salutation: "Dr" as "Dr" | "Mrs" | "Mr",
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    phone: "",
-    email: "",
-    password: "",
-  });
+  const [saving, setSaving] = useState(false);
+  const [faculty, setFaculty] = useState<ScopeUser[]>([]);
+  const [editingFacultyId, setEditingFacultyId] = useState<string | null>(null);
+  const [form, setForm] = useState<FacultyFormState>(EMPTY_FACULTY_FORM);
 
-  const handleSubmit = async () => {
-    if (!form.firstName || !form.lastName || !form.email) {
-      toast.error("Required fields missing");
-      return;
-    }
+  const resetForm = () => {
+    setEditingFacultyId(null);
+    setForm(EMPTY_FACULTY_FORM);
+  };
+
+  const fetchFaculty = async () => {
     setLoading(true);
     try {
-      const { backendAdminUsers } = await import("@/lib/api/endpoints");
-      await backendAdminUsers.create({
-        ...form,
-        role: "faculty",
-        institution_id: institutionId,
-        department_id: departmentId,
-        send_invite: true,
-      });
-      toast.success("Faculty member added and invite sent!");
-      setOpen(false);
-      setForm({
-        salutation: "Dr",
-        firstName: "",
-        middleName: "",
-        lastName: "",
-        phone: "",
-        email: "",
-        password: "",
-      });
-      onSuccess();
+      const { backendUsers } = await import("@/lib/api/endpoints");
+      const { items } = await backendUsers.list({ institutionId, role: "faculty" });
+      setFaculty(
+        items
+          .filter((member) => member.department_id === departmentId)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add faculty member");
+      toast.error("Failed to load faculty");
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (!open) return;
+    fetchFaculty();
+  }, [open, departmentId, institutionId]);
+
+  const beginEdit = (member: ScopeUser) => {
+    setEditingFacultyId(member.id);
+    setForm({
+      salutation: (member.salutation as FacultyFormState["salutation"]) || "Dr",
+      firstName: member.firstName || "",
+      middleName: member.middleName || "",
+      lastName: member.lastName || "",
+      phone: member.phone || "",
+      email: member.email || "",
+      password: "",
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
+      toast.error("Required fields missing");
+      return;
+    }
+
+    const payload = {
+      name: facultyNameFromForm(form),
+      salutation: form.salutation,
+      firstName: form.firstName.trim(),
+      middleName: form.middleName.trim() || null,
+      lastName: form.lastName.trim(),
+      phone: form.phone.trim() || null,
+      email: form.email.trim(),
+      department_id: departmentId,
+      institution_id: institutionId,
+    };
+
+    setSaving(true);
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      if (editingFacultyId) {
+        await backendAdminUsers.update(editingFacultyId, payload);
+        toast.success("Faculty member updated");
+      } else {
+        await backendAdminUsers.create({
+          ...payload,
+          password: form.password.trim() || undefined,
+          role: "faculty",
+          send_invite: true,
+        });
+        toast.success("Faculty member added and invite sent");
+      }
+      resetForm();
+      await fetchFaculty();
+      onSuccess();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : editingFacultyId ? "Failed to update faculty member" : "Failed to add faculty member");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (member: ScopeUser) => {
+    const hodNote = currentHodId === member.id ? " This will also clear the current HOD assignment." : "";
+    if (!confirm(`Delete ${member.name}?${hodNote}`)) return;
+    setSaving(true);
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      await backendAdminUsers.remove(member.id);
+      toast.success("Faculty member deleted");
+      if (editingFacultyId === member.id) resetForm();
+      await fetchFaculty();
+      onSuccess();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete faculty member");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) resetForm();
+      }}
+    >
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Add Faculty Member" className="h-8 w-8 text-brand">
-          <UserPlus className="h-4 w-4" />
+        <Button variant="ghost" size="icon" title="Manage Faculty" className="h-8 w-8 text-brand">
+          <Users className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Add Faculty Member - {departmentName}</DialogTitle>
+          <DialogTitle>Faculty - {departmentName}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="col-span-1 space-y-2">
-              <Label>Title</Label>
-              <select
-                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={form.salutation}
-                onChange={(e) => setForm({ ...form, salutation: e.target.value as any })}
-              >
-                <option value="Dr">Dr</option>
-                <option value="Mrs">Mrs</option>
-                <option value="Mr">Mr</option>
-              </select>
-            </div>
-            <div className="col-span-3 space-y-2">
-              <Label>First Name *</Label>
-              <Input
-                placeholder="First name"
-                value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Middle Name</Label>
-              <Input
-                placeholder="Middle name (optional)"
-                value={form.middleName}
-                onChange={(e) => setForm({ ...form, middleName: e.target.value })}
-              />
+        <div className="grid gap-6 py-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">{faculty.length} faculty member{faculty.length === 1 ? "" : "s"}</p>
+                <p className="text-xs text-muted-foreground">Review assigned faculty, update details, or remove access.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" /> Add Faculty
+              </Button>
             </div>
             <div className="space-y-2">
-              <Label>Last Name *</Label>
-              <Input
-                placeholder="Last name"
-                value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-              />
+              {loading ? (
+                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Loading faculty...</div>
+              ) : faculty.length === 0 ? (
+                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">No faculty members found for this department yet.</div>
+              ) : (
+                faculty.map((member) => (
+                  <div key={member.id} className="flex items-start justify-between rounded-md border p-3">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold">{member.salutation ? `${member.salutation}. ` : ""}{member.name}</p>
+                        {currentHodId === member.id ? <Badge variant="secondary">Current HOD</Badge> : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{member.email}</p>
+                      <p className="text-xs text-muted-foreground">{member.phone || "Phone not added"}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => beginEdit(member)} className="h-8 w-8 text-muted-foreground">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(member)} className="h-8 w-8 text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Email Address *</Label>
-            <Input
-              type="email"
-              placeholder="faculty@institution.edu"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Phone Number</Label>
-            <Input
-              placeholder="+91 9876543210"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Initial Password (Optional)</Label>
-            <Input
-              type="password"
-              placeholder="Min. 8 characters"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-            <p className="text-[10px] text-muted-foreground italic">If left blank, user must use the invite link to set password.</p>
+
+          <div className="space-y-4 rounded-md border p-4">
+            <div>
+              <h4 className="text-sm font-semibold">{editingFacultyId ? "Edit faculty member" : "Add faculty member"}</h4>
+              <p className="text-xs text-muted-foreground">
+                {editingFacultyId ? "Update the faculty member details for this department." : "Create a faculty account and connect it to this department."}
+              </p>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="col-span-1 space-y-2">
+                <Label>Title</Label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.salutation}
+                  onChange={(e) => setForm({ ...form, salutation: e.target.value as FacultyFormState["salutation"] })}
+                >
+                  <option value="Dr">Dr</option>
+                  <option value="Mrs">Mrs</option>
+                  <option value="Mr">Mr</option>
+                </select>
+              </div>
+              <div className="col-span-3 space-y-2">
+                <Label>First Name *</Label>
+                <Input
+                  placeholder="First name"
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Middle Name</Label>
+                <Input
+                  placeholder="Middle name"
+                  value={form.middleName}
+                  onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name *</Label>
+                <Input
+                  placeholder="Last name"
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email Address *</Label>
+              <Input
+                type="email"
+                placeholder="faculty@institution.edu"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input
+                placeholder="+91 9876543210"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </div>
+            {!editingFacultyId ? (
+              <div className="space-y-2">
+                <Label>Initial Password (Optional)</Label>
+                <Input
+                  type="password"
+                  placeholder="Min. 8 characters"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+                <p className="text-[10px] italic text-muted-foreground">If left blank, the invite flow will handle password setup.</p>
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={resetForm} disabled={saving}>Clear</Button>
+              <Button onClick={handleSubmit} disabled={saving} className="bg-gradient-brand text-brand-foreground">
+                {saving ? (editingFacultyId ? "Saving..." : "Adding...") : (editingFacultyId ? "Save Changes" : "Add Faculty")}
+              </Button>
+            </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={loading} className="bg-gradient-brand text-brand-foreground">
-            {loading ? "Adding..." : "Add Faculty"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -1813,7 +1958,8 @@ function DepartmentsView({ institutionId }: { institutionId: string }) {
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newDept, setNewDept] = useState({ name: "", code: "", description: "" });
+  const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
+  const [departmentForm, setDepartmentForm] = useState({ name: "", code: "", description: "" });
 
   const fetchDepartments = async () => {
     setLoading(true);
@@ -1832,17 +1978,47 @@ function DepartmentsView({ institutionId }: { institutionId: string }) {
     fetchDepartments();
   }, [institutionId]);
 
-  const handleCreate = async () => {
-    if (!newDept.name) return toast.error("Department name is required");
+  const resetDepartmentForm = () => {
+    setDepartmentForm({ name: "", code: "", description: "" });
+    setEditingDepartmentId(null);
+  };
+
+  const handleModalChange = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open) resetDepartmentForm();
+  };
+
+  const openCreateModal = () => {
+    resetDepartmentForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (dept: any) => {
+    setEditingDepartmentId(dept.id);
+    setDepartmentForm({
+      name: dept.name ?? "",
+      code: dept.code ?? "",
+      description: dept.description ?? "",
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveDepartment = async () => {
+    if (!departmentForm.name.trim()) return toast.error("Department name is required");
     try {
       const { backendDepartments } = await import("@/lib/api/endpoints");
-      await backendDepartments.create(newDept);
-      toast.success("Department created");
+      if (editingDepartmentId) {
+        await backendDepartments.update(editingDepartmentId, departmentForm);
+        toast.success("Department updated");
+      } else {
+        await backendDepartments.create(departmentForm);
+        toast.success("Department created");
+      }
       setIsModalOpen(false);
-      setNewDept({ name: "", code: "", description: "" });
-      fetchDepartments();
+      resetDepartmentForm();
+      await fetchDepartments();
     } catch (error) {
-      toast.error("Failed to create department");
+      toast.error(editingDepartmentId ? "Failed to update department" : "Failed to create department");
     }
   };
 
@@ -1865,45 +2041,43 @@ function DepartmentsView({ institutionId }: { institutionId: string }) {
           <h3 className="text-lg font-bold">Departments</h3>
           <p className="text-sm text-muted-foreground">Manage academic departments and tracking student distribution.</p>
         </div>
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-brand text-brand-foreground">
-              <Plus className="mr-2 h-4 w-4" /> Add Department
-            </Button>
-          </DialogTrigger>
+        <Button className="bg-gradient-brand text-brand-foreground" onClick={openCreateModal}>
+          <Plus className="mr-2 h-4 w-4" /> Add Department
+        </Button>
+        <Dialog open={isModalOpen} onOpenChange={handleModalChange}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Department</DialogTitle>
+              <DialogTitle>{editingDepartmentId ? "Edit Department" : "Add New Department"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Department Name *</Label>
                 <Input
                   placeholder="e.g. Computer Science & Engineering"
-                  value={newDept.name}
-                  onChange={(e) => setNewDept({ ...newDept, name: e.target.value })}
+                  value={departmentForm.name}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Short Code</Label>
                 <Input
                   placeholder="e.g. CSE"
-                  value={newDept.code}
-                  onChange={(e) => setNewDept({ ...newDept, code: e.target.value })}
+                  value={departmentForm.code}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, code: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea
                   placeholder="Optional description..."
-                  value={newDept.description}
-                  onChange={(e) => setNewDept({ ...newDept, description: e.target.value })}
+                  value={departmentForm.description}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, description: e.target.value })}
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate}>Create Department</Button>
+              <Button variant="outline" onClick={() => handleModalChange(false)}>Cancel</Button>
+              <Button onClick={handleSaveDepartment}>{editingDepartmentId ? "Save Changes" : "Create Department"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1951,13 +2125,21 @@ function DepartmentsView({ institutionId }: { institutionId: string }) {
                   <TableCell className="text-right font-mono">{dept.facultyCount || 0}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <FacultyAddDialog
+                      <FacultyManagementDialog
                         institutionId={institutionId}
                         departmentId={dept.id}
                         departmentName={dept.name}
+                        currentHodId={dept.headOfDepartment?.id || null}
                         onSuccess={() => fetchDepartments()}
                       />
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Edit className="h-4 w-4" /></Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditModal(dept)}
+                        className="h-8 w-8 text-muted-foreground"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(dept.id)} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
@@ -2215,21 +2397,29 @@ function ProjectApplicationsDialog({
 
 function AdminProjectsView({ institutionId }: { institutionId: string }) {
   const user = useUser();
+  const institutionName = user?.institution?.name || "Current Institution";
   const [projects, setProjects] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [manageProject, setManageProject] = useState<any>(null);
-  const [newProject, setNewProject] = useState({
+  const [customIsTeam, setCustomIsTeam] = useState(true);
+  const defaultProjectForm = () => ({
     title: "",
     summary: "",
     description: "",
-    domain: "",
-    capacity: 10,
+    domain: "Software",
+    capacity: 5,
     teams_allowed: 5,
     team_members_limit: 4,
-    status: "open",
-    visibility: "institution"
+    status: "open" as "open" | "closed" | "draft",
+    visibility: "institution" as const,
+    minimum_xp_required: 0,
+    xp_commitment_stake: 50,
+    reward_pool_xp: 0,
+  });
+  const [newProject, setNewProject] = useState({
+    ...defaultProjectForm(),
   });
 
   // Resolve the real MongoDB institution ID from the logged-in user's session
@@ -2260,27 +2450,21 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
   }, [backendInstitutionId]);
 
   const handleCreate = async () => {
-    if (!newProject.title) return toast.error("Project title is required");
+    if (!newProject.title.trim()) return toast.error("Project title is required");
+    if (!newProject.summary.trim()) return toast.error("Project summary is required");
     try {
       const { backendProjects } = await import("@/lib/api/endpoints");
       // Explicitly pass institution_id so the project is linked to this institution
       await backendProjects.create({
         ...newProject,
+        team_members_limit: customIsTeam ? newProject.team_members_limit : 1,
+        teams_allowed: customIsTeam ? newProject.teams_allowed : newProject.capacity,
         institution_id: backendInstitutionId,
       });
       toast.success("Project launched successfully!");
       setIsModalOpen(false);
-      setNewProject({
-        title: "",
-        summary: "",
-        description: "",
-        domain: "",
-        capacity: 10,
-        teams_allowed: 5,
-        team_members_limit: 4,
-        status: "open",
-        visibility: "institution"
-      });
+      setCustomIsTeam(true);
+      setNewProject(defaultProjectForm());
       fetchProjects();
     } catch (error: any) {
       toast.error(error?.message || "Failed to launch project");
@@ -2318,75 +2502,169 @@ function AdminProjectsView({ institutionId }: { institutionId: string }) {
               <Plus className="mr-2 h-4 w-4" /> Launch Project
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-5xl">
             <DialogHeader>
               <DialogTitle>Launch New Project</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Project Title *</Label>
-                <Input
-                  placeholder="e.g. AI-Powered Campus Assistant"
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
-                />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreate();
+              }}
+              className="grid gap-4 py-4"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Title *</Label>
+                  <Input
+                    value={newProject.title}
+                    onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                    placeholder="Project title"
+                  />
+                </div>
+                <div>
+                  <Label>Domain</Label>
+                  <select
+                    value={newProject.domain}
+                    onChange={(e) => setNewProject({ ...newProject, domain: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="Software">Software</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Research">Research</option>
+                    <option value="Design">Design</option>
+                  </select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Domain</Label>
-                <Input
-                  placeholder="e.g. Engineering, AI, Design"
-                  value={newProject.domain}
-                  onChange={(e) => setNewProject({ ...newProject, domain: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Total Student Capacity</Label>
-                <Input
-                  type="number"
-                  value={newProject.capacity}
-                  onChange={(e) => setNewProject({ ...newProject, capacity: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Teams Allowed</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 5"
-                  value={newProject.teams_allowed}
-                  onChange={(e) => setNewProject({ ...newProject, teams_allowed: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Members per Team</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 4"
-                  value={newProject.team_members_limit}
-                  onChange={(e) => setNewProject({ ...newProject, team_members_limit: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Short Summary</Label>
-                <Input
-                  placeholder="Visible in cards..."
+              <div>
+                <Label>Summary *</Label>
+                <Textarea
                   value={newProject.summary}
                   onChange={(e) => setNewProject({ ...newProject, summary: e.target.value })}
+                  placeholder="Brief project overview"
+                  rows={2}
                 />
               </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Detailed Description</Label>
+              <div>
+                <Label>Description</Label>
                 <Textarea
-                  placeholder="Explain the problem, goals, and outcomes..."
-                  className="min-h-[120px]"
                   value={newProject.description}
                   onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                  placeholder="Detailed project description"
+                  rows={3}
                 />
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} className="bg-gradient-brand text-brand-foreground">Launch Now</Button>
-            </DialogFooter>
+              <div className="flex items-center justify-between rounded-lg border border-border/85 bg-secondary/5 p-3.5 shadow-sm transition-all hover:bg-secondary/10">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-bold text-foreground">Project Collaboration Mode</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Choose whether students build individually (Solo) or collaborate in teams.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold transition-colors duration-200 ${!customIsTeam ? "text-foreground" : "text-muted-foreground"}`}>Individual</span>
+                  <Switch
+                    checked={customIsTeam}
+                    onCheckedChange={setCustomIsTeam}
+                  />
+                  <span className={`text-xs font-semibold transition-colors duration-200 ${customIsTeam ? "text-brand" : "text-muted-foreground"}`}>Team</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className={customIsTeam ? "" : "col-span-3"}>
+                  <Label>Capacity (Total number of members who can participate)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={newProject.capacity}
+                    onChange={(e) => setNewProject({ ...newProject, capacity: Math.max(1, Number(e.target.value) || 1) })}
+                  />
+                </div>
+                {customIsTeam && (
+                  <>
+                    <div>
+                      <Label>Team Allowed (for more than one team specify the number of teams you will allow)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={newProject.teams_allowed}
+                        onChange={(e) => setNewProject({ ...newProject, teams_allowed: Math.max(1, Number(e.target.value) || 1) })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Members (Maximum members in each team)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={newProject.team_members_limit}
+                        onChange={(e) => setNewProject({ ...newProject, team_members_limit: Math.max(1, Number(e.target.value) || 1) })}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Institution</Label>
+                  <Input value={institutionName} disabled />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <select
+                    value={newProject.status}
+                    onChange={(e) => setNewProject({ ...newProject, status: e.target.value as "open" | "closed" | "draft" })}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label>Entry XP (required before staking)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={newProject.minimum_xp_required}
+                    onChange={(e) => setNewProject({ ...newProject, minimum_xp_required: Math.max(0, Number(e.target.value) || 0) })}
+                    placeholder="e.g. 100"
+                  />
+                </div>
+                <div>
+                  <Label>XP Commitment Stake (Standard: 50 XP) *</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={newProject.xp_commitment_stake}
+                    onChange={(e) => {
+                      const val = Math.max(0, Number(e.target.value) || 0);
+                      setNewProject({
+                        ...newProject,
+                        xp_commitment_stake: val,
+                        reward_pool_xp: Math.round(val * 1.5),
+                      });
+                    }}
+                    placeholder="e.g. 50"
+                  />
+                </div>
+                <div>
+                  <Label>Reward Pool XP (Recommended: 1.5x stake, custom allowed) *</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={newProject.reward_pool_xp}
+                    onChange={(e) => setNewProject({ ...newProject, reward_pool_xp: Math.max(0, Number(e.target.value) || 0) })}
+                    placeholder="e.g. 75"
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="justify-self-end bg-gradient-brand text-brand-foreground">
+                Create Project
+              </Button>
+            </form>
           </DialogContent>
         </Dialog>
       </div>

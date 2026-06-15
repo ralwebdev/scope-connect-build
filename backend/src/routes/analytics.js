@@ -1,6 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
-import { AnalyticsEvent, User, Institution, Project, Application } from "../models/index.js";
+import { AnalyticsEvent, User, Institution, Project, Application, Profile } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { forbidden, notFound } from "../utils/errors.js";
@@ -127,7 +127,7 @@ analyticsRouter.get("/global-summary", asyncHandler(async (req, res) => {
 
   const now = new Date();
   
-  const [projectStats, applicationCount, growthTrend, topInstitutions] = await Promise.all([
+  const [projectStats, applicationCount, growthTrend, topInstitutions, xpSystem] = await Promise.all([
     // 1. Project Stats
     Project.aggregate([
       { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -172,13 +172,42 @@ analyticsRouter.get("/global-summary", asyncHandler(async (req, res) => {
         logo: r.logoUrl || "🏫",
         slug: r.slug
       }))),
+    Promise.all([
+      Profile.aggregate([
+        {
+          $group: {
+            _id: null,
+            circulating_xp: { $sum: "$xp" },
+            locked_xp: { $sum: "$reservedXp" },
+            average_reliability: { $avg: "$reliabilityScore" },
+          },
+        },
+      ]),
+      Institution.aggregate([
+        {
+          $group: {
+            _id: null,
+            treasury: { $sum: "$treasury" },
+          },
+        },
+      ]),
+      Application.countDocuments({ status: "accepted" }),
+      Application.countDocuments({ settlementStatus: "settled" }),
+    ]).then(([profileTotals, treasuryTotals, acceptedCount, settledCount]) => ({
+      circulating_xp: profileTotals?.[0]?.circulating_xp || 0,
+      locked_xp: profileTotals?.[0]?.locked_xp || 0,
+      treasury: treasuryTotals?.[0]?.treasury || 0,
+      average_reliability: Math.round(((profileTotals?.[0]?.average_reliability || 0) + Number.EPSILON) * 100) / 100,
+      completion_rate_pct: acceptedCount > 0 ? Math.round((settledCount / acceptedCount) * 100) : 0,
+    })),
   ]);
 
   sendSuccess(res, {
     projects: projectStats,
     applications: applicationCount,
     growth_trend: growthTrend,
-    top_institutions: topInstitutions
+    top_institutions: topInstitutions,
+    xp_system: xpSystem,
   });
 }));
 

@@ -26,7 +26,7 @@ import { backendFeed, backendInstitutions, backendUsers, backendProjects, backen
 export const Route = createFileRoute("/campus")({
   head: () => ({
     meta: [
-      { title: "Campus Hub — Scope Connect" },
+      { title: "Scope Connect | Campus Hub" },
       { name: "description", content: "Your campus's home on Scope Connect — leaders, projects, events & rank." },
     ],
   }),

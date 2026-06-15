@@ -20,6 +20,7 @@ import { hasPermission } from "../utils/roles.js";
 import { validate } from "../utils/validate.js";
 import { XP_CONSTANTS } from "../utils/xp-constants.js";
 import { dispatchNotification } from "../services/notification-dispatcher.js";
+import { adjustReliabilityScore } from "../utils/xp-engine.js";
 
 export const reportsRouter = express.Router();
 
@@ -207,6 +208,7 @@ reportsRouter.post("/", validate(reportSchema), asyncHandler(async (req, res) =>
         $inc: { streakDays: 1, trustScore: 1 },
       },
     ).catch(() => null);
+    await adjustReliabilityScore(req.user._id, 1).catch(() => null);
 
     sendSuccess(res, { report: serializeDailyReport(report) }, "Daily report submitted", 201);
   } catch (error) {

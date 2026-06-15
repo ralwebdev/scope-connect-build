@@ -634,9 +634,38 @@ usersRouter.get("/me/rank", asyncHandler(async (req, res) => {
 
 usersRouter.get("/me/activity", asyncHandler(async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 20), 100);
-  const items = await ProfileActivity.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(limit);
+  const rawItems = await ProfileActivity.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .limit(limit * 5);
+
+  const normalizeActivityText = (text = "") => text
+    .toLowerCase()
+    .replace(/[·]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\+\d+\s*xp/g, "+xp")
+    .trim();
+
+  const deduped = [];
+  const seen = new Set();
+  for (const item of rawItems) {
+    // Dashboard reward entries duplicate the richer xp_ledger rows for the same action.
+    if (item.kind === "dashboard_segment_reward") continue;
+
+    const minuteBucket = item.createdAt ? new Date(item.createdAt).toISOString().slice(0, 16) : "";
+    const signature = [
+      item.meta?.rule || item.meta?.segment || item.kind,
+      normalizeActivityText(item.text || ""),
+      minuteBucket,
+    ].join("|");
+
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    deduped.push(item);
+    if (deduped.length >= limit) break;
+  }
+
   sendSuccess(res, {
-    items: items.map((item) => ({
+    items: deduped.map((item) => ({
       id: item.id,
       kind: item.kind,
       text: item.text,
@@ -1027,6 +1056,14 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
   if (existing) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
   const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
   if (req.body.institution_id && !institution) throw notFound("Institution not found");
+  const department = req.body.department_id ? await Department.findById(req.body.department_id) : null;
+  if (req.body.department_id && !department) throw notFound("Department not found");
+  if (req.body.role === "faculty" && !department) {
+    throw new AppError(400, "DEPARTMENT_REQUIRED", "Faculty members must be linked to a department");
+  }
+  if (department && institution && department.institution.toString() !== institution._id.toString()) {
+    throw new AppError(400, "INVALID_DEPARTMENT", "Department does not belong to the selected institution");
+  }
   if (req.body.role === "institution_admin") {
     if (institution.pipelineStage !== "Launch Pending") {
       throw new AppError(409, "INSTITUTION_NOT_LAUNCH_PENDING", "Institution credentials can only be generated at Launch Pending stage");
@@ -1057,7 +1094,7 @@ adminUsersRouter.post("/", validate(adminCreateSchema), asyncHandler(async (req,
     role: req.body.role || derived.role,
     roleVariant: roleVariantFor(req.body.role || derived.role, req.body.role_variant),
     institution: institution?._id ?? null,
-    department: req.body.department_id || null,
+    department: department?._id ?? null,
     founder: derived.founder,
   });
   try {
@@ -1093,6 +1130,7 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw notFound("User not found");
   let passwordChanged = false;
+  const previousDepartmentId = user.department?.toString() || null;
 
   // Permission Check: Super Admin OR Scope Admin OR Institutional Admin for their own campus members
   const isSuperAdmin = hasPermission(req.user, "manage_users");
@@ -1166,6 +1204,22 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
     }
   }
 
+  if (req.body.email !== undefined) {
+    if (typeof req.body.email !== "string" || !req.body.email.trim()) {
+      throw new AppError(400, "INVALID_EMAIL", "Email is required");
+    }
+    const nextEmail = req.body.email.trim().toLowerCase();
+    const duplicate = await User.findOne({ email: nextEmail, _id: { $ne: user._id } });
+    if (duplicate) throw new AppError(409, "EMAIL_TAKEN", "Email is already registered");
+    user.email = nextEmail;
+  }
+  if (req.body.salutation !== undefined) user.salutation = req.body.salutation || null;
+  if (req.body.firstName !== undefined) user.firstName = req.body.firstName?.trim?.() || null;
+  if (req.body.middleName !== undefined) user.middleName = req.body.middleName?.trim?.() || null;
+  if (req.body.lastName !== undefined) user.lastName = req.body.lastName?.trim?.() || null;
+  if (req.body.phone !== undefined) user.phone = req.body.phone ? String(req.body.phone).trim() : null;
+  if (req.body.name !== undefined) user.name = String(req.body.name).trim();
+
   if (req.body.role !== undefined) user.role = req.body.role;
   if (req.body.role_variant !== undefined || req.body.role !== undefined) {
     user.roleVariant = roleVariantFor(req.body.role || user.role, req.body.role_variant);
@@ -1179,16 +1233,45 @@ adminUsersRouter.patch("/:id", asyncHandler(async (req, res) => {
     user.passwordHash = await bcrypt.hash(req.body.password, 12);
     passwordChanged = true;
   }
-  await user.save();
+
+  let institution = null;
   if (req.body.institution_id !== undefined) {
-    const institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
+    institution = req.body.institution_id ? await Institution.findById(req.body.institution_id) : null;
     if (req.body.institution_id && !institution) throw notFound("Institution not found");
     user.institution = institution?._id ?? null;
-    await user.save();
+  } else if (user.institution) {
+    institution = await Institution.findById(user.institution);
+  }
+
+  if (req.body.department_id !== undefined) {
+    const department = req.body.department_id ? await Department.findById(req.body.department_id) : null;
+    if (req.body.department_id && !department) throw notFound("Department not found");
+    const institutionId = user.institution?.toString() || null;
+    if (department && (!institutionId || department.institution.toString() !== institutionId)) {
+      throw new AppError(400, "INVALID_DEPARTMENT", "Department does not belong to the user's institution");
+    }
+    user.department = department?._id ?? null;
+  }
+
+  if ((req.body.firstName !== undefined || req.body.middleName !== undefined || req.body.lastName !== undefined) && req.body.name === undefined) {
+    const derivedName = [user.firstName, user.middleName, user.lastName].filter(Boolean).join(" ").trim();
+    if (derivedName) user.name = derivedName;
+  }
+
+  await user.save();
+
+  if (req.body.institution_id !== undefined) {
     await Profile.findOneAndUpdate(
       { user: user._id },
       { institution: institution?._id ?? null, institutionVerified: Boolean(institution) },
       { upsert: true },
+    );
+  }
+
+  if ((user.role !== "faculty" || previousDepartmentId !== (user.department?.toString() || null)) && previousDepartmentId) {
+    await Department.updateMany(
+      { _id: previousDepartmentId, headOfDepartment: user._id },
+      { $set: { headOfDepartment: null } },
     );
   }
   if (user.disabledAt || passwordChanged) {
@@ -1207,6 +1290,10 @@ adminUsersRouter.delete("/:id", asyncHandler(async (req, res) => {
 
   if (!isSuperAdmin && !isInstAdmin) throw forbidden();
 
+  await Department.updateMany(
+    { headOfDepartment: user._id },
+    { $set: { headOfDepartment: null } },
+  );
   await User.findByIdAndDelete(req.params.id);
   await Profile.deleteOne({ user: req.params.id });
   await Session.deleteMany({ user: req.params.id });

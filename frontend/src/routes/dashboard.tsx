@@ -20,6 +20,19 @@ import { useRole } from "@/hooks/use-rbac";
 import { landingRouteForRole } from "@/lib/rbac";
 import { backendApplications, backendEvents, backendFeed, backendNotifications, backendPortfolio, backendProjects, backendUsers } from "@/lib/api/endpoints";
 
+const DASHBOARD_AWARD_LOCK_KEY = "__scope_dashboard_award_locks__";
+type DashboardAwardWindow = Window & { __scope_dashboard_award_locks__?: Record<string, true> };
+
+function readDashboardAwardLocks(): Record<string, true> {
+  if (typeof window === "undefined") return {};
+  const win = window as DashboardAwardWindow;
+  const existing = win.__scope_dashboard_award_locks__;
+  if (existing) return existing;
+  const created: Record<string, true> = {};
+  win.__scope_dashboard_award_locks__ = created;
+  return created;
+}
+
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
@@ -273,12 +286,18 @@ function DashboardPage() {
     if (myApplicationsCount > 0) segments.push("first_application");
     if (portfolioCount > 0) segments.push("first_portfolio");
     if (segments.length === 0) return;
+    const signature = `${user.id}:${[...segments].sort().join("|")}`;
+    const locks = readDashboardAwardLocks();
+    if (locks[signature]) return;
+    locks[signature] = true;
 
     backendUsers.awardDashboardPoints(segments)
       .then(({ user: refreshedUser }) => {
         auth.syncApiUser(refreshedUser);
       })
-      .catch(() => null);
+      .catch(() => {
+        delete locks[signature];
+      });
   }, [user.campus, strength, myApplicationsCount, portfolioCount]);
 
   return (

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About Scope — India's Campus Innovation Network" },
+      { title: "About Scope Connect — India's Campus Innovation Network" },
       { name: "description", content: "Why Scope exists, how curated projects work, and our national vision for student builders." },
       { property: "og:title", content: "About Scope Connect" },
       { property: "og:description", content: "A trusted, curated opportunity network for India's campus builders." },

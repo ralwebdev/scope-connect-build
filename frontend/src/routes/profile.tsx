@@ -102,6 +102,7 @@ function ProfilePage() {
       .then(([profileResult, portfolioItemsResult]) => {
         if (profileResult.status === "fulfilled") {
           const backendUser = profileResult.value.user;
+          auth.syncApiUser(backendUser);
           const links = backendUser.links ?? {};
           const portfolioLinksFromArray = Object.fromEntries(
             (backendUser.portfolio_links ?? []).map((link) => [link.key, link.url]),

@@ -6,7 +6,7 @@ import type { ComponentType } from "react";
 import {
   Home, Briefcase, Compass, User as UserIcon, Bell, Settings as SettingsIcon,
   HelpCircle, LogOut, BarChart3, Users, FileBarChart, Building2, Handshake,
-  MapPin, Shield, Activity, Megaphone, Trophy, FolderKanban, Sparkles,
+  MapPin, Shield, Activity, Megaphone, Trophy, FolderKanban, Sparkles, Wallet,
   ClipboardCheck, Globe,
 } from "lucide-react";
 import type { RoleId } from "@/lib/rbac";
@@ -30,6 +30,7 @@ const HOME = (to: string): NavItem => ({ key: "home", label: "Home", icon: Home,
 const PROFILE: NavItem = { key: "profile", label: "Profile", icon: UserIcon, to: "/profile" };
 const NOTIF: NavItem = { key: "notifications", label: "Inbox", icon: Bell, to: "/notifications" };
 const SETTINGS: NavItem = { key: "settings", label: "Settings", icon: SettingsIcon, to: "/settings" };
+const XP_TRANSACTIONS: NavItem = { key: "xp-transactions", label: "XP Transactions", icon: Wallet, to: "/xp-transactions" };
 const HELP: NavItem = { key: "help", label: "Help", icon: HelpCircle, to: "/support" };
 const LOGOUT: NavItem = { key: "logout", label: "Sign out", icon: LogOut, to: "/auth", action: "logout" };
 
@@ -42,7 +43,7 @@ const STUDENT: RoleNavConfig = {
     { key: "opps", label: "Opportunities", icon: Compass, to: "/opportunities" },
     PROFILE,
   ],
-  secondary: [NOTIF, SETTINGS, HELP, LOGOUT],
+  secondary: [NOTIF, XP_TRANSACTIONS, SETTINGS, HELP, LOGOUT],
 };
 
 const INSTITUTION: RoleNavConfig = {

@@ -14,7 +14,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
-      { title: "Contact Scope Connect" },
+      { title: "Scope Connect | Contact Scope Connect" },
       { name: "description", content: "Get in touch with the Scope team - partnerships, press, support." },
     ],
   }),

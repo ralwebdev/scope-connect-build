@@ -24,7 +24,7 @@ import {
 } from "recharts";
 
 export const Route = createFileRoute("/institution/reports")({
-  head: () => ({ meta: [{ title: "Institution Reports · Scope Connect" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Scope Connect | Institution Reports" }, { name: "robots", content: "noindex" }] }),
   component: InstitutionReportsPage,
 });
 

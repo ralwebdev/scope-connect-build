@@ -11,7 +11,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Bell, LogOut, Settings as SettingsIcon, User as UserIcon, Menu,
+  Bell, LogOut, Settings as SettingsIcon, User as UserIcon, Menu, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useImageSrc } from "@/hooks/use-image-src";
@@ -186,6 +186,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
   const roleTheme = themeForRole(session.role);
   const badgeLabel = roleLabel ?? roleTheme.label;
   const glowVar = { ["--nav-glow" as const]: roleTheme.glow } as React.CSSProperties;
+  const showXpTransactionsLink = session.role === "student";
 
   return (
     <>
@@ -397,6 +398,11 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                             <Link to="/profile" onClick={() => setUserOpen(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
                               <UserIcon className="h-4 w-4" /> Profile
                             </Link>
+                            {showXpTransactionsLink ? (
+                              <Link to="/xp-transactions" onClick={() => setUserOpen(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
+                                <Wallet className="h-4 w-4" /> XP Transactions
+                              </Link>
+                            ) : null}
                             <Link to="/settings" onClick={() => setUserOpen(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-secondary">
                               <SettingsIcon className="h-4 w-4" /> Settings
                             </Link>

@@ -26,6 +26,7 @@ import { proposalsRouter } from "./routes/proposals.js";
 import { challengesRouter } from "./routes/challenges.js";
 import { configRouter } from "./routes/config.js";
 import { superAdminRouter } from "./routes/super-admin.js";
+import { xpRouter } from "./routes/xp.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -79,6 +80,7 @@ export function createApp() {
   v1Router.use("/challenges", challengesRouter);
   v1Router.use("/config", configRouter);
   v1Router.use("/super-admin", superAdminRouter);
+  v1Router.use("/xp", xpRouter);
 
   app.use("/api/v1", v1Router);
 
@@ -92,6 +94,7 @@ export function createApp() {
   app.use("/api/feed", feedRouter);
   app.use("/api/reports", reportsRouter);
   app.use("/api/analytics", analyticsRouter);
+  app.use("/api/xp", xpRouter);
   app.use("/api/crm", (req, res, next) => {
     req.url = `/crm${req.url}`;
     institutionsRouter(req, res, next);

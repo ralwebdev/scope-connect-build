@@ -5,7 +5,7 @@ import { LegalShell } from "@/components/site/LegalShell";
 export const Route = createFileRoute("/community-guidelines")({
   head: () => ({
     meta: [
-      { title: "Community Guidelines — Scope Connect" },
+      { title: "Scope Connect | Community Guidelines" },
       { name: "description", content: "How we keep the Scope Connect community trustworthy and welcoming." },
     ],
   }),

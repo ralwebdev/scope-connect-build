@@ -5,7 +5,7 @@ import { LegalShell } from "@/components/site/LegalShell";
 export const Route = createFileRoute("/cookie-policy")({
   head: () => ({
     meta: [
-      { title: "Cookie Policy — Scope Connect" },
+      { title: "Scope Connect | Cookie Policy" },
       { name: "description", content: "How Scope Connect uses cookies and local storage, and how you can control them." },
       { property: "og:title", content: "Cookie Policy — Scope Connect" },
       { property: "og:description", content: "Cookie categories, analytics usage, preference controls, and opt-out options." },
