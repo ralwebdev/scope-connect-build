@@ -28,7 +28,7 @@ export const backendAuth = {
     });
   },
   forgotPassword(body: { email: string }) {
-    return api<{ sent?: boolean; studentReset?: boolean }>("/api/v1/auth/forgot-password", {
+    return api<{ sent?: boolean; studentReset?: boolean; facultyReset?: boolean; institutionAdminReset?: boolean }>("/api/v1/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify(body),
     });

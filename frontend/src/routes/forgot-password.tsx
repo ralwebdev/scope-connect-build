@@ -23,6 +23,7 @@ function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const [isStudentReset, setIsStudentReset] = useState(false);
   const [isFacultyReset, setIsFacultyReset] = useState(false);
+  const [isInstitutionAdminReset, setIsInstitutionAdminReset] = useState(false);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -38,14 +39,22 @@ function ForgotPasswordPage() {
       if (res.studentReset) {
         setIsStudentReset(true);
         setIsFacultyReset(false);
+        setIsInstitutionAdminReset(false);
         toast.success("Request sent to your institution admins!");
       } else if (res.facultyReset) {
         setIsStudentReset(false);
         setIsFacultyReset(true);
+        setIsInstitutionAdminReset(false);
         toast.success("Request sent to Institutional and Scope Admins!");
+      } else if (res.institutionAdminReset) {
+        setIsStudentReset(false);
+        setIsFacultyReset(false);
+        setIsInstitutionAdminReset(true);
+        toast.success("Request sent to Scope Admins!");
       } else {
         setIsStudentReset(false);
         setIsFacultyReset(false);
+        setIsInstitutionAdminReset(false);
         toast.success("If this account exists, we have sent a reset link.");
       }
     } catch (error) {
@@ -113,6 +122,16 @@ function ForgotPasswordPage() {
                 </p>
                 <p className="mt-2.5 text-[11px] text-amber-600/90 font-medium">
                   Please contact them to obtain your new temporary password and log in.
+                </p>
+              </div>
+            ) : isInstitutionAdminReset ? (
+              <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4 text-sm text-purple-900 shadow-sm animate-in fade-in duration-300">
+                <p className="font-semibold text-purple-800">🛡️ Routed to Scope Admins</p>
+                <p className="mt-1.5 text-xs text-purple-700/95 leading-relaxed">
+                  As you are registered as an Institutional Admin, your request has been routed exclusively to the **Scope Platform Admins**.
+                </p>
+                <p className="mt-2.5 text-[11px] text-purple-600/90 font-medium">
+                  Please contact the Scope support/admin team to obtain your new temporary password and log in.
                 </p>
               </div>
             ) : (

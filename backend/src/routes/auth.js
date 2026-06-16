@@ -322,6 +322,34 @@ authRouter.post("/forgot-password", authRateLimit, validate(forgotPasswordSchema
       return sendSuccess(res, { facultyReset: true }, "Your password reset request has been sent to your Institutional Admin and Scope Admin.");
     }
 
+    if (user.role === "institution_admin") {
+      // Create a password reset request
+      await PasswordResetRequest.create({
+        user: user._id,
+        institution: user.institution,
+        department: user.department,
+        status: "pending",
+      });
+
+      // Find all Scope Admins
+      const scopeAdmins = await User.find({
+        role: "scope_admin",
+        disabledAt: null,
+      });
+
+      for (const admin of scopeAdmins) {
+        await Notification.create({
+          user: admin._id,
+          kind: "admin_action",
+          title: "Institute Admin Password Reset Request",
+          body: `Institute Admin ${user.name} has requested a password reset.`,
+          link: "/scope-admin?tab=password_resets",
+        }).catch((err) => console.error("Notification creation failed:", err));
+      }
+
+      return sendSuccess(res, { institutionAdminReset: true }, "Your password reset request has been sent to the Scope Admin.");
+    }
+
     const { token, tokenHash } = createPasswordResetToken();
     user.resetPasswordTokenHash = tokenHash;
     user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000);

@@ -45,7 +45,12 @@ passwordResetsRouter.get("/", asyncHandler(async (req, res) => {
     .populate("institution", "name logo_text")
     .sort({ createdAt: -1 });
 
-  sendSuccess(res, requests);
+  let filteredRequests = requests;
+  if (req.user.role !== "scope_admin" && req.user.role !== "super_admin") {
+    filteredRequests = requests.filter(r => r.user && r.user.role !== "institution_admin");
+  }
+
+  sendSuccess(res, filteredRequests);
 }));
 
 // POST resolve request (updates student password)
@@ -65,7 +70,11 @@ passwordResetsRouter.post("/:id/resolve", asyncHandler(async (req, res) => {
   }
 
   const student = await User.findById(resetReq.user);
-  if (!student) throw notFound("Student user not found");
+  if (!student) throw notFound("User not found");
+
+  if (student.role === "institution_admin" && req.user.role !== "scope_admin" && req.user.role !== "super_admin") {
+    throw forbidden("Only Scope Admin can resolve an Institutional Admin's password reset request");
+  }
 
   // Hash new password
   student.passwordHash = await bcrypt.hash(password, 12);
@@ -84,5 +93,5 @@ passwordResetsRouter.post("/:id/resolve", asyncHandler(async (req, res) => {
   resetReq.tempPasswordUsed = password; // Option to view what it was set to
   await resetReq.save();
 
-  sendSuccess(res, { success: true }, "Student password has been updated and request resolved");
+  sendSuccess(res, { success: true }, "Password has been updated and request resolved");
 }));
