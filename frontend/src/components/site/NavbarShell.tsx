@@ -43,7 +43,6 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
 
   const [bellOpen, setBellOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const [shimmer, setShimmer] = useState(false);
   const [scrollPastHero, setScrollPastHero] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
@@ -138,17 +137,11 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let raf = 0;
-    let lastY = window.scrollY;
     const onScroll = () => {
       if (raf) return;
       raf = window.requestAnimationFrame(() => {
         raf = 0;
         const y = window.scrollY;
-        const goingDown = y > lastY;
-        lastY = y;
-        if (y < 8) setCollapsed(false);
-        else if (goingDown && y > 32) setCollapsed(true);
-        else if (!goingDown && y < 24) setCollapsed(false);
         setScrollPastHero(y > 450);
       });
     };
@@ -195,22 +188,13 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
       <div aria-hidden className="hidden h-20 w-full md:block" />
 
       <header
-        className={cn(
-          "fixed left-0 right-0 z-[100] flex justify-center px-4 transition-all duration-500 ease-in-out transform-gpu will-change-transform",
-          collapsed ? "top-3" : "top-6"
-        )}
+        className="fixed left-0 right-0 top-6 z-[100] flex justify-center px-4"
       >
-        <div
-          className={cn(
-            "mx-auto w-full transition-all duration-500 ease-in-out transform-gpu",
-            collapsed ? "max-w-[860px]" : "max-w-6xl"
-          )}
-        >
+        <div className="mx-auto w-full max-w-6xl">
           <div
             style={glowVar}
             className={cn(
-              "relative flex items-center justify-between rounded-full border border-white/20 bg-white/70 backdrop-blur-2xl transition-all duration-500 ease-in-out",
-              collapsed ? "px-3 py-1.5 shadow-lg" : "px-4 py-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)]",
+              "relative flex items-center justify-between rounded-full border border-white/20 bg-white/70 backdrop-blur-2xl px-4 py-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)]",
               shimmer && "nav-shimmer",
             )}
           >
@@ -249,12 +233,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                   >
                     <img src="/favicon.png" alt="Logo" className="h-5 w-5 object-contain" />
                   </span>
-                  <div
-                    className={cn(
-                      "overflow-hidden transition-all duration-500 ease-in-out",
-                      collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
-                    )}
-                  >
+                  <div className="max-w-[150px] opacity-100">
                     <span className="whitespace-nowrap px-1 text-[15px] font-extrabold tracking-tight">
                       <span className="text-[#1a1a1a]">{brand.shortName}</span>
                       <span className="text-brand">{brand.accentName}</span>
@@ -275,13 +254,8 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                 </div>
               </div>
 
-              {/* Primary Nav - Stable Transition */}
-              <div
-                className={cn(
-                  "overflow-hidden transition-all duration-500 ease-in-out",
-                  collapsed || !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[400px] opacity-100"
-                )}
-              >
+              {/* Primary Nav */}
+              {showAuthedUI && (
                 <nav className="hidden items-center gap-0.5 px-1 xl:flex" aria-label="Primary">
                   {navConfigForRole(session.role).primary.slice(0, 6).map((item) => {
                     const Icon = item.icon;
@@ -299,20 +273,15 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                     );
                   })}
                 </nav>
-              </div>
+              )}
 
-              {/* Role Badge - Blue Theme Integration */}
-              <div
-                className={cn(
-                  "overflow-hidden transition-all duration-500 ease-in-out",
-                  collapsed || !showAuthedUI ? "max-w-0 opacity-0" : "max-w-[250px] opacity-100"
-                )}
-              >
+              {/* Role Badge */}
+              {showAuthedUI && (
                 <div className="px-1">
                   <span
-                    className="flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/60 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.05em] transition-all hover:border-blue-300/60"
+                    className="flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/60 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.05em] hover:border-blue-300/60"
                     style={{
-                      color: "#2563eb", // Deep blue
+                      color: "#2563eb",
                       boxShadow: "0 2px 10px -4px rgba(37, 99, 235, 0.15)",
                     }}
                     title={`Signed in as ${badgeLabel}`}
@@ -321,7 +290,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                     <span className="whitespace-nowrap opacity-80">{badgeLabel}</span>
                   </span>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="min-w-0 flex-1" />
@@ -357,12 +326,7 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                       )}
                     </div>
 
-                    <div
-                      className={cn(
-                        "overflow-hidden transition-all duration-500 ease-in-out",
-                        collapsed ? "max-w-0 opacity-0" : "max-w-[96px] opacity-100"
-                      )}
-                    >
+                    <div className="max-w-[96px]">
                       <span className="block truncate px-1 text-xs font-semibold text-[#1a1a1a]">
                         {accountFirstName}
                       </span>
