@@ -7,6 +7,23 @@ const numberFromEnv = (key, fallback) => {
   return Number.isFinite(value) ? value : fallback;
 };
 
+const booleanFromEnv = (key, fallback) => {
+  const value = process.env[key];
+  if (value === undefined) return fallback;
+  return String(value).toLowerCase() === "true";
+};
+
+const hasExplicitRedisConfig = [
+  "REDIS_URL",
+  "REDIS_HOST",
+  "REDIS_PORT",
+  "REDIS_USERNAME",
+  "REDIS_PASSWORD",
+].some((key) => {
+  const value = process.env[key];
+  return value !== undefined && String(value).trim() !== "";
+});
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: numberFromEnv("PORT", 8080),
@@ -36,8 +53,8 @@ export const env = {
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
   smtpFrom: process.env.SMTP_FROM || "no-reply@scopeconnect.local",
-  notificationsQueueEnabled: String(process.env.NOTIFICATIONS_QUEUE_ENABLED || "true").toLowerCase() === "true",
-  notificationsWorkerEnabled: String(process.env.NOTIFICATIONS_WORKER_ENABLED || "true").toLowerCase() === "true",
+  notificationsQueueEnabled: booleanFromEnv("NOTIFICATIONS_QUEUE_ENABLED", hasExplicitRedisConfig),
+  notificationsWorkerEnabled: booleanFromEnv("NOTIFICATIONS_WORKER_ENABLED", hasExplicitRedisConfig),
   notificationsWorkerConcurrency: numberFromEnv("NOTIFICATIONS_WORKER_CONCURRENCY", 10),
   notificationsOutboxSweepMs: numberFromEnv("NOTIFICATIONS_OUTBOX_SWEEP_MS", 10000),
   notificationsOutboxSweepBatchSize: numberFromEnv("NOTIFICATIONS_OUTBOX_SWEEP_BATCH_SIZE", 200),

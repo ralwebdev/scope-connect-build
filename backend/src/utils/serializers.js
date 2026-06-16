@@ -154,7 +154,12 @@ export function serializeProject(project, currentUserId = null) {
     maximum_participants: project.maximumParticipants ?? project.capacity,
     allowed_institutions: (project.allowedInstitutions || []).map(idOf),
     required_skills: project.requiredSkills || [],
-    role_requirements: project.roleRequirements || [],
+    role_requirements: (project.roleRequirements || []).map((item) => ({
+      role: item.role,
+      count: item.count ?? 1,
+      skills: item.skills || [],
+      prize_pool_percentage: item.prizePoolPercentage ?? 0,
+    })),
     deliverables: project.deliverables || [],
     responsibilities: project.responsibilities || [],
     success_criteria: project.successCriteria || [],

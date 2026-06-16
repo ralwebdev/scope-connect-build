@@ -71,6 +71,7 @@ const projectSchema = z.object({
     role: z.string().min(1).max(80),
     count: z.number().int().min(1).max(100).optional().default(1),
     skills: z.array(z.string().max(80)).max(20).optional().default([]),
+    prize_pool_percentage: z.number().min(0).max(100).optional().default(0),
   })).max(30).optional(),
   deliverables: z.array(z.string().max(500)).max(50).optional(),
   responsibilities: z.array(z.string().max(500)).max(50).optional(),
@@ -88,6 +89,18 @@ const projectSchema = z.object({
   institution_id: z.string().optional().nullable(),
   meta: z.record(z.string()).optional(),
 });
+
+function validatePrizePoolDistribution(roleRequirements = []) {
+  if (!Array.isArray(roleRequirements) || roleRequirements.length === 0) return;
+  const total = roleRequirements.reduce(
+    (sum, item) => sum + (Number(item?.prize_pool_percentage) || 0),
+    0,
+  );
+
+  if (Math.abs(total - 100) > 0.001) {
+    throw new AppError("Team prize pool allocation must total 100%.", 400);
+  }
+}
 
 const applySchema = z.object({
   message: z.string().max(2000).optional(),
@@ -212,6 +225,7 @@ projectsRouter.post("/", authMiddleware, requirePermission("create_project"), va
   const institutionId = isAdmin && req.body.institution_id !== undefined 
     ? req.body.institution_id 
     : req.user.institution;
+  validatePrizePoolDistribution(req.body.role_requirements);
 
   const project = await Project.create({
     createdBy: req.user._id,
@@ -239,7 +253,12 @@ projectsRouter.post("/", authMiddleware, requirePermission("create_project"), va
     maximumParticipants: req.body.maximum_participants || req.body.capacity || 1,
     allowedInstitutions: req.body.allowed_institutions || [],
     requiredSkills: req.body.required_skills || [],
-    roleRequirements: req.body.role_requirements || [],
+    roleRequirements: (req.body.role_requirements || []).map((item) => ({
+      role: item.role,
+      count: item.count ?? 1,
+      skills: item.skills || [],
+      prizePoolPercentage: item.prize_pool_percentage ?? 0,
+    })),
     deliverables: req.body.deliverables || [],
     responsibilities: req.body.responsibilities || [],
     successCriteria: req.body.success_criteria || [],
@@ -291,7 +310,14 @@ function projectPatchFromBody(body, canChangeInstitution) {
     ...(body.maximum_participants !== undefined && { maximumParticipants: body.maximum_participants }),
     ...(body.allowed_institutions !== undefined && { allowedInstitutions: body.allowed_institutions }),
     ...(body.required_skills !== undefined && { requiredSkills: body.required_skills }),
-    ...(body.role_requirements !== undefined && { roleRequirements: body.role_requirements }),
+    ...(body.role_requirements !== undefined && {
+      roleRequirements: body.role_requirements.map((item) => ({
+        role: item.role,
+        count: item.count ?? 1,
+        skills: item.skills || [],
+        prizePoolPercentage: item.prize_pool_percentage ?? 0,
+      })),
+    }),
     ...(body.deliverables !== undefined && { deliverables: body.deliverables }),
     ...(body.responsibilities !== undefined && { responsibilities: body.responsibilities }),
     ...(body.success_criteria !== undefined && { successCriteria: body.success_criteria }),
@@ -316,6 +342,9 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
   
   const isAdmin = hasPermission(req.user, "manage_projects");
   if (project.createdBy.toString() !== req.user.id && !isAdmin) throw forbidden();
+  if (req.body.role_requirements !== undefined) {
+    validatePrizePoolDistribution(req.body.role_requirements);
+  }
 
   const oldStatus = project.status;
 

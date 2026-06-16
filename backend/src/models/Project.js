@@ -34,6 +34,7 @@ const projectSchema = new mongoose.Schema(
       role: { type: String, trim: true, maxlength: 80 },
       count: { type: Number, min: 1, default: 1 },
       skills: [{ type: String, trim: true, maxlength: 80 }],
+      prizePoolPercentage: { type: Number, min: 0, max: 100, default: 0 },
     }],
     deliverables: [{ type: String, trim: true, maxlength: 500 }],
     responsibilities: [{ type: String, trim: true, maxlength: 500 }],

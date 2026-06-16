@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 let ioredisModulePromise = null;
 let redisConnection = null;
 let warnedUnavailable = false;
+let warnedUnreachable = false;
 
 async function loadIoredis() {
   if (!ioredisModulePromise) {
@@ -57,6 +58,18 @@ export async function getRedisConnection(connectionName = "scope-connect-notific
   redisConnection.on("error", (error) => {
     console.error("[notifications] Redis connection error:", error?.message || error);
   });
+
+  try {
+    await redisConnection.ping();
+  } catch (error) {
+    if (!warnedUnreachable) {
+      warnedUnreachable = true;
+      console.warn("[notifications] Redis is unavailable; queue dispatch is disabled until Redis is configured and reachable.");
+    }
+    redisConnection.disconnect();
+    redisConnection = null;
+    return null;
+  }
 
   return redisConnection;
 }
