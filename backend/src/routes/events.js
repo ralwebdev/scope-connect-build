@@ -15,13 +15,16 @@ export const eventsRouter = express.Router();
 const eventSchema = z.object({
   title: z.string().min(1).max(200),
   type: z.string().min(1).max(200),
+  subtype: z.string().max(200).optional().default(""),
   date: z.string().min(1).max(80).refine((val) => {
     const d = new Date(val);
     return !isNaN(d.getTime()) && d >= new Date(Date.now() - 5 * 60 * 1000);
   }, { message: "Event date must be in the future" }),
   venue: z.string().min(1).max(200),
   seats: z.coerce.number().int().min(1).max(100000),
-  color: z.enum(["brand", "cyan", "primary"]),
+  color: z.enum(["brand", "cyan", "primary"]).optional().default("brand"),
+  speakerName: z.string().max(200).optional().default(""),
+  speakerImage: z.string().max(500).optional().default(""),
 });
 
 eventsRouter.use(authMiddleware);
@@ -43,10 +46,13 @@ eventsRouter.get("/", asyncHandler(async (req, res) => {
     id: event.id,
     title: event.title,
     type: event.type,
+    subtype: event.subtype || "",
     date: event.date,
     venue: event.venue,
     seats: event.seats,
     color: event.color,
+    speakerName: event.speakerName || "",
+    speakerImage: event.speakerImage || "",
     institution: event.institution,
     rsvps: event.rsvps || [],
   })), next_cursor: null, has_more: false });
@@ -62,10 +68,13 @@ eventsRouter.post("/", requirePermission("manage_events"), validate(eventSchema)
     id: event.id,
     title: event.title,
     type: event.type,
+    subtype: event.subtype || "",
     date: event.date,
     venue: event.venue,
     seats: event.seats,
     color: event.color,
+    speakerName: event.speakerName || "",
+    speakerImage: event.speakerImage || "",
   } }, "Event created", 201);
 }));
 
@@ -104,12 +113,13 @@ eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
     // Cancel RSVP
     event.rsvps = event.rsvps.filter((id) => id.toString() !== userId.toString());
     
-    const xpResult = await revokeXp({
+    const xpResult = await awardXp({
       userId,
       institutionId: req.user.institution || null,
       rule: "event_rsvp",
+      dedupeKey: `event_rsvp_cancel:${event.id}:${userId}`,
       meta: { event_id: event.id },
-      text: `Cancelled RSVP for event: ${event.title} · -30 XP`,
+      text: `Cancelled RSVP for event: ${event.title} · +30 XP`,
     }).catch(() => ({ xp: 0 }));
 
     await ProfileActivity.create({
@@ -129,13 +139,12 @@ eventsRouter.post("/:id/rsvp", asyncHandler(async (req, res) => {
 
     event.rsvps.push(userId);
 
-    const xpResult = await awardXp({
+    const xpResult = await revokeXp({
       userId,
       institutionId: req.user.institution || null,
       rule: "event_rsvp",
-      dedupeKey: `event_rsvp:${event.id}:${userId}`,
       meta: { event_id: event.id },
-      text: `Reserved a seat for event: ${event.title} · +30 XP`,
+      text: `Reserved a seat for event: ${event.title} · -30 XP`,
     }).catch(() => ({ xp: 0 }));
 
     await ProfileActivity.create({

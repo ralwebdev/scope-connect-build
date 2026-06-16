@@ -22,6 +22,7 @@ import { useRole } from "@/hooks/use-rbac";
 import { useStoreValue } from "@/hooks/use-scope";
 import { crm, type Institution } from "@/lib/crm-store";
 import { backendAnalytics, backendEvents, backendNotifications, backendProjects, backendUsers, backendInstitutions } from "@/lib/api/endpoints";
+import { EVENT_CATEGORIES } from "@/lib/data/event-categories";
 import { FeedComposer } from "@/components/site/FeedComposer";
 import {
   ProjectPrizeSplitFields,
@@ -32,6 +33,7 @@ import {
 import type { ScopeUser } from "@/lib/scope-store";
 import { rbac, type PermissionKey } from "@/lib/rbac";
 import { toast } from "sonner";
+import { useImageSrc } from "@/hooks/use-image-src";
 import { BookOpen } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -57,6 +59,19 @@ function downloadFile(name: string, type: string, content: string) {
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function SpeakerAvatar({ src, alt, className }: { src?: string; alt?: string; className?: string }) {
+  const image = useImageSrc(src);
+  if (!image.hasImage) return null;
+  return (
+    <img
+      src={image.src}
+      alt={alt || "Speaker"}
+      className={className}
+      onError={image.onError}
+    />
+  );
 }
 
 export const Route = createFileRoute("/institution-admin")({
@@ -3235,11 +3250,14 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({
     title: "",
-    type: "Workshop",
+    type: "Community & Engagement Events",
+    subtype: "Virtual Campfire",
     date: "",
     venue: "Main Auditorium",
     seats: 50,
-    color: "brand"
+    color: "brand",
+    speakerName: "",
+    speakerImage: ""
   });
 
   const fetchEvents = async () => {
@@ -3277,11 +3295,14 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
       setIsModalOpen(false);
       setNewEvent({
         title: "",
-        type: "Workshop",
+        type: "Community & Engagement Events",
+        subtype: "Virtual Campfire",
         date: "",
         venue: "Main Auditorium",
         seats: 50,
-        color: "brand"
+        color: "brand",
+        speakerName: "",
+        speakerImage: ""
       });
       fetchEvents();
     } catch (error: any) {
@@ -3332,33 +3353,41 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                   onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <select
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                    value={newEvent.type}
-                    onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
-                  >
-                    <option>Workshop</option>
-                    <option>Hackathon</option>
-                    <option>Seminar</option>
-                    <option>Meetup</option>
-                    <option>Sprint</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Theme Color</Label>
-                  <select
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                    value={newEvent.color}
-                    onChange={(e) => setNewEvent({ ...newEvent, color: e.target.value })}
-                  >
-                    <option value="brand">Emerald (Brand)</option>
-                    <option value="cyan">Cyber Cyan</option>
-                    <option value="primary">Classic Blue</option>
-                  </select>
-                </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <select
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                  value={newEvent.type}
+                  onChange={(e) => {
+                    const selectedType = e.target.value;
+                    const subtypes = EVENT_CATEGORIES[selectedType] || [];
+                    setNewEvent({
+                      ...newEvent,
+                      type: selectedType,
+                      subtype: subtypes[0] || "",
+                    });
+                  }}
+                >
+                  {Object.keys(EVENT_CATEGORIES).map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Event Type (Subtype)</Label>
+                <select
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                  value={newEvent.subtype || ""}
+                  onChange={(e) => setNewEvent({ ...newEvent, subtype: e.target.value })}
+                >
+                  {(EVENT_CATEGORIES[newEvent.type] || []).map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label>Date & Time *</Label>
@@ -3386,6 +3415,47 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                   />
                 </div>
               </div>
+              {newEvent.subtype !== "Virtual Campfire" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Speaker Name</Label>
+                    <Input
+                      placeholder="e.g. Jane Doe"
+                      value={newEvent.speakerName || ""}
+                      onChange={(e) => setNewEvent({ ...newEvent, speakerName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Speaker Image</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const { backendUpload } = await import("@/lib/api/endpoints");
+                            toast.info("Uploading speaker image...");
+                            const res = await backendUpload.upload(file, "avatar");
+                            setNewEvent((prev) => ({ ...prev, speakerImage: res.file.url }));
+                            toast.success("Speaker image uploaded!");
+                          } catch (err) {
+                            toast.error("Failed to upload speaker image");
+                          }
+                        }}
+                      />
+                      {newEvent.speakerImage && (
+                        <SpeakerAvatar
+                          src={newEvent.speakerImage}
+                          alt="Speaker preview"
+                          className="h-10 w-10 rounded-full object-cover border shrink-0"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
@@ -3418,7 +3488,7 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                 <div className={`h-1.5 ${event.color === 'brand' ? 'bg-brand' : event.color === 'cyan' ? 'bg-cyan' : 'bg-primary'}`} />
                 <div className="p-5">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{event.type}</Badge>
+                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{event.type} {event.subtype ? ` · ${event.subtype}` : ''}</Badge>
                     <div className="flex gap-1">
                       {isGlobal && <Badge variant="secondary" className="text-[9px] bg-brand/10 text-brand border-brand/20">Global Event</Badge>}
                       {canDelete && (
@@ -3429,6 +3499,18 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                     </div>
                   </div>
                   <h4 className="mt-3 font-bold text-foreground line-clamp-2 break-words" title={event.title}>{event.title}</h4>
+                  {event.subtype !== "Virtual Campfire" && event.speakerName && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-brand font-semibold">
+                      {event.speakerImage && (
+                        <SpeakerAvatar
+                          src={event.speakerImage}
+                          alt={event.speakerName}
+                          className="h-4.5 w-4.5 rounded-full object-cover border border-brand/20"
+                        />
+                      )}
+                      <span>Speaker: {event.speakerName}</span>
+                    </div>
+                  )}
                   <div className="mt-4 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
                     <div className="flex items-center min-w-0" title={event.venue}>
                       <MapPin className="mr-1 h-3 w-3 shrink-0" />

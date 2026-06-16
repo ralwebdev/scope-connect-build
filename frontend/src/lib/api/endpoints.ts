@@ -890,12 +890,15 @@ export type BackendEvent = {
   id: string;
   title: string;
   type: string;
+  subtype?: string;
   date: string;
   venue: string;
   seats: number;
   color: "brand" | "cyan" | "primary";
   institution?: string | null;
   rsvps?: string[];
+  speakerName?: string;
+  speakerImage?: string;
 };
 
 export const backendEvents = {

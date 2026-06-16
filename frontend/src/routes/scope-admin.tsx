@@ -87,7 +87,9 @@ import {
   type BackendProposal,
 } from "@/lib/api/endpoints";
 import { toast } from "sonner";
+import { useImageSrc } from "@/hooks/use-image-src";
 import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
+import { EVENT_CATEGORIES } from "@/lib/data/event-categories";
 import { FeedComposer } from "@/components/site/FeedComposer";
 import {
   ProjectPrizeSplitFields,
@@ -112,6 +114,19 @@ import {
   FileSpreadsheet,
   Edit2,
 } from "lucide-react";
+
+export function SpeakerAvatar({ src, alt, className }: { src?: string; alt?: string; className?: string }) {
+  const image = useImageSrc(src);
+  if (!image.hasImage) return null;
+  return (
+    <img
+      src={image.src}
+      alt={alt || "Speaker"}
+      className={className}
+      onError={image.onError}
+    />
+  );
+}
 
 export const Route = createFileRoute("/scope-admin")({
   head: () => ({
@@ -1901,11 +1916,14 @@ function ScopeEventsManager() {
 
   const [form, setForm] = useState<Omit<BackendEvent, "id">>({
     title: "",
-    type: "",
+    type: "Community & Engagement Events",
+    subtype: "Virtual Campfire",
     date: "",
     venue: "",
     seats: 100,
     color: "brand",
+    speakerName: "",
+    speakerImage: "",
   });
 
   useEffect(() => {
@@ -1941,7 +1959,7 @@ function ScopeEventsManager() {
     try {
       const { event: created } = await backendEvents.create(form);
       setEvents((current) => [created, ...current]);
-      setForm({ title: "", type: "", date: "", venue: "", seats: 100, color: "brand" });
+      setForm({ title: "", type: "Community & Engagement Events", subtype: "Virtual Campfire", date: "", venue: "", seats: 100, color: "brand", speakerName: "", speakerImage: "" });
       toast.success("Upcoming event added.");
     } catch (error: any) {
       if (error.details?.issues) {
@@ -1987,8 +2005,40 @@ function ScopeEventsManager() {
             />
           </div>
           <div>
-            <Label>Type</Label>
-            <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} />
+            <Label>Category</Label>
+            <select
+              value={form.type}
+              onChange={(e) => {
+                const selectedType = e.target.value;
+                const subtypes = EVENT_CATEGORIES[selectedType] || [];
+                setForm({
+                  ...form,
+                  type: selectedType,
+                  subtype: subtypes[0] || "",
+                });
+              }}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              {Object.keys(EVENT_CATEGORIES).map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Event Type (Subtype)</Label>
+            <select
+              value={form.subtype || ""}
+              onChange={(e) => setForm({ ...form, subtype: e.target.value })}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              {(EVENT_CATEGORIES[form.type] || []).map((sub) => (
+                <option key={sub} value={sub}>
+                  {sub}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <Label>Date & Time</Label>
@@ -2015,20 +2065,47 @@ function ScopeEventsManager() {
               onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 1 })}
             />
           </div>
-          <div>
-            <Label>Color</Label>
-            <select
-              value={form.color}
-              onChange={(e) =>
-                setForm({ ...form, color: e.target.value as "brand" | "cyan" | "primary" })
-              }
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="brand">brand</option>
-              <option value="cyan">cyan</option>
-              <option value="primary">primary</option>
-            </select>
-          </div>
+          {form.subtype !== "Virtual Campfire" && (
+            <>
+              <div>
+                <Label>Speaker Name</Label>
+                <Input
+                  value={form.speakerName || ""}
+                  onChange={(e) => setForm({ ...form, speakerName: e.target.value })}
+                  placeholder="e.g. Jane Doe"
+                />
+              </div>
+              <div>
+                <Label>Speaker Image</Label>
+                <div className="mt-1 flex items-center gap-3">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const { backendUpload } = await import("@/lib/api/endpoints");
+                        toast.info("Uploading image...");
+                        const res = await backendUpload.upload(file, "avatar");
+                        setForm((prev) => ({ ...prev, speakerImage: res.file.url }));
+                        toast.success("Speaker image uploaded!");
+                      } catch (err) {
+                        toast.error("Failed to upload speaker image.");
+                      }
+                    }}
+                  />
+                  {form.speakerImage && (
+                    <SpeakerAvatar
+                      src={form.speakerImage}
+                      alt="Speaker preview"
+                      className="h-10 w-10 rounded-full object-cover border"
+                    />
+                  )}
+                </div>
+              </div>
+            </>
+          )}
           <Button
             type="submit"
             disabled={saving}
@@ -2043,7 +2120,7 @@ function ScopeEventsManager() {
         <div className="mt-3 space-y-2">
           {loading && <p className="text-sm text-muted-foreground">Loading events...</p>}
           {!loading &&
-            events.map((item) => (
+              events.map((item) => (
               <div
                 key={item.id}
                 className="relative rounded-lg border border-border p-3 group overflow-hidden"
@@ -2055,9 +2132,9 @@ function ScopeEventsManager() {
                     </div>
                     <div
                       className="mt-1 text-xs text-muted-foreground truncate"
-                      title={`${item.type} · ${item.date}`}
+                      title={`${item.type} ${item.subtype ? `(${item.subtype})` : ""} · ${item.date}`}
                     >
-                      {item.type} · {item.date}
+                      {item.type} {item.subtype && `(${item.subtype})`} · {item.date}
                     </div>
                     <div
                       className="text-xs text-muted-foreground truncate"
@@ -2065,6 +2142,18 @@ function ScopeEventsManager() {
                     >
                       {item.venue} · {item.seats} seats
                     </div>
+                    {item.subtype !== "Virtual Campfire" && item.speakerName && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-brand font-semibold">
+                        {item.speakerImage && (
+                          <SpeakerAvatar
+                            src={item.speakerImage}
+                            alt={item.speakerName}
+                            className="h-4.5 w-4.5 rounded-full object-cover border border-brand/20"
+                          />
+                        )}
+                        <span>Speaker: {item.speakerName}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     <Badge variant="outline">{item.color}</Badge>

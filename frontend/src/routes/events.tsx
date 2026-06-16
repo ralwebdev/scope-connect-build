@@ -6,11 +6,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/site/AppShell";
 import { useStoreValue, useIsLoggedIn, useUser } from "@/hooks/use-scope";
-import { events } from "@/lib/scope-store";
+import { auth, events } from "@/lib/scope-store";
 import { FeatureGate } from "@/components/site/FeatureGate";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
 import { backendEvents, type BackendEvent } from "@/lib/api/endpoints";
+import { useImageSrc } from "@/hooks/use-image-src";
+
+function SpeakerAvatar({ src, alt, className }: { src?: string; alt?: string; className?: string }) {
+  const image = useImageSrc(src);
+  if (!image.hasImage) return null;
+  return (
+    <img
+      src={image.src}
+      alt={alt || "Speaker"}
+      className={className}
+      onError={image.onError}
+    />
+  );
+}
 
 export const Route = createFileRoute("/events")({
   head: () => ({
@@ -29,6 +43,24 @@ function fmtCountdown(ms: number) {
   if (d > 0) return `${d}d ${h}h to go`;
   const m = Math.floor((ms % 3600000) / 60000);
   return `${h}h ${m}m to go`;
+}
+
+function formatEventDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return dateStr;
+  }
 }
 
 function getGoogleCalendarUrl(e: { title: string; date: string; venue: string; startsAt: number }) {
@@ -59,6 +91,7 @@ function EventsPage() {
       id: string;
       title: string;
       type: string;
+      subtype?: string;
       date: string;
       venue: string;
       seats: number;
@@ -96,12 +129,15 @@ function EventsPage() {
           id: item.id,
           title: item.title,
           type: item.type,
+          subtype: item.subtype || "",
           date: item.date,
           venue: item.venue,
           seats: item.seats,
           color: item.color as any,
           startsAt: startsAtFromDate(item.date),
           rsvps: item.rsvps || [],
+          speakerName: item.speakerName || "",
+          speakerImage: item.speakerImage || "",
         }));
         
         // Filter out events that have passed current date
@@ -143,6 +179,17 @@ function EventsPage() {
     }
     try {
       const response = await backendEvents.rsvp(id);
+
+      if (typeof response.xp === "number") {
+        try {
+          localStorage.setItem("scope_points", JSON.stringify(response.xp));
+          window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: ["scope_points"] } }));
+        } catch {
+          // ignore local sync failures and fall back to a full user refresh below
+        }
+      }
+
+      void auth.refreshCurrentUser().catch(() => null);
 
       setAll((prev) =>
         prev.map((e) => {
@@ -259,32 +306,44 @@ function EventsPage() {
                 <div className="flex h-2 bg-gradient-brand" />
                 <div className="p-5">
                   <div className="flex items-center justify-between gap-3">
-                    <Badge
-                      className={`max-w-[150px] truncate ${
-                        e.color === "brand"
-                          ? "bg-brand text-brand-foreground"
-                          : e.color === "cyan"
-                          ? "bg-cyan/20 text-cyan-foreground"
-                          : "bg-primary text-primary-foreground"
-                      }`}
-                      title={e.type}
+                     <Badge
+                       className={`${
+                         e.color === "brand"
+                           ? "bg-brand text-brand-foreground"
+                           : e.color === "cyan"
+                           ? "bg-cyan/20 text-cyan-foreground"
+                           : "bg-primary text-primary-foreground"
+                       }`}
+                       title={`${e.type}${e.subtype ? ` · ${e.subtype}` : ""}`}
+                     >
+                       {e.type}{e.subtype ? ` · ${e.subtype}` : ""}
+                     </Badge>
+                     <span className="text-xs font-semibold text-brand shrink-0">
+                       {fmtCountdown(ms)}
+                     </span>
+                   </div>
+                    <h3
+                      className="mt-2.5 text-lg font-semibold text-foreground line-clamp-2 break-words"
+                      title={e.title}
                     >
-                      {e.type}
-                    </Badge>
-                    <span className="text-xs font-semibold text-brand shrink-0">
-                      {fmtCountdown(ms)}
-                    </span>
-                  </div>
-                  <h3
-                    className="mt-4 text-lg font-semibold text-foreground line-clamp-2 break-words h-14"
-                    title={e.title}
-                  >
-                    {e.title}
-                  </h3>
-                  <div className="mt-4 space-y-1.5 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Calendar className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate flex-1">{e.date}</span>
+                      {e.title}
+                    </h3>
+                    {e.subtype !== "Virtual Campfire" && e.speakerName && (
+                      <div className="mt-2 mb-3 flex flex-col items-start gap-1 text-sm text-brand font-semibold">
+                        {e.speakerImage && (
+                          <SpeakerAvatar
+                            src={e.speakerImage}
+                            alt={e.speakerName}
+                            className="h-12 w-12 rounded-full object-cover border-2 border-brand/20 shadow-sm"
+                          />
+                        )}
+                        <span>Speaker: {e.speakerName}</span>
+                      </div>
+                    )}
+                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                     <div className="flex items-center gap-2 min-w-0">
+                       <Calendar className="h-3.5 w-3.5 shrink-0" />
+                       <span className="truncate flex-1">{formatEventDate(e.date)}</span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0" title={e.venue}>
                       <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -312,7 +371,7 @@ function EventsPage() {
                           <Check className="mr-1.5 h-4 w-4" /> Going
                         </>
                       ) : (
-                        "RSVP (+30 XP)"
+                        "RSVP (-30 XP)"
                       )}
                     </Button>
                     <Button
