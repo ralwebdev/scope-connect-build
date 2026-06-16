@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/site/AppShell";
-import { useStoreValue, useIsLoggedIn, useUser } from "@/hooks/use-scope";
-import { auth, events } from "@/lib/scope-store";
+import { useIsLoggedIn, useUser } from "@/hooks/use-scope";
+import { auth } from "@/lib/scope-store";
 import { FeatureGate } from "@/components/site/FeatureGate";
 import { analytics } from "@/lib/analytics";
 import { toast } from "sonner";
@@ -65,7 +65,7 @@ function formatEventDate(dateStr: string) {
 
 function getGoogleCalendarUrl(e: { title: string; date: string; venue: string; startsAt: number }) {
   const start = new Date(e.startsAt);
-  const end = new Date(e.startsAt + 2 * 3600000); // 2 hours by default
+  const end = new Date(e.startsAt + 2 * 3600000);
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const fmt = (d: Date) =>
@@ -83,23 +83,29 @@ function getGoogleCalendarUrl(e: { title: string; date: string; venue: string; s
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
 }
 
+type EventItem = {
+  id: string;
+  title: string;
+  type: string;
+  subtype?: string;
+  date: string;
+  venue: string;
+  seats: number;
+  color: "brand" | "cyan" | "primary";
+  startsAt: number;
+  rsvps: string[];
+  aboutEvent?: string;
+  speakerName?: string;
+  speakerImage?: string;
+  speakerDesignation?: string;
+  speakerCompany?: string;
+  speakerQualification?: string;
+};
+
 function EventsPage() {
   const user = useUser();
   const isAuthed = useIsLoggedIn();
-  const [all, setAll] = useState<
-    Array<{
-      id: string;
-      title: string;
-      type: string;
-      subtype?: string;
-      date: string;
-      venue: string;
-      seats: number;
-      color: "brand" | "cyan" | "primary";
-      startsAt: number;
-      rsvps: string[];
-    }>
-  >([]);
+  const [all, setAll] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -108,11 +114,11 @@ function EventsPage() {
     const startsAtFromDate = (value: string) => {
       let parsed = Date.parse(value);
       if (!Number.isNaN(parsed)) return parsed;
-      
+
       const currentYear = new Date().getFullYear();
       parsed = Date.parse(`${value}, ${currentYear}`);
       if (!Number.isNaN(parsed)) return parsed;
-      
+
       const cleaned = value.replace(/\s*,\s*/g, ", ");
       parsed = Date.parse(`${cleaned}, ${currentYear}`);
       if (!Number.isNaN(parsed)) return parsed;
@@ -125,7 +131,7 @@ function EventsPage() {
       .then(({ items }) => {
         if (cancelled) return;
         const now = Date.now();
-        const mapped = items.map((item: BackendEvent) => ({
+        const mapped: EventItem[] = items.map((item: BackendEvent) => ({
           id: item.id,
           title: item.title,
           type: item.type,
@@ -136,11 +142,14 @@ function EventsPage() {
           color: item.color as any,
           startsAt: startsAtFromDate(item.date),
           rsvps: item.rsvps || [],
+          aboutEvent: item.aboutEvent || "",
           speakerName: item.speakerName || "",
           speakerImage: item.speakerImage || "",
+          speakerDesignation: item.speakerDesignation || "",
+          speakerCompany: item.speakerCompany || "",
+          speakerQualification: item.speakerQualification || "",
         }));
-        
-        // Filter out events that have passed current date
+
         const activeEvents = mapped.filter((item) => item.startsAt >= now);
         setAll(activeEvents);
       })
@@ -185,7 +194,7 @@ function EventsPage() {
           localStorage.setItem("scope_points", JSON.stringify(response.xp));
           window.dispatchEvent(new CustomEvent("scope:store-change", { detail: { keys: ["scope_points"] } }));
         } catch {
-          // ignore local sync failures and fall back to a full user refresh below
+          // ignore local sync failures
         }
       }
 
@@ -212,13 +221,13 @@ function EventsPage() {
     }
   };
 
-  const onAddToCalendar = (e: any) => {
+  const onAddToCalendar = (e: EventItem) => {
     const url = getGoogleCalendarUrl(e);
     window.open(url, "_blank");
     toast.success("Opening Google Calendar...");
   };
 
-  const onShare = async (e: any) => {
+  const onShare = async (e: EventItem) => {
     const shareUrl = `${window.location.origin}/events#${e.id}`;
     const shareData = {
       title: e.title,
@@ -305,45 +314,69 @@ function EventsPage() {
               >
                 <div className="flex h-2 bg-gradient-brand" />
                 <div className="p-5">
+                  {/* Header: badge + countdown */}
                   <div className="flex items-center justify-between gap-3">
-                     <Badge
-                       className={`${
-                         e.color === "brand"
-                           ? "bg-brand text-brand-foreground"
-                           : e.color === "cyan"
-                           ? "bg-cyan/20 text-cyan-foreground"
-                           : "bg-primary text-primary-foreground"
-                       }`}
-                       title={`${e.type}${e.subtype ? ` · ${e.subtype}` : ""}`}
-                     >
-                       {e.type}{e.subtype ? ` · ${e.subtype}` : ""}
-                     </Badge>
-                     <span className="text-xs font-semibold text-brand shrink-0">
-                       {fmtCountdown(ms)}
-                     </span>
-                   </div>
-                    <h3
-                      className="mt-2.5 text-lg font-semibold text-foreground line-clamp-2 break-words"
-                      title={e.title}
+                    <Badge
+                      className={`${
+                        e.color === "brand"
+                          ? "bg-brand text-brand-foreground"
+                          : e.color === "cyan"
+                          ? "bg-cyan/20 text-cyan-foreground"
+                          : "bg-primary text-primary-foreground"
+                      }`}
+                      title={`${e.type}${e.subtype ? ` · ${e.subtype}` : ""}`}
                     >
-                      {e.title}
-                    </h3>
-                    {e.subtype !== "Virtual Campfire" && e.speakerName && (
-                      <div className="mt-2 mb-3 flex flex-col items-start gap-1 text-sm text-brand font-semibold">
-                        {e.speakerImage && (
-                          <SpeakerAvatar
-                            src={e.speakerImage}
-                            alt={e.speakerName}
-                            className="h-12 w-12 rounded-full object-cover border-2 border-brand/20 shadow-sm"
-                          />
-                        )}
-                        <span>Speaker: {e.speakerName}</span>
+                      {e.type}{e.subtype ? ` · ${e.subtype}` : ""}
+                    </Badge>
+                    <span className="text-xs font-semibold text-brand shrink-0">
+                      {fmtCountdown(ms)}
+                    </span>
+                  </div>
+
+                  {/* Title */}
+                  <h3
+                    className="mt-2.5 text-lg font-semibold text-foreground line-clamp-2 break-words"
+                    title={e.title}
+                  >
+                    {e.title}
+                  </h3>
+
+                  {/* Speaker block (hidden for Virtual Campfire) */}
+                  {e.subtype !== "Virtual Campfire" && e.speakerName && (
+                    <div className="mt-2 mb-2 flex flex-col items-start gap-1">
+                      {e.speakerImage && (
+                        <SpeakerAvatar
+                          src={e.speakerImage}
+                          alt={e.speakerName}
+                          className="h-12 w-12 rounded-full object-cover border-2 border-brand/20 shadow-sm"
+                        />
+                      )}
+                      <div className="text-sm font-semibold text-brand leading-tight">
+                        {e.speakerName}
                       </div>
-                    )}
-                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                     <div className="flex items-center gap-2 min-w-0">
-                       <Calendar className="h-3.5 w-3.5 shrink-0" />
-                       <span className="truncate flex-1">{formatEventDate(e.date)}</span>
+                      {(e.speakerDesignation || e.speakerCompany) && (
+                        <div className="text-xs text-muted-foreground">
+                          {[e.speakerDesignation, e.speakerCompany].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                      {e.speakerQualification && (
+                        <div className="text-[10px] text-muted-foreground/70">{e.speakerQualification}</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* About this event */}
+                  {e.aboutEvent && (
+                    <p className="mb-2 text-xs text-muted-foreground line-clamp-2" title={e.aboutEvent}>
+                      {e.aboutEvent}
+                    </p>
+                  )}
+
+                  {/* Meta: date, venue, seats */}
+                  <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Calendar className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate flex-1">{formatEventDate(e.date)}</span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0" title={e.venue}>
                       <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -356,6 +389,8 @@ function EventsPage() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Actions */}
                   <div className="mt-5 flex gap-2">
                     <Button
                       onClick={() => onRsvp(e.id)}

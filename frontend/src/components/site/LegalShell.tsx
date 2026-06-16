@@ -12,12 +12,6 @@ export function LegalShell({ title, updated, children }: { title: string; update
       </section>
       <section className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="prose prose-sm max-w-none">{children}</div>
-        <div className="mt-12 flex flex-wrap gap-4 border-t border-border pt-6 text-sm">
-          <Link to="/terms" className="text-muted-foreground hover:text-foreground">Terms</Link>
-          <Link to="/privacy" className="text-muted-foreground hover:text-foreground">Privacy</Link>
-          <Link to="/community-guidelines" className="text-muted-foreground hover:text-foreground">Community Guidelines</Link>
-          <Link to="/support" className="text-muted-foreground hover:text-foreground">Support</Link>
-        </div>
       </section>
     </>
   );

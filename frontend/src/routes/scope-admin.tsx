@@ -1922,8 +1922,12 @@ function ScopeEventsManager() {
     venue: "",
     seats: 100,
     color: "brand",
+    aboutEvent: "",
     speakerName: "",
     speakerImage: "",
+    speakerDesignation: "",
+    speakerCompany: "",
+    speakerQualification: "",
   });
 
   useEffect(() => {
@@ -1959,7 +1963,7 @@ function ScopeEventsManager() {
     try {
       const { event: created } = await backendEvents.create(form);
       setEvents((current) => [created, ...current]);
-      setForm({ title: "", type: "Community & Engagement Events", subtype: "Virtual Campfire", date: "", venue: "", seats: 100, color: "brand", speakerName: "", speakerImage: "" });
+      setForm({ title: "", type: "Community & Engagement Events", subtype: "Virtual Campfire", date: "", venue: "", seats: 100, color: "brand", aboutEvent: "", speakerName: "", speakerImage: "", speakerDesignation: "", speakerCompany: "", speakerQualification: "" });
       toast.success("Upcoming event added.");
     } catch (error: any) {
       if (error.details?.issues) {
@@ -2065,43 +2069,82 @@ function ScopeEventsManager() {
               onChange={(e) => setForm({ ...form, seats: Number(e.target.value) || 1 })}
             />
           </div>
+          <div>
+            <Label>About this Event</Label>
+            <textarea
+              rows={3}
+              value={form.aboutEvent || ""}
+              onChange={(e) => setForm({ ...form, aboutEvent: e.target.value })}
+              placeholder="Brief description of what this event is about…"
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-brand/40"
+            />
+          </div>
           {form.subtype !== "Virtual Campfire" && (
             <>
-              <div>
-                <Label>Speaker Name</Label>
-                <Input
-                  value={form.speakerName || ""}
-                  onChange={(e) => setForm({ ...form, speakerName: e.target.value })}
-                  placeholder="e.g. Jane Doe"
-                />
-              </div>
-              <div>
-                <Label>Speaker Image</Label>
-                <div className="mt-1 flex items-center gap-3">
+              <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Speaker Details</p>
+                <div>
+                  <Label>Speaker Name</Label>
                   <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const { backendUpload } = await import("@/lib/api/endpoints");
-                        toast.info("Uploading image...");
-                        const res = await backendUpload.upload(file, "avatar");
-                        setForm((prev) => ({ ...prev, speakerImage: res.file.url }));
-                        toast.success("Speaker image uploaded!");
-                      } catch (err) {
-                        toast.error("Failed to upload speaker image.");
-                      }
-                    }}
+                    value={form.speakerName || ""}
+                    onChange={(e) => setForm({ ...form, speakerName: e.target.value })}
+                    placeholder="e.g. Jane Doe"
                   />
-                  {form.speakerImage && (
-                    <SpeakerAvatar
-                      src={form.speakerImage}
-                      alt="Speaker preview"
-                      className="h-10 w-10 rounded-full object-cover border"
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Designation</Label>
+                    <Input
+                      value={form.speakerDesignation || ""}
+                      onChange={(e) => setForm({ ...form, speakerDesignation: e.target.value })}
+                      placeholder="e.g. CTO"
                     />
-                  )}
+                  </div>
+                  <div>
+                    <Label>Company</Label>
+                    <Input
+                      value={form.speakerCompany || ""}
+                      onChange={(e) => setForm({ ...form, speakerCompany: e.target.value })}
+                      placeholder="e.g. Google"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Qualification</Label>
+                  <Input
+                    value={form.speakerQualification || ""}
+                    onChange={(e) => setForm({ ...form, speakerQualification: e.target.value })}
+                    placeholder="e.g. M.Tech IIT Bombay"
+                  />
+                </div>
+                <div>
+                  <Label>Speaker Image</Label>
+                  <div className="mt-1 flex items-center gap-3">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const { backendUpload } = await import("@/lib/api/endpoints");
+                          toast.info("Uploading image...");
+                          const res = await backendUpload.upload(file, "avatar");
+                          setForm((prev) => ({ ...prev, speakerImage: res.file.url }));
+                          toast.success("Speaker image uploaded!");
+                        } catch (err) {
+                          toast.error("Failed to upload speaker image.");
+                        }
+                      }}
+                    />
+                    {form.speakerImage && (
+                      <SpeakerAvatar
+                        src={form.speakerImage}
+                        alt="Speaker preview"
+                        className="h-10 w-10 rounded-full object-cover border"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </>
@@ -2151,7 +2194,17 @@ function ScopeEventsManager() {
                             className="h-4.5 w-4.5 rounded-full object-cover border border-brand/20"
                           />
                         )}
-                        <span>Speaker: {item.speakerName}</span>
+                        <span>
+                          {item.speakerName}
+                          {item.speakerDesignation && (
+                            <span className="font-normal text-muted-foreground ml-1">· {item.speakerDesignation}{item.speakerCompany ? `, ${item.speakerCompany}` : ""}</span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {item.aboutEvent && (
+                      <div className="mt-1 text-xs text-muted-foreground line-clamp-2" title={item.aboutEvent}>
+                        {item.aboutEvent}
                       </div>
                     )}
                   </div>

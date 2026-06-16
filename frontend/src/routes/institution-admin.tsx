@@ -3256,8 +3256,12 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
     venue: "Main Auditorium",
     seats: 50,
     color: "brand",
+    aboutEvent: "",
     speakerName: "",
-    speakerImage: ""
+    speakerImage: "",
+    speakerDesignation: "",
+    speakerCompany: "",
+    speakerQualification: "",
   });
 
   const fetchEvents = async () => {
@@ -3301,8 +3305,12 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
         venue: "Main Auditorium",
         seats: 50,
         color: "brand",
+        aboutEvent: "",
         speakerName: "",
-        speakerImage: ""
+        speakerImage: "",
+        speakerDesignation: "",
+        speakerCompany: "",
+        speakerQualification: "",
       });
       fetchEvents();
     } catch (error: any) {
@@ -3415,43 +3423,82 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>About this Event</Label>
+                <textarea
+                  rows={3}
+                  value={newEvent.aboutEvent || ""}
+                  onChange={(e) => setNewEvent({ ...newEvent, aboutEvent: e.target.value })}
+                  placeholder="Brief description of what this event is about…"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-brand/40"
+                />
+              </div>
               {newEvent.subtype !== "Virtual Campfire" && (
                 <>
-                  <div className="space-y-2">
-                    <Label>Speaker Name</Label>
-                    <Input
-                      placeholder="e.g. Jane Doe"
-                      value={newEvent.speakerName || ""}
-                      onChange={(e) => setNewEvent({ ...newEvent, speakerName: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Speaker Image</Label>
-                    <div className="flex items-center gap-3">
+                  <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Speaker Details</p>
+                    <div className="space-y-2">
+                      <Label>Speaker Name</Label>
                       <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          try {
-                            const { backendUpload } = await import("@/lib/api/endpoints");
-                            toast.info("Uploading speaker image...");
-                            const res = await backendUpload.upload(file, "avatar");
-                            setNewEvent((prev) => ({ ...prev, speakerImage: res.file.url }));
-                            toast.success("Speaker image uploaded!");
-                          } catch (err) {
-                            toast.error("Failed to upload speaker image");
-                          }
-                        }}
+                        placeholder="e.g. Jane Doe"
+                        value={newEvent.speakerName || ""}
+                        onChange={(e) => setNewEvent({ ...newEvent, speakerName: e.target.value })}
                       />
-                      {newEvent.speakerImage && (
-                        <SpeakerAvatar
-                          src={newEvent.speakerImage}
-                          alt="Speaker preview"
-                          className="h-10 w-10 rounded-full object-cover border shrink-0"
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Designation</Label>
+                        <Input
+                          placeholder="e.g. CTO"
+                          value={newEvent.speakerDesignation || ""}
+                          onChange={(e) => setNewEvent({ ...newEvent, speakerDesignation: e.target.value })}
                         />
-                      )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Company</Label>
+                        <Input
+                          placeholder="e.g. Google"
+                          value={newEvent.speakerCompany || ""}
+                          onChange={(e) => setNewEvent({ ...newEvent, speakerCompany: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Qualification</Label>
+                      <Input
+                        placeholder="e.g. M.Tech IIT Bombay"
+                        value={newEvent.speakerQualification || ""}
+                        onChange={(e) => setNewEvent({ ...newEvent, speakerQualification: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Speaker Image</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const { backendUpload } = await import("@/lib/api/endpoints");
+                              toast.info("Uploading speaker image...");
+                              const res = await backendUpload.upload(file, "avatar");
+                              setNewEvent((prev) => ({ ...prev, speakerImage: res.file.url }));
+                              toast.success("Speaker image uploaded!");
+                            } catch (err) {
+                              toast.error("Failed to upload speaker image");
+                            }
+                          }}
+                        />
+                        {newEvent.speakerImage && (
+                          <SpeakerAvatar
+                            src={newEvent.speakerImage}
+                            alt="Speaker preview"
+                            className="h-10 w-10 rounded-full object-cover border shrink-0"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 </>
@@ -3508,8 +3555,18 @@ function AdminEventsView({ institutionId }: { institutionId: string }) {
                           className="h-4.5 w-4.5 rounded-full object-cover border border-brand/20"
                         />
                       )}
-                      <span>Speaker: {event.speakerName}</span>
+                      <span>
+                        {event.speakerName}
+                        {event.speakerDesignation && (
+                          <span className="font-normal text-muted-foreground ml-1">· {event.speakerDesignation}{event.speakerCompany ? `, ${event.speakerCompany}` : ""}</span>
+                        )}
+                      </span>
                     </div>
+                  )}
+                  {event.aboutEvent && (
+                    <p className="mt-1 text-[10px] text-muted-foreground line-clamp-2" title={event.aboutEvent}>
+                      {event.aboutEvent}
+                    </p>
                   )}
                   <div className="mt-4 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
                     <div className="flex items-center min-w-0" title={event.venue}>

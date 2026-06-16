@@ -613,6 +613,7 @@ function ProjectsPage() {
           institutionId={user?.institution?.id}
           onSubmitted={(application) => {
             setUserApps((current) => current.map((app) => (app.id === application.id ? application : app)));
+            void auth.refreshCurrentUser().catch(() => null);
             setSubmissionTarget(null);
             toast.success("Submission sent for Scope review.");
           }}
@@ -776,6 +777,7 @@ function ProjectCard({
   const isRejected = application?.status === "rejected";
   const workUnlocked = canStartProjectWork(application);
   const underReview = isApplicationUnderReview(application);
+  const isSubmitted = ["submitted", "passed", "needs_changes"].includes(application?.submissionReviewStatus || "");
 
   const submissionLabel = isPending
     ? "Pending Review"
@@ -890,13 +892,15 @@ function ProjectCard({
             disabled={closed || (!applied && !canParticipate) || (applied && (!workUnlocked || isRejected))}
             size="sm"
             className={`flex-1 ${
-              applied && workUnlocked && !isRejected
-                ? "bg-success text-primary-foreground hover:bg-success/90"
-                : applied && underReview
-                  ? "bg-amber-500/20 text-amber-600 border border-amber-500/30 cursor-not-allowed hover:bg-amber-500/20"
-                  : applied && isRejected
-                    ? "bg-red-500/20 text-red-600 border border-red-500/30 cursor-not-allowed hover:bg-red-500/20"
-                    : "bg-gradient-brand text-brand-foreground"
+              applied && workUnlocked && isSubmitted && !isRejected
+                ? "bg-violet-500/15 text-violet-700 border border-violet-400/40 hover:bg-violet-500/25 shadow-[0_0_14px_-4px_rgba(139,92,246,0.35)]"
+                : applied && workUnlocked && !isRejected
+                  ? "bg-success text-primary-foreground hover:bg-success/90"
+                  : applied && underReview
+                    ? "bg-amber-500/20 text-amber-600 border border-amber-500/30 cursor-not-allowed hover:bg-amber-500/20"
+                    : applied && isRejected
+                      ? "bg-red-500/20 text-red-600 border border-red-500/30 cursor-not-allowed hover:bg-red-500/20"
+                      : "bg-gradient-brand text-brand-foreground"
             }`}
           >
             {!canParticipate && !applied ? "Restricted" :
@@ -905,7 +909,9 @@ function ProjectCard({
              applied && isRejected ? "Rejected" :
              applied ? (
                project.team_members_limit === 1 ? (
-                 <><Check className="mr-1.5 h-4 w-4" /> Submit Work</>
+                 isSubmitted
+                   ? <><Check className="mr-1.5 h-4 w-4" /> Work Submitted</>
+                   : <><Check className="mr-1.5 h-4 w-4" /> Submit Work</>
                ) : (
                  <><Check className="mr-1.5 h-4 w-4" /> Project Room</>
                )
@@ -1638,6 +1644,7 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
   const workUnlocked = canStartProjectWork(application);
   const underReview = isApplicationUnderReview(application);
   const isRejected = application?.status === "rejected";
+  const isSubmitted = ["submitted", "passed", "needs_changes"].includes(application?.submissionReviewStatus || "");
   const seatsLeft = project.seatsTotal - project.seatsFilled;
   const submissionDeadline = resolveSubmissionDeadline(project);
   return (
@@ -1686,7 +1693,10 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
         <Button 
           onClick={onApply} 
           disabled={(!applied && !canParticipate) || (applied && !workUnlocked)}
-          className="bg-gradient-brand text-brand-foreground"
+          className={applied && workUnlocked && isSubmitted && !isRejected
+            ? "bg-violet-500/15 text-violet-700 border border-violet-400/40 hover:bg-violet-500/25 shadow-[0_0_14px_-4px_rgba(139,92,246,0.35)]"
+            : "bg-gradient-brand text-brand-foreground"
+          }
         >
           {applied
             ? underReview
@@ -1694,7 +1704,9 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
               : isRejected
                 ? "Rejected"
                 : project.team_members_limit === 1
-                  ? "Submit Work"
+                  ? isSubmitted
+                    ? <><Check className="mr-1.5 h-4 w-4" /> Work Submitted</>
+                    : "Submit Work"
                   : "Open Room"
             : canParticipate
               ? `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP`

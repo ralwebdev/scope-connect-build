@@ -897,8 +897,12 @@ export type BackendEvent = {
   color: "brand" | "cyan" | "primary";
   institution?: string | null;
   rsvps?: string[];
+  aboutEvent?: string;
   speakerName?: string;
   speakerImage?: string;
+  speakerDesignation?: string;
+  speakerCompany?: string;
+  speakerQualification?: string;
 };
 
 export const backendEvents = {

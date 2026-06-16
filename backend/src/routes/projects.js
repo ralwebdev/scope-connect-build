@@ -424,6 +424,7 @@ async function evaluateProjectEligibility({ req, project, profile }) {
     user: req.user._id,
     status: "accepted",
     commitmentStatus: { $in: ["reserved", "none"] },
+    submissionReviewStatus: "not_submitted",
   });
 
   if (req.user.role !== "student") failures.push("verified_student");
@@ -460,6 +461,12 @@ async function evaluateProjectEligibility({ req, project, profile }) {
       max_project_limit: activeProjects < XP_CONSTANTS.MAX_CONCURRENT_PROJECTS,
     },
   };
+}
+
+function countsAgainstProjectLimit(application) {
+  return application.status === "accepted"
+    && ["reserved", "none"].includes(application.commitmentStatus || "none")
+    && (application.submissionReviewStatus || "not_submitted") === "not_submitted";
 }
 
 function projectEligibilityMessage(eligibility) {
@@ -729,7 +736,7 @@ projectsRouter.delete("/:id/room/participants/:userId", authMiddleware, asyncHan
   // Update student's application status to withdrawn
   const application = await Application.findOne({ project: project._id, user: req.params.userId });
   if (application) {
-    const countedAsActive = application.status === "accepted" && ["reserved", "none"].includes(application.commitmentStatus || "none");
+    const countedAsActive = countsAgainstProjectLimit(application);
     application.status = "withdrawn";
     application.coordinator = false;
     await application.save();
@@ -1132,6 +1139,7 @@ projectsRouter.get("/:id/abuse-check", authMiddleware, asyncHandler(async (req, 
           user: { $in: participantUserIds },
           status: "accepted",
           commitmentStatus: { $in: ["reserved", "none"] },
+          submissionReviewStatus: "not_submitted",
         },
       },
       { $group: { _id: "$user", count: { $sum: 1 } } },
@@ -1235,12 +1243,12 @@ applicationsRouter.patch("/:id", validate(applicationPatchSchema), asyncHandler(
   const isReviewer = application.project.createdBy.toString() === req.user.id || hasPermission(req.user, "review_application");
   if (isApplicant && req.body.status !== "withdrawn") throw forbidden();
   if (!isApplicant && !isReviewer) throw forbidden();
-  const wasActive = application.status === "accepted" && ["reserved", "none"].includes(application.commitmentStatus || "none");
+  const wasActive = countsAgainstProjectLimit(application);
   application.status = req.body.status;
   application.reviewedBy = isReviewer ? req.user._id : application.reviewedBy;
   application.reviewedAt = isReviewer ? new Date() : application.reviewedAt;
   await application.save();
-  const isActive = application.status === "accepted" && ["reserved", "none"].includes(application.commitmentStatus || "none");
+  const isActive = countsAgainstProjectLimit(application);
   if (wasActive && !isActive) {
     await adjustProjectCounters(application.user, { activeDelta: -1 }).catch(() => null);
   }
@@ -1271,6 +1279,7 @@ applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHand
     throw new AppError(422, "BUSINESS_RULE_VIOLATION", "This application can no longer receive submissions");
   }
 
+  const wasActive = countsAgainstProjectLimit(application);
   application.submission = {
     liveUrl: req.body.live_url,
     githubUrl: req.body.github_url,
@@ -1285,6 +1294,9 @@ applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHand
   application.submissionReviewStatus = "submitted";
   await application.save();
   await activateProjectRoom(application.project._id).catch(() => null);
+  if (wasActive) {
+    await adjustProjectCounters(application.user, { activeDelta: -1 }).catch(() => null);
+  }
 
   await dispatchNotification({
     user: application.project.createdBy,
@@ -1357,7 +1369,7 @@ applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSche
 
     application.rewardEligible = true;
     application.settlementStatus = "settled";
-    await adjustProjectCounters(application.user, { activeDelta: -1, completedDelta: 1 }).catch(() => null);
+    await adjustProjectCounters(application.user, { completedDelta: 1 }).catch(() => null);
     await adjustReliabilityScore(application.user, 2).catch(() => null);
   }
 

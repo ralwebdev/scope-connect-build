@@ -23,8 +23,12 @@ const eventSchema = z.object({
   venue: z.string().min(1).max(200),
   seats: z.coerce.number().int().min(1).max(100000),
   color: z.enum(["brand", "cyan", "primary"]).optional().default("brand"),
+  aboutEvent: z.string().max(2000).optional().default(""),
   speakerName: z.string().max(200).optional().default(""),
   speakerImage: z.string().max(500).optional().default(""),
+  speakerDesignation: z.string().max(200).optional().default(""),
+  speakerCompany: z.string().max(200).optional().default(""),
+  speakerQualification: z.string().max(200).optional().default(""),
 });
 
 eventsRouter.use(authMiddleware);
@@ -51,8 +55,12 @@ eventsRouter.get("/", asyncHandler(async (req, res) => {
     venue: event.venue,
     seats: event.seats,
     color: event.color,
+    aboutEvent: event.aboutEvent || "",
     speakerName: event.speakerName || "",
     speakerImage: event.speakerImage || "",
+    speakerDesignation: event.speakerDesignation || "",
+    speakerCompany: event.speakerCompany || "",
+    speakerQualification: event.speakerQualification || "",
     institution: event.institution,
     rsvps: event.rsvps || [],
   })), next_cursor: null, has_more: false });
@@ -73,8 +81,12 @@ eventsRouter.post("/", requirePermission("manage_events"), validate(eventSchema)
     venue: event.venue,
     seats: event.seats,
     color: event.color,
+    aboutEvent: event.aboutEvent || "",
     speakerName: event.speakerName || "",
     speakerImage: event.speakerImage || "",
+    speakerDesignation: event.speakerDesignation || "",
+    speakerCompany: event.speakerCompany || "",
+    speakerQualification: event.speakerQualification || "",
   } }, "Event created", 201);
 }));
 
