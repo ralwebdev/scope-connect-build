@@ -82,6 +82,14 @@ function resolveSubmissionDeadline(project: CuratedProject): number | null {
   return Date.now() + weeks * 7 * 24 * 60 * 60 * 1000;
 }
 
+function canStartProjectWork(application?: ProjectApplication) {
+  return application?.status === "accepted";
+}
+
+function isApplicationUnderReview(application?: ProjectApplication) {
+  return application?.status === "pending" || application?.status === "shortlisted";
+}
+
 function ProjectsPage() {
   const role = useRole();
   const openProjectsEnabled = useFeature("openProjects");
@@ -336,12 +344,16 @@ function ProjectsPage() {
     }
     const app = userApps.find((a) => a.projectId === p.id);
     if (app) {
-      if (app.status === "pending") {
-        toast.info("Your application is currently pending admin review.");
+      if (isApplicationUnderReview(app)) {
+        toast.info("Your application is under admin review. You can start work once it is accepted.");
         return;
       }
       if (app.status === "rejected") {
         toast.error("Your application has been rejected.");
+        return;
+      }
+      if (!canStartProjectWork(app)) {
+        toast.info("You can start work only after admin verification.");
         return;
       }
       if (p.team_members_limit === 1) {
@@ -760,10 +772,15 @@ function ProjectCard({
   const stakeAmount = Math.max(50, project.xpCommitmentStake || 50);
 
   const isPending = application?.status === "pending";
+  const isShortlisted = application?.status === "shortlisted";
   const isRejected = application?.status === "rejected";
+  const workUnlocked = canStartProjectWork(application);
+  const underReview = isApplicationUnderReview(application);
 
   const submissionLabel = isPending
     ? "Pending Review"
+    : isShortlisted
+      ? "Verification Pending"
     : isRejected
       ? "Rejected"
       : application?.submissionReviewStatus === "passed"
@@ -851,13 +868,13 @@ function ProjectCard({
           <div className="mt-3 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
             <div className="flex items-center justify-between gap-2">
               <span className="font-semibold text-foreground">
-                {isPending ? "Application Pending" : isRejected ? "Application Rejected" : "Project Submission"}
+                {underReview ? "Application Under Review" : isRejected ? "Application Rejected" : "Project Submission"}
               </span>
               <Badge variant="outline" className="capitalize">{submissionLabel}</Badge>
             </div>
             <div className="mt-1 text-muted-foreground">
-              {isPending
-                ? "Your application is currently pending review by the Scope Admin. You can submit your work once it is accepted."
+              {underReview
+                ? "Your application has been submitted for admin verification. Work access will unlock only after it is accepted."
                 : isRejected
                   ? "Your application has been rejected by the admin."
                   : submissionDeadline && !isNaN(new Date(submissionDeadline).getTime())
@@ -870,12 +887,12 @@ function ProjectCard({
         <div className="mt-4 flex items-center gap-2">
           <Button
             onClick={onApply}
-            disabled={closed || (!applied && !canParticipate) || (applied && (isPending || isRejected))}
+            disabled={closed || (!applied && !canParticipate) || (applied && (!workUnlocked || isRejected))}
             size="sm"
             className={`flex-1 ${
-              applied && !isPending && !isRejected
+              applied && workUnlocked && !isRejected
                 ? "bg-success text-primary-foreground hover:bg-success/90"
-                : applied && isPending
+                : applied && underReview
                   ? "bg-amber-500/20 text-amber-600 border border-amber-500/30 cursor-not-allowed hover:bg-amber-500/20"
                   : applied && isRejected
                     ? "bg-red-500/20 text-red-600 border border-red-500/30 cursor-not-allowed hover:bg-red-500/20"
@@ -884,6 +901,7 @@ function ProjectCard({
           >
             {!canParticipate && !applied ? "Restricted" :
              applied && isPending ? "Pending Review" :
+             applied && isShortlisted ? "Awaiting Acceptance" :
              applied && isRejected ? "Rejected" :
              applied ? (
                project.team_members_limit === 1 ? (
@@ -1617,6 +1635,9 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
   project: CuratedProject; application?: ProjectApplication; onApply: () => void; onClose: () => void; canParticipate?: boolean;
 }) {
   const applied = Boolean(application);
+  const workUnlocked = canStartProjectWork(application);
+  const underReview = isApplicationUnderReview(application);
+  const isRejected = application?.status === "rejected";
   const seatsLeft = project.seatsTotal - project.seatsFilled;
   const submissionDeadline = resolveSubmissionDeadline(project);
   return (
@@ -1643,9 +1664,15 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
         </div>
         {applied && (
           <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
-            <div className="font-semibold text-foreground">Submission window</div>
+            <div className="font-semibold text-foreground">
+              {workUnlocked ? "Submission window" : underReview ? "Verification in progress" : "Application status"}
+            </div>
             <div className="mt-1 text-muted-foreground">
-              {submissionDeadline
+              {underReview
+                ? "Your application has been sent to the admin for verification. You can start the project only after it is accepted."
+                : isRejected
+                  ? "This application was rejected, so project work is locked."
+                  : submissionDeadline
                 ? `Submit by ${new Date(submissionDeadline).toLocaleString()}.`
                 : project.scope === "campus"
                   ? "Submit your screenshot, live URL, and GitHub link for Institution Admin review."
@@ -1658,10 +1685,20 @@ function DetailModal({ project, application, onApply, onClose, canParticipate = 
         <Button variant="outline" onClick={onClose}>Close</Button>
         <Button 
           onClick={onApply} 
-          disabled={!applied && !canParticipate}
+          disabled={(!applied && !canParticipate) || (applied && !workUnlocked)}
           className="bg-gradient-brand text-brand-foreground"
         >
-          {applied ? (project.team_members_limit === 1 ? "Submit Work" : "Open Room") : canParticipate ? `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP` : "Restricted for Admins"}
+          {applied
+            ? underReview
+              ? "Pending Verification"
+              : isRejected
+                ? "Rejected"
+                : project.team_members_limit === 1
+                  ? "Submit Work"
+                  : "Open Room"
+            : canParticipate
+              ? `⚡ Commit ${Math.max(50, project.xpCommitmentStake || 50)} XP`
+              : "Restricted for Admins"}
         </Button>
       </div>
     </ModalShell>

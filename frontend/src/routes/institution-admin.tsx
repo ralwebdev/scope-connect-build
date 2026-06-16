@@ -23,6 +23,12 @@ import { useStoreValue } from "@/hooks/use-scope";
 import { crm, type Institution } from "@/lib/crm-store";
 import { backendAnalytics, backendEvents, backendNotifications, backendProjects, backendUsers, backendInstitutions } from "@/lib/api/endpoints";
 import { FeedComposer } from "@/components/site/FeedComposer";
+import {
+  ProjectPrizeSplitFields,
+  createEmptyProjectPrizeRole,
+  getProjectPrizePoolTotal,
+  normalizeProjectPrizeRoles,
+} from "@/components/site/ProjectPrizeSplitFields";
 import type { ScopeUser } from "@/lib/scope-store";
 import { rbac, type PermissionKey } from "@/lib/rbac";
 import { toast } from "sonner";
@@ -2609,6 +2615,7 @@ function AdminProjectsView({ institutionId, institutionName }: { institutionId: 
     minimum_xp_required: 0,
     xp_commitment_stake: 50,
     reward_pool_xp: 0,
+    role_requirements: [createEmptyProjectPrizeRole()],
   });
   const [newProject, setNewProject] = useState({
     ...defaultProjectForm(),
@@ -2642,6 +2649,16 @@ function AdminProjectsView({ institutionId, institutionName }: { institutionId: 
       minimum_xp_required: Number(project.minimum_xp_required ?? 0) || 0,
       xp_commitment_stake: Number(project.xp_commitment_stake ?? 50) || 50,
       reward_pool_xp: Number(project.reward_pool_xp ?? 0) || 0,
+      role_requirements:
+        project.role_requirements?.length
+          ? project.role_requirements.map((item: any) => ({
+              role: item.role ?? "",
+              count: 1,
+              skills: [],
+              prize_pool_percentage:
+                Number(item.prize_pool_percentage ?? 0) || 0,
+            }))
+          : [createEmptyProjectPrizeRole()],
     });
     setIsModalOpen(true);
   };
@@ -2679,6 +2696,23 @@ function AdminProjectsView({ institutionId, institutionName }: { institutionId: 
   const handleSaveProject = async () => {
     if (!newProject.title.trim()) return toast.error("Project title is required");
     if (!newProject.summary.trim()) return toast.error("Project summary is required");
+    const normalizedRoleRequirements = customIsTeam
+      ? normalizeProjectPrizeRoles(newProject.role_requirements).filter((item) => item.role)
+      : [];
+    if (customIsTeam) {
+      if (normalizedRoleRequirements.length === 0) {
+        return toast.error("Add at least one team position");
+      }
+      if (normalizedRoleRequirements.some((item) => !item.role.trim())) {
+        return toast.error("Each team position needs a name");
+      }
+      if (getProjectPrizePoolTotal(normalizedRoleRequirements) !== 100) {
+        return toast.error("Team prize pool allocation must total 100%");
+      }
+      if (newProject.team_members_limit < normalizedRoleRequirements.length) {
+        return toast.error("Members per team must cover all listed team positions");
+      }
+    }
     try {
       const { backendProjects } = await import("@/lib/api/endpoints");
       const payload = {
@@ -2686,6 +2720,7 @@ function AdminProjectsView({ institutionId, institutionName }: { institutionId: 
         team_members_limit: customIsTeam ? newProject.team_members_limit : 1,
         teams_allowed: customIsTeam ? newProject.teams_allowed : 1,
         institution_id: backendInstitutionId,
+        role_requirements: normalizedRoleRequirements,
       };
       if (editingProjectId) {
         await backendProjects.update(editingProjectId, payload);
@@ -2796,7 +2831,15 @@ function AdminProjectsView({ institutionId, institutionName }: { institutionId: 
                   <span className={`text-xs font-semibold transition-colors duration-200 ${!customIsTeam ? "text-foreground" : "text-muted-foreground"}`}>Individual</span>
                   <Switch
                     checked={customIsTeam}
-                    onCheckedChange={setCustomIsTeam}
+                    onCheckedChange={(checked) => {
+                      setCustomIsTeam(checked);
+                      if (checked && newProject.role_requirements.length === 0) {
+                        setNewProject((current) => ({
+                          ...current,
+                          role_requirements: [createEmptyProjectPrizeRole()],
+                        }));
+                      }
+                    }}
                   />
                   <span className={`text-xs font-semibold transition-colors duration-200 ${customIsTeam ? "text-brand" : "text-muted-foreground"}`}>Team</span>
                 </div>
@@ -2892,6 +2935,18 @@ function AdminProjectsView({ institutionId, institutionName }: { institutionId: 
                   />
                 </div>
               </div>
+              {customIsTeam && (
+                <ProjectPrizeSplitFields
+                  roles={newProject.role_requirements}
+                  rewardPoolXp={newProject.reward_pool_xp}
+                  onChange={(roleRequirements) =>
+                    setNewProject({
+                      ...newProject,
+                      role_requirements: roleRequirements,
+                    })
+                  }
+                />
+              )}
               <Button type="submit" className="justify-self-end bg-gradient-brand text-brand-foreground">
                 {editingProjectId ? "Save Changes" : "Create Project"}
               </Button>

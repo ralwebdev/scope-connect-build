@@ -330,6 +330,12 @@ export type BackendProject = {
   daily_reporting_required?: boolean;
   minimum_contribution_score?: number;
   reward_pool_xp?: number;
+  role_requirements?: Array<{
+    role: string;
+    count?: number;
+    skills?: string[];
+    prize_pool_percentage?: number;
+  }>;
   created_at: string;
   updated_at?: string;
 };
@@ -374,6 +380,7 @@ export const backendProjects = {
         minimum_xp_required: project.minimum_xp_required ?? 0,
         xp_commitment_stake: project.xp_commitment_stake ?? 50,
         reward_pool_xp: project.reward_pool_xp ?? 0,
+        role_requirements: project.role_requirements ?? [],
       }),
     });
   },
@@ -386,7 +393,7 @@ export const backendProjects = {
   apply(id: string, message: string) {
     return this.join(id, message);
   },
-  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string; minimum_xp_required: number; xp_commitment_stake: number; reward_pool_xp: number; capacity: number; teams_allowed: number; team_members_limit: number; visibility: string; institution_id: string | null }>) {
+  update(id: string, body: Partial<{ title: string; summary: string; description: string; domain: string; status: string; minimum_xp_required: number; xp_commitment_stake: number; reward_pool_xp: number; capacity: number; teams_allowed: number; team_members_limit: number; visibility: string; institution_id: string | null; role_requirements: Array<{ role: string; count?: number; skills?: string[]; prize_pool_percentage?: number }> }>) {
     return api<{ project: BackendProject }>(`/api/v1/projects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),

@@ -89,6 +89,12 @@ import {
 import { toast } from "sonner";
 import { PROJECT_TEMPLATES } from "@/lib/data/project-templates";
 import { FeedComposer } from "@/components/site/FeedComposer";
+import {
+  ProjectPrizeSplitFields,
+  createEmptyProjectPrizeRole,
+  getProjectPrizePoolTotal,
+  normalizeProjectPrizeRoles,
+} from "@/components/site/ProjectPrizeSplitFields";
 import { opportunities, type ScopeUser } from "@/lib/scope-store";
 import { normalizeSkills } from "@/lib/skill-matching";
 import {
@@ -2109,6 +2115,7 @@ function ScopeProjectsManager() {
     minimum_xp_required: 0,
     xp_commitment_stake: 50,
     reward_pool_xp: 0,
+    role_requirements: [createEmptyProjectPrizeRole()],
   });
 
   const [templateEntryXps, setTemplateEntryXps] = useState<Record<string, number>>({});
@@ -2149,6 +2156,27 @@ function ScopeProjectsManager() {
       toast.error("Title and summary are required.");
       return;
     }
+    const normalizedRoleRequirements = customIsTeam
+      ? normalizeProjectPrizeRoles(form.role_requirements).filter((item) => item.role)
+      : [];
+    if (customIsTeam) {
+      if (normalizedRoleRequirements.length === 0) {
+        toast.error("Add at least one team position.");
+        return;
+      }
+      if (normalizedRoleRequirements.some((item) => !item.role.trim())) {
+        toast.error("Each team position needs a name.");
+        return;
+      }
+      if (getProjectPrizePoolTotal(normalizedRoleRequirements) !== 100) {
+        toast.error("Team prize pool allocation must total 100%.");
+        return;
+      }
+      if (form.team_members_limit < normalizedRoleRequirements.length) {
+        toast.error("Members per team must cover all listed team positions.");
+        return;
+      }
+    }
     setSaving(true);
     try {
       const payload = {
@@ -2156,6 +2184,7 @@ function ScopeProjectsManager() {
         institution_id: form.institution_id || null,
         team_members_limit: customIsTeam ? form.team_members_limit : 1,
         teams_allowed: customIsTeam ? form.teams_allowed : form.capacity,
+        role_requirements: normalizedRoleRequirements,
       };
       const { project: created } = await backendProjects.create(payload);
       setProjects((current) => [created, ...current]);
@@ -2173,6 +2202,7 @@ function ScopeProjectsManager() {
         minimum_xp_required: 0,
         xp_commitment_stake: 50,
         reward_pool_xp: 0,
+        role_requirements: [createEmptyProjectPrizeRole()],
       });
       setCustomIsTeam(true);
       setActiveSubTab("active");
@@ -3205,7 +3235,15 @@ function ScopeProjectsManager() {
                   <span className={`text-xs font-semibold transition-colors duration-200 ${!customIsTeam ? "text-foreground" : "text-muted-foreground"}`}>Individual</span>
                   <Switch
                     checked={customIsTeam}
-                    onCheckedChange={setCustomIsTeam}
+                    onCheckedChange={(checked) => {
+                      setCustomIsTeam(checked);
+                      if (checked && form.role_requirements.length === 0) {
+                        setForm((current) => ({
+                          ...current,
+                          role_requirements: [createEmptyProjectPrizeRole()],
+                        }));
+                      }
+                    }}
                   />
                   <span className={`text-xs font-semibold transition-colors duration-200 ${customIsTeam ? "text-brand" : "text-muted-foreground"}`}>Team</span>
                 </div>
@@ -3325,6 +3363,15 @@ function ScopeProjectsManager() {
                   />
                 </div>
               </div>
+              {customIsTeam && (
+                <ProjectPrizeSplitFields
+                  roles={form.role_requirements}
+                  rewardPoolXp={form.reward_pool_xp}
+                  onChange={(roleRequirements) =>
+                    setForm({ ...form, role_requirements: roleRequirements })
+                  }
+                />
+              )}
               <Button
                 type="submit"
                 disabled={saving}
