@@ -27,6 +27,7 @@ import { challengesRouter } from "./routes/challenges.js";
 import { configRouter } from "./routes/config.js";
 import { superAdminRouter } from "./routes/super-admin.js";
 import { xpRouter } from "./routes/xp.js";
+import { passwordResetsRouter } from "./routes/passwordResets.js";
 
 function isAllowedDevOrigin(origin) {
   return env.nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
@@ -81,6 +82,7 @@ export function createApp() {
   v1Router.use("/config", configRouter);
   v1Router.use("/super-admin", superAdminRouter);
   v1Router.use("/xp", xpRouter);
+  v1Router.use("/admin/password-resets", passwordResetsRouter);
 
   app.use("/api/v1", v1Router);
 

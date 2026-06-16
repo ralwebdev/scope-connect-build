@@ -909,6 +909,53 @@ function MembersView({ institutionId }: { institutionId: string }) {
     departmentId: "",
     institutionMemberId: "",
   });
+
+  const [passwordResets, setPasswordResets] = useState<any[]>([]);
+  const [loadingResets, setLoadingResets] = useState(false);
+  const [resolvingReset, setResolvingReset] = useState<any | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [resolvedPassword, setResolvedPassword] = useState("");
+
+  const fetchResets = async () => {
+    setLoadingResets(true);
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      const items = await backendAdminUsers.listPasswordResets(institutionId);
+      setPasswordResets(items);
+    } catch (error) {
+      console.warn("Failed to load password resets", error);
+    } finally {
+      setLoadingResets(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchResets();
+  }, [institutionId]);
+
+  const generatePassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let pwd = "Scope@2026!";
+    for (let i = 0; i < 6; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(pwd);
+  };
+
+  const handleResolveReset = async () => {
+    if (!resolvingReset || !newPassword) return;
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      await backendAdminUsers.resolvePasswordReset(resolvingReset.id, { password: newPassword });
+      setResolvedPassword(newPassword);
+      toast.success("Password updated successfully!");
+      fetchResets();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to resolve password request.");
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     setLoadingMembers(true);
@@ -1048,6 +1095,7 @@ function MembersView({ institutionId }: { institutionId: string }) {
         <div className="flex flex-wrap items-center gap-4">
           <TabsList className="bg-secondary/50">
             <TabsTrigger value="students" className="px-6">Students</TabsTrigger>
+            <TabsTrigger value="password_resets" className="px-6">Password Resets</TabsTrigger>
             {!facultyOnly && <TabsTrigger value="leaders" className="px-6">Campus Leaders</TabsTrigger>}
             {!facultyOnly && <TabsTrigger value="faculty" className="px-6">Faculty</TabsTrigger>}
           </TabsList>
@@ -1071,6 +1119,82 @@ function MembersView({ institutionId }: { institutionId: string }) {
           />
         </TabsContent>
 
+        <TabsContent value="password_resets">
+          <div className="overflow-x-auto mt-4">
+            <table className="w-full text-sm">
+              <thead className="text-xs uppercase text-muted-foreground">
+                <tr className="border-b border-border">
+                  <th className="py-2 text-left">Student Name</th>
+                  <th className="py-2 text-left">Email</th>
+                  <th className="py-2 text-left">Role / Status</th>
+                  <th className="py-2 text-left">Requested At</th>
+                  <th className="py-2 text-left">Status</th>
+                  <th className="py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingResets && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                      Loading requests...
+                    </td>
+                  </tr>
+                )}
+                {!loadingResets &&
+                  passwordResets.map((r) => (
+                    <tr key={r.id} className="border-b border-border/50">
+                      <td className="py-3 font-semibold">{r.user?.name || "Unknown"}</td>
+                      <td className="py-3 text-xs text-muted-foreground">{r.user?.email || "N/A"}</td>
+                      <td className="py-3 text-xs">
+                        {r.user?.primary_domain || r.user?.role || "Student"}
+                      </td>
+                      <td className="py-3 text-xs text-muted-foreground">
+                        {new Date(r.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-3">
+                        <Badge variant={r.status === "resolved" ? "default" : "destructive"}>
+                          {r.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3 text-right">
+                        {r.status === "pending" ? (
+                          <Button
+                            size="sm"
+                            className="bg-brand text-brand-foreground"
+                            onClick={() => {
+                              setResolvingReset(r);
+                              setNewPassword("");
+                              setResolvedPassword("");
+                              setResetOpen(true);
+                            }}
+                          >
+                            Reset Password
+                          </Button>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">
+                            Resolved by {r.resolvedBy?.name || "Admin"}
+                            {r.tempPasswordUsed && (
+                              <div className="text-[10px] font-mono mt-0.5 select-all">
+                                Pwd: {r.tempPasswordUsed}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                {!loadingResets && passwordResets.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                      No password reset requests found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
         {!facultyOnly && <TabsContent value="leaders">
           <MemberRoster
             list={list.filter(m => m.role === "campus_leader")}
@@ -1091,6 +1215,59 @@ function MembersView({ institutionId }: { institutionId: string }) {
           />
         </TabsContent>}
       </Tabs>
+
+      <Dialog open={resetOpen} onOpenChange={(open) => { setResetOpen(open); if (!open) { setResolvingReset(null); setResolvedPassword(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Student Password</DialogTitle>
+          </DialogHeader>
+          {resolvedPassword ? (
+            <div className="space-y-4 py-4 text-center">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-emerald-900 animate-in fade-in">
+                <p className="font-bold text-emerald-800">✅ Password Reset Successful</p>
+                <p className="mt-2 text-xs text-emerald-700">
+                  The new password for **{resolvingReset?.user?.name}** is:
+                </p>
+                <div className="mt-3 select-all rounded-md border border-emerald-300 bg-white p-2.5 font-mono text-base font-bold tracking-wider text-emerald-900 shadow-inner">
+                  {resolvedPassword}
+                </div>
+                <p className="mt-2.5 text-[10px] text-emerald-600/90 leading-relaxed">
+                  Please copy this password and share it securely with the student. They will be forced to log in with this new credential.
+                </p>
+              </div>
+              <Button onClick={() => setResetOpen(false)} className="w-full">
+                Close
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                Set a new password for **{resolvingReset?.user?.name}** ({resolvingReset?.user?.email}).
+              </p>
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 8 chars)"
+                  />
+                  <Button variant="outline" onClick={generatePassword} className="shrink-0">
+                    Generate
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter className="pt-2">
+                <Button variant="outline" onClick={() => setResetOpen(false)}>Cancel</Button>
+                <Button onClick={handleResolveReset} disabled={!newPassword || newPassword.length < 8} className="bg-gradient-brand text-brand-foreground">
+                  Update & Resolve
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditingMember(null); }}>
         <DialogContent className="max-w-lg">

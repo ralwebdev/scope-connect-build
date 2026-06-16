@@ -44,3 +44,17 @@ This link expires in 15 minutes.
 If you did not request this, you can ignore this email.
 Attachments: 
 --------------------------------------------------
+
+[EMAIL SENT]
+Timestamp: 2026-06-16T07:24:19.978Z
+To: subhadeep100100@gmail.com
+Subject: Reset your Scope Connect password
+Body: Hi Subhadeep Paul,
+
+We received a request to reset your password.
+Use this link to set a new password: http://localhost:8080/reset-password?token=8977cf47af4348f2d42f6f60034947bd1a49c72718ce6e5424a1562c5824e235
+
+This link expires in 15 minutes.
+If you did not request this, you can ignore this email.
+Attachments: 
+--------------------------------------------------

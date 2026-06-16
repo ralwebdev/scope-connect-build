@@ -105,9 +105,9 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
               icon: <Bell className="h-4 w-4 text-brand animate-bounce" />,
               action: n.href
                 ? {
-                    label: "View",
-                    onClick: () => navigate({ to: n.href }),
-                  }
+                  label: "View",
+                  onClick: () => navigate({ to: n.href }),
+                }
                 : undefined,
             });
           });
@@ -380,10 +380,10 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                         aria-label="Profile menu"
                       >
                         {navAvatar.hasImage ? (
-                          <img 
-                            src={navAvatar.src} 
-                            alt="" 
-                            className="h-full w-full object-cover" 
+                          <img
+                            src={navAvatar.src}
+                            alt=""
+                            className="h-full w-full object-cover"
                             onError={navAvatar.onError}
                           />
                         ) : (
@@ -426,8 +426,8 @@ export function NavbarShell({ centerSlot, roleLabel }: NavbarShellProps) {
                     <div
                       className={cn(
                         "overflow-hidden whitespace-nowrap transition-all duration-300 ease-out transform-gpu",
-                        scrollPastHero 
-                          ? "max-w-[120px] opacity-100 scale-100 translate-x-0 ml-1" 
+                        scrollPastHero
+                          ? "max-w-[120px] opacity-100 scale-100 translate-x-0 ml-1"
                           : "max-w-0 opacity-0 scale-95 translate-x-2 pointer-events-none"
                       )}
                     >

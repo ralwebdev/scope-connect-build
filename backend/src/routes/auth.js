@@ -2,7 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { User, Profile, Session, Institution, ProfileActivity } from "../models/index.js";
+import { User, Profile, Session, Institution, ProfileActivity, Notification, PasswordResetRequest } from "../models/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { authRateLimit } from "../middleware/rate-limit.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -257,6 +257,71 @@ authRouter.post("/forgot-password", authRateLimit, validate(forgotPasswordSchema
   const user = await User.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
 
   if (user && !user.disabledAt) {
+    if (user.role === "student") {
+      // Create a password reset request
+      await PasswordResetRequest.create({
+        user: user._id,
+        institution: user.institution,
+        department: user.department,
+        status: "pending",
+      });
+
+      // Find all Institutional Admins and Faculty Coordinators of that institution
+      const admins = await User.find({
+        institution: user.institution,
+        role: { $in: ["institution_admin", "faculty"] },
+        disabledAt: null,
+      });
+
+      // Send platform notifications
+      for (const admin of admins) {
+        await Notification.create({
+          user: admin._id,
+          kind: "admin_action",
+          title: "Password Reset Request",
+          body: `Student ${user.name} has requested a password reset.`,
+          link: "/institution-admin/members",
+        }).catch((err) => console.error("Notification creation failed:", err));
+      }
+
+      return sendSuccess(res, { studentReset: true }, "Your password reset request has been sent to your institution/faculty administrators.");
+    }
+
+    if (user.role === "faculty") {
+      // Create a password reset request
+      await PasswordResetRequest.create({
+        user: user._id,
+        institution: user.institution,
+        department: user.department,
+        status: "pending",
+      });
+
+      // Find all Institutional Admins of that institution, and all Scope Admins
+      const instAdmins = await User.find({
+        institution: user.institution,
+        role: "institution_admin",
+        disabledAt: null,
+      });
+      const scopeAdmins = await User.find({
+        role: "scope_admin",
+        disabledAt: null,
+      });
+
+      const allNotified = [...instAdmins, ...scopeAdmins];
+
+      for (const admin of allNotified) {
+        await Notification.create({
+          user: admin._id,
+          kind: "admin_action",
+          title: "Faculty Password Reset Request",
+          body: `Faculty coordinator ${user.name} has requested a password reset.`,
+          link: admin.role === "scope_admin" ? "/scope-admin?tab=password_resets" : "/institution-admin/members",
+        }).catch((err) => console.error("Notification creation failed:", err));
+      }
+
+      return sendSuccess(res, { facultyReset: true }, "Your password reset request has been sent to your Institutional Admin and Scope Admin.");
+    }
+
     const { token, tokenHash } = createPasswordResetToken();
     user.resetPasswordTokenHash = tokenHash;
     user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000);

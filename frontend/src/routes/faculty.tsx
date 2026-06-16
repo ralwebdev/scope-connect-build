@@ -15,6 +15,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useRole } from "@/hooks/use-rbac";
 import { useUser } from "@/hooks/use-scope";
 import { useEffect, useState } from "react";
@@ -97,12 +100,52 @@ function FacultyDashboard() {
     }>;
   } | null>(null);
 
+  const [resets, setResets] = useState<any[]>([]);
+  const [resolvingReset, setResolvingReset] = useState<any | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [resolvedPassword, setResolvedPassword] = useState("");
+
+  const fetchResets = async () => {
+    if (!user?.institution?.id) return;
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      const items = await backendAdminUsers.listPasswordResets(user.institution.id);
+      setResets(items.filter((r: any) => r.status === "pending"));
+    } catch (err) {
+      console.warn("Failed to load password resets", err);
+    }
+  };
+
+  const generatePassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let pwd = "Scope@2026!";
+    for (let i = 0; i < 6; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(pwd);
+  };
+
+  const handleResolveReset = async () => {
+    if (!resolvingReset || !newPassword) return;
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      await backendAdminUsers.resolvePasswordReset(resolvingReset.id, { password: newPassword });
+      setResolvedPassword(newPassword);
+      toast.success("Password updated successfully!");
+      fetchResets();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to resolve password request.");
+    }
+  };
+
   const fetchDashboardData = async () => {
     if (!user?.institution) return;
     setLoading(true);
     try {
       const res = await backendReports.facultyOverview(user.institution.id);
       setData(res);
+      await fetchResets();
     } catch (error) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -178,52 +221,98 @@ function FacultyDashboard() {
 
       {/* SECTIONS */}
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        {/* Students Needing Review */}
-        <Card className="lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-border p-5">
-            <div>
-              <h3 className="text-sm font-bold">Students Needing Review</h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {pendingApprovals} pending verification
-              </p>
-            </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/institution-admin/members">
-                Open roster <ArrowRight className="ml-1 h-3 w-3" />
-              </Link>
-            </Button>
-          </div>
-          <div className="divide-y divide-border">
-            {studentsToReview.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary/40">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-brand-foreground">
-                  {s.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-sm font-semibold">{s.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {s.reason} · {formatDistanceToNow(new Date(s.when))} ago
-                  </div>
-                </div>
-                <Button 
-                  size="sm" 
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white animate-in fade-in"
-                  onClick={() => handleVerify(s.id)}
-                >
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Verify
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="destructive"
-                  className="animate-in fade-in"
-                  onClick={() => handleReject(s.id)}
-                >
-                  <XCircle className="mr-1 h-3 w-3" /> Reject
-                </Button>
+        <div className="lg:col-span-2 space-y-6">
+          {/* Students Needing Review */}
+          <Card>
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <div>
+                <h3 className="text-sm font-bold">Students Needing Review</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {pendingApprovals} pending verification
+                </p>
               </div>
-            ))}
-          </div>
-        </Card>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/institution-admin/members">
+                  Open roster <ArrowRight className="ml-1 h-3 w-3" />
+                </Link>
+              </Button>
+            </div>
+            <div className="divide-y divide-border">
+              {studentsToReview.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary/40">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-brand text-sm font-bold text-brand-foreground">
+                    {s.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-semibold">{s.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {s.reason} · {formatDistanceToNow(new Date(s.when))} ago
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white animate-in fade-in"
+                    onClick={() => handleVerify(s.id)}
+                  >
+                    <CheckCircle2 className="mr-1 h-3 w-3" /> Verify
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="destructive"
+                    className="animate-in fade-in"
+                    onClick={() => handleReject(s.id)}
+                  >
+                    <XCircle className="mr-1 h-3 w-3" /> Reject
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Password Reset Requests */}
+          <Card>
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <div>
+                <h3 className="text-sm font-bold">Student Password Resets</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {resets.length} pending request{resets.length !== 1 && "s"}
+                </p>
+              </div>
+            </div>
+            <div className="divide-y divide-border">
+              {resets.map((r) => (
+                <div key={r.id} className="flex items-center gap-3 p-4 transition-colors hover:bg-secondary/40">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/10 text-sm font-bold text-amber-600">
+                    🔑
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-semibold">{r.user?.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {r.user?.email} · {formatDistanceToNow(new Date(r.createdAt))} ago
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-brand text-brand-foreground"
+                    onClick={() => {
+                      setResolvingReset(r);
+                      setNewPassword("");
+                      setResolvedPassword("");
+                      setResetOpen(true);
+                    }}
+                  >
+                    Reset Password
+                  </Button>
+                </div>
+              ))}
+              {resets.length === 0 && (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  No pending password reset requests.
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
 
         {/* Campus Reports */}
         <Card className="p-5">
@@ -310,6 +399,58 @@ function FacultyDashboard() {
           </Button>
         </Card>
       </div>
+      <Dialog open={resetOpen} onOpenChange={(open) => { setResetOpen(open); if (!open) { setResolvingReset(null); setResolvedPassword(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Student Password</DialogTitle>
+          </DialogHeader>
+          {resolvedPassword ? (
+            <div className="space-y-4 py-4 text-center">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-emerald-900 animate-in fade-in">
+                <p className="font-bold text-emerald-800">✅ Password Reset Successful</p>
+                <p className="mt-2 text-xs text-emerald-700">
+                  The new password for **{resolvingReset?.user?.name}** is:
+                </p>
+                <div className="mt-3 select-all rounded-md border border-emerald-300 bg-white p-2.5 font-mono text-base font-bold tracking-wider text-emerald-900 shadow-inner">
+                  {resolvedPassword}
+                </div>
+                <p className="mt-2.5 text-[10px] text-emerald-600/90 leading-relaxed">
+                  Please copy this password and share it securely with the student. They will be forced to log in with this new credential.
+                </p>
+              </div>
+              <Button onClick={() => setResetOpen(false)} className="w-full">
+                Close
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                Set a new password for **{resolvingReset?.user?.name}** ({resolvingReset?.user?.email}).
+              </p>
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 8 chars)"
+                  />
+                  <Button variant="outline" onClick={generatePassword} className="shrink-0">
+                    Generate
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter className="pt-2">
+                <Button variant="outline" onClick={() => setResetOpen(false)}>Cancel</Button>
+                <Button onClick={handleResolveReset} disabled={!newPassword || newPassword.length < 8} className="bg-gradient-brand text-brand-foreground">
+                  Update & Resolve
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

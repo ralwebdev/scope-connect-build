@@ -256,13 +256,14 @@ function ScopeAdminPortal() {
               <TabsTrigger value="events">Scope Events</TabsTrigger>
               <TabsTrigger value="projects">Scope Projects</TabsTrigger>
               <TabsTrigger value="opportunities">Scope Opportunities</TabsTrigger>
-              <TabsTrigger value="ideas">Student Ideas</TabsTrigger>
+              {/* <TabsTrigger value="ideas">Student Ideas</TabsTrigger> */}
               {/* <TabsTrigger value="verification"><BadgeCheck className="mr-1.5 h-3.5 w-3.5 inline" />Student Verification</TabsTrigger> */}
               {/* <TabsTrigger value="feedback">User Feedback</TabsTrigger> */}
               <TabsTrigger value="analytics">
                 <BarChart2 className="mr-1.5 h-3.5 w-3.5 inline" />
                 Analytics
               </TabsTrigger>
+              <TabsTrigger value="password_resets">Password Resets</TabsTrigger>
             </TabsList>
 
             <TabsContent value="crm" className="mt-6">
@@ -315,6 +316,9 @@ function ScopeAdminPortal() {
             </TabsContent>
             <TabsContent value="analytics" className="mt-6">
               <ScopeAnalyticsDashboard institutions={institutions} />
+            </TabsContent>
+            <TabsContent value="password_resets" className="mt-6">
+              <ScopePasswordResetsView />
             </TabsContent>
           </Tabs>
         </section>
@@ -665,21 +669,19 @@ function ScopeAnalyticsDashboard({
         <div className="flex overflow-hidden rounded-lg border border-border">
           <button
             onClick={() => setMode("global")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
-              mode === "global"
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${mode === "global"
                 ? "bg-brand text-brand-foreground"
                 : "bg-background text-muted-foreground hover:bg-secondary"
-            }`}
+              }`}
           >
             <Globe2 className="h-3.5 w-3.5" /> Global Overview
           </button>
           <button
             onClick={() => setMode("institution")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${
-              mode === "institution"
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${mode === "institution"
                 ? "bg-brand text-brand-foreground"
                 : "bg-background text-muted-foreground hover:bg-secondary"
-            }`}
+              }`}
           >
             <Building2 className="h-3.5 w-3.5" /> Institution Drill-Down
           </button>
@@ -854,15 +856,14 @@ function ScopeAnalyticsDashboard({
                     {globalSummary?.top_institutions.map((inst, i) => (
                       <div key={inst.id} className="flex items-center gap-3">
                         <div
-                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                            i === 0
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${i === 0
                               ? "bg-yellow-500/20 text-yellow-600"
                               : i === 1
                                 ? "bg-slate-300/30 text-slate-600"
                                 : i === 2
                                   ? "bg-orange-400/20 text-orange-600"
                                   : "bg-secondary text-muted-foreground"
-                          }`}
+                            }`}
                         >
                           {i + 1}
                         </div>
@@ -1080,11 +1081,10 @@ function ScopeAnalyticsDashboard({
                       <button
                         key={tab}
                         onClick={() => setMembersFilter(tab)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${
-                          membersFilter === tab
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize ${membersFilter === tab
                             ? "bg-brand text-brand-foreground shadow-md scale-[1.02]"
                             : "text-muted-foreground hover:text-foreground hover:bg-secondary/20"
-                        }`}
+                          }`}
                       >
                         {tab}
                       </button>
@@ -1153,9 +1153,8 @@ function ScopeAnalyticsDashboard({
                           return (
                             <tr
                               key={m.id}
-                              className={`transition-colors hover:bg-secondary/10 ${
-                                isDeactivated ? "opacity-60 bg-red-950/5" : ""
-                              }`}
+                              className={`transition-colors hover:bg-secondary/10 ${isDeactivated ? "opacity-60 bg-red-950/5" : ""
+                                }`}
                             >
                               {/* Member Info */}
                               <td className="px-4 py-3">
@@ -2230,11 +2229,11 @@ function ScopeProjectsManager() {
         current.map((p) =>
           p.id === projectId
             ? {
-                ...p,
-                minimum_xp_required: updated.minimum_xp_required ?? entry,
-                xp_commitment_stake: updated.xp_commitment_stake ?? stake,
-                reward_pool_xp: updated.reward_pool_xp ?? reward,
-              }
+              ...p,
+              minimum_xp_required: updated.minimum_xp_required ?? entry,
+              xp_commitment_stake: updated.xp_commitment_stake ?? stake,
+              reward_pool_xp: updated.reward_pool_xp ?? reward,
+            }
             : p,
         ),
       );
@@ -2465,31 +2464,28 @@ function ScopeProjectsManager() {
                   <div className="flex flex-wrap gap-1 rounded-lg bg-background p-1 border border-border">
                     <button
                       onClick={() => setProjectScopeFilter("global")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        projectScopeFilter === "global"
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "global"
                           ? "bg-brand text-brand-foreground shadow-sm"
                           : "text-muted-foreground hover:bg-secondary"
-                      }`}
+                        }`}
                     >
                       Global / Scope ({projectsWithStats.filter((p) => !p.institution_id).length})
                     </button>
                     <button
                       onClick={() => setProjectScopeFilter("campus")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        projectScopeFilter === "campus"
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "campus"
                           ? "bg-brand text-brand-foreground shadow-sm"
                           : "text-muted-foreground hover:bg-secondary"
-                      }`}
+                        }`}
                     >
                       Campus Specific ({projectsWithStats.filter((p) => !!p.institution_id).length})
                     </button>
                     <button
                       onClick={() => setProjectScopeFilter("all")}
-                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                        projectScopeFilter === "all"
+                      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${projectScopeFilter === "all"
                           ? "bg-brand text-brand-foreground shadow-sm"
                           : "text-muted-foreground hover:bg-secondary"
-                      }`}
+                        }`}
                     >
                       All ({projectsWithStats.length})
                     </button>
@@ -3007,173 +3003,173 @@ function ScopeProjectsManager() {
               const isActive = projects.some((p) => p.title === template.title && p.status !== "cancelled");
               return (
                 <Card
-                key={template.title}
-                className="group relative overflow-hidden border-border p-0 transition-all hover:border-brand/40 hover:shadow-lg"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                <div className="relative p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-lg font-bold text-foreground">{template.title}</h4>
-                        <Badge className="bg-brand/10 text-brand text-[10px]">Template</Badge>
-                      </div>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Zap className="h-3 w-3 text-brand" /> {template.domain}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {template.level}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="mt-4 text-sm text-muted-foreground line-clamp-2">
-                    Deliverables include {template.deliverables.toLowerCase()}. Progress will be
-                    monitored via {template.reporting.toLowerCase()}.
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
-                        Duration
-                      </span>
-                      <span className="font-semibold text-foreground">{template.duration}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
-                        Team Size
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {template.team_structure}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-2 gap-6 border-t border-border pt-6">
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Deliverables
-                      </div>
-                      <div className="text-sm font-semibold text-foreground">
-                        {template.deliverables}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Rewards
-                      </div>
-                      <div className="text-sm font-semibold text-foreground">
-                        {template.rewards}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-border/60 flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-end gap-4">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                          Set Entry
-                        </span>
-                        <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
-                          <input
-                            type="number"
-                            min={0}
-                            disabled={isActive}
-                            value={templateEntryXps[template.title] ?? 0}
-                            onChange={(e) => {
-                              const val = Math.max(0, Number(e.target.value) || 0);
-                              setTemplateEntryXps((prev) => ({ ...prev, [template.title]: val }));
-                            }}
-                            className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
-                          />
-                          <span className="text-[9px] font-bold text-muted-foreground shrink-0">
-                            XP
+                  key={template.title}
+                  className="group relative overflow-hidden border-border p-0 transition-all hover:border-brand/40 hover:shadow-lg"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                  <div className="relative p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-lg font-bold text-foreground">{template.title}</h4>
+                          <Badge className="bg-brand/10 text-brand text-[10px]">Template</Badge>
+                        </div>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Zap className="h-3 w-3 text-brand" /> {template.domain}
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" /> {template.level}
                           </span>
                         </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                          Set Stake
+                    </div>
+
+                    <p className="mt-4 text-sm text-muted-foreground line-clamp-2">
+                      Deliverables include {template.deliverables.toLowerCase()}. Progress will be
+                      monitored via {template.reporting.toLowerCase()}.
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-secondary/20 p-3 text-xs">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
+                          Duration
                         </span>
-                        <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
-                          <input
-                            type="number"
-                            min={0}
-                            disabled={isActive}
-                            value={templateXpStakes[template.title] ?? 50}
-                            onChange={(e) => {
-                              const val = Math.max(0, Number(e.target.value) || 0);
-                              setTemplateXpStakes((prev) => ({ ...prev, [template.title]: val }));
-                              setTemplateRewardXps((prev) => ({
-                                ...prev,
-                                [template.title]: Math.round(val * 1.5),
-                              }));
-                            }}
-                            className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
-                          />
-                          <span className="text-[9px] font-bold text-muted-foreground shrink-0">
-                            XP
-                          </span>
+                        <span className="font-semibold text-foreground">{template.duration}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">
+                          Team Size
+                        </span>
+                        <span className="font-semibold text-foreground">
+                          {template.team_structure}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-6 border-t border-border pt-6">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Deliverables
+                        </div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {template.deliverables}
                         </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                          Set Reward
-                        </span>
-                        <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
-                          <input
-                            type="number"
-                            min={0}
-                            disabled={isActive}
-                            value={
-                              templateRewardXps[template.title] ??
-                              Math.round((templateXpStakes[template.title] ?? 50) * 1.5)
-                            }
-                            onChange={(e) => {
-                              const val = Math.max(0, Number(e.target.value) || 0);
-                              setTemplateRewardXps((prev) => ({ ...prev, [template.title]: val }));
-                            }}
-                            className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
-                          />
-                          <span className="text-[9px] font-bold text-muted-foreground shrink-0">
-                            XP
-                          </span>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Rewards
                         </div>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                          Project Mode
-                        </span>
-                        <div className="flex items-center gap-1.5 h-7 mt-0.5">
-                          <span className={`text-[9px] font-bold transition-colors duration-200 ${!(templateIsTeam[template.title] ?? true) ? "text-foreground" : "text-muted-foreground"}`}>Solo</span>
-                          <Switch
-                            checked={templateIsTeam[template.title] ?? true}
-                            disabled={isActive}
-                            onCheckedChange={(checked) =>
-                              setTemplateIsTeam((prev) => ({ ...prev, [template.title]: checked }))
-                            }
-                          />
-                          <span className={`text-[9px] font-bold transition-colors duration-200 ${(templateIsTeam[template.title] ?? true) ? "text-brand" : "text-muted-foreground"}`}>Team</span>
+                        <div className="text-sm font-semibold text-foreground">
+                          {template.rewards}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <span className={`text-xs font-semibold ${isActive ? "text-brand" : "text-muted-foreground"}`}>
-                        {isActive ? "Active" : "Inactive"}
-                      </span>
-                      <Switch
-                        checked={isActive}
-                        onCheckedChange={(checked) => handleTemplateToggle(template, checked)}
-                        disabled={saving}
-                      />
+
+                    <div className="mt-6 pt-4 border-t border-border/60 flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-end gap-4">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Set Entry
+                          </span>
+                          <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={isActive}
+                              value={templateEntryXps[template.title] ?? 0}
+                              onChange={(e) => {
+                                const val = Math.max(0, Number(e.target.value) || 0);
+                                setTemplateEntryXps((prev) => ({ ...prev, [template.title]: val }));
+                              }}
+                              className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
+                            />
+                            <span className="text-[9px] font-bold text-muted-foreground shrink-0">
+                              XP
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Set Stake
+                          </span>
+                          <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={isActive}
+                              value={templateXpStakes[template.title] ?? 50}
+                              onChange={(e) => {
+                                const val = Math.max(0, Number(e.target.value) || 0);
+                                setTemplateXpStakes((prev) => ({ ...prev, [template.title]: val }));
+                                setTemplateRewardXps((prev) => ({
+                                  ...prev,
+                                  [template.title]: Math.round(val * 1.5),
+                                }));
+                              }}
+                              className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
+                            />
+                            <span className="text-[9px] font-bold text-muted-foreground shrink-0">
+                              XP
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Set Reward
+                          </span>
+                          <div className={`flex items-center bg-background border border-border/80 rounded px-1.5 py-0.5 h-7 mt-0.5 w-20 transition-all ${isActive ? "opacity-60 cursor-not-allowed bg-secondary/20" : "hover:border-brand/40 focus-within:border-brand/50"}`}>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={isActive}
+                              value={
+                                templateRewardXps[template.title] ??
+                                Math.round((templateXpStakes[template.title] ?? 50) * 1.5)
+                              }
+                              onChange={(e) => {
+                                const val = Math.max(0, Number(e.target.value) || 0);
+                                setTemplateRewardXps((prev) => ({ ...prev, [template.title]: val }));
+                              }}
+                              className={`w-full bg-transparent border-none text-[11px] font-bold text-foreground focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isActive ? "cursor-not-allowed text-muted-foreground" : ""}`}
+                            />
+                            <span className="text-[9px] font-bold text-muted-foreground shrink-0">
+                              XP
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Project Mode
+                          </span>
+                          <div className="flex items-center gap-1.5 h-7 mt-0.5">
+                            <span className={`text-[9px] font-bold transition-colors duration-200 ${!(templateIsTeam[template.title] ?? true) ? "text-foreground" : "text-muted-foreground"}`}>Solo</span>
+                            <Switch
+                              checked={templateIsTeam[template.title] ?? true}
+                              disabled={isActive}
+                              onCheckedChange={(checked) =>
+                                setTemplateIsTeam((prev) => ({ ...prev, [template.title]: checked }))
+                              }
+                            />
+                            <span className={`text-[9px] font-bold transition-colors duration-200 ${(templateIsTeam[template.title] ?? true) ? "text-brand" : "text-muted-foreground"}`}>Team</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <span className={`text-xs font-semibold ${isActive ? "text-brand" : "text-muted-foreground"}`}>
+                          {isActive ? "Active" : "Inactive"}
+                        </span>
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => handleTemplateToggle(template, checked)}
+                          disabled={saving}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            );
+                </Card>
+              );
             })}
           </div>
         </TabsContent>
@@ -3622,11 +3618,10 @@ function ProjectRosterDialog({
                                 asChild={Boolean(app.submission.live_url)}
                                 size="sm"
                                 variant="outline"
-                                className={`h-7 px-2 text-[10px] ${
-                                  app.submission.live_url
+                                className={`h-7 px-2 text-[10px] ${app.submission.live_url
                                     ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
                                     : "opacity-50 cursor-not-allowed bg-muted"
-                                }`}
+                                  }`}
                                 disabled={!app.submission.live_url}
                               >
                                 {app.submission.live_url ? (
@@ -3649,11 +3644,10 @@ function ProjectRosterDialog({
                                 asChild={Boolean(app.submission.github_url)}
                                 size="sm"
                                 variant="outline"
-                                className={`h-7 px-2 text-[10px] ${
-                                  app.submission.github_url
+                                className={`h-7 px-2 text-[10px] ${app.submission.github_url
                                     ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
                                     : "opacity-50 cursor-not-allowed bg-muted"
-                                }`}
+                                  }`}
                                 disabled={!app.submission.github_url}
                               >
                                 {app.submission.github_url ? (
@@ -3676,11 +3670,10 @@ function ProjectRosterDialog({
                                 asChild={Boolean(app.submission.screenshot_url)}
                                 size="sm"
                                 variant="outline"
-                                className={`h-7 px-2 text-[10px] ${
-                                  app.submission.screenshot_url
+                                className={`h-7 px-2 text-[10px] ${app.submission.screenshot_url
                                     ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
                                     : "opacity-50 cursor-not-allowed bg-muted"
-                                }`}
+                                  }`}
                                 disabled={!app.submission.screenshot_url}
                               >
                                 {app.submission.screenshot_url ? (
@@ -3819,7 +3812,7 @@ function ProjectRosterDialog({
                   const uName = uObj?.name || "Unknown Student";
                   const uEmail = uObj?.email || "No email";
                   const isLeader = room.temporaryCoordinator && room.temporaryCoordinator === uId;
-                  
+
                   return (
                     <div
                       key={uId}
@@ -3929,13 +3922,12 @@ function ProjectRosterDialog({
                     const creatorObj = typeof g.createdBy === 'object' ? g.createdBy : null;
                     const creatorName = creatorObj?.name || "Unknown Student";
                     const isResolved = g.status === "resolved";
-                    
+
                     return (
                       <div
                         key={gId}
-                        className={`rounded-xl border p-4 bg-background/50 hover:bg-background/80 transition-all ${
-                          isResolved ? "border-emerald-500/20 bg-emerald-500/[0.01]" : "border-amber-500/20 bg-amber-500/[0.01]"
-                        }`}
+                        className={`rounded-xl border p-4 bg-background/50 hover:bg-background/80 transition-all ${isResolved ? "border-emerald-500/20 bg-emerald-500/[0.01]" : "border-amber-500/20 bg-amber-500/[0.01]"
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -3943,11 +3935,10 @@ function ProjectRosterDialog({
                               <h5 className="font-bold text-sm text-foreground">{g.title}</h5>
                               <Badge
                                 variant="outline"
-                                className={`text-[9px] uppercase tracking-wider py-0.5 px-1.5 font-bold rounded-full ${
-                                  isResolved
+                                className={`text-[9px] uppercase tracking-wider py-0.5 px-1.5 font-bold rounded-full ${isResolved
                                     ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
                                     : "bg-amber-500/10 border-amber-500/20 text-amber-600"
-                                }`}
+                                  }`}
                               >
                                 {g.status}
                               </Badge>
@@ -5005,11 +4996,10 @@ function PerformanceScorecard({
                     <td className="px-6 py-4 text-center">
                       <Badge
                         variant={admin.status === "active" ? "default" : "outline"}
-                        className={`capitalize px-2 py-0.5 text-[10px] ${
-                          admin.status === "active"
+                        className={`capitalize px-2 py-0.5 text-[10px] ${admin.status === "active"
                             ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                             : "bg-destructive/10 text-destructive border-destructive/20"
-                        }`}
+                          }`}
                       >
                         {admin.status}
                       </Badge>
@@ -5355,11 +5345,10 @@ function StudentIdeasManager() {
             <button
               key={st}
               onClick={() => setFilter(st)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${
-                filter === st
+              className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wider transition-all ${filter === st
                   ? "bg-gradient-brand text-brand-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-secondary"
-              }`}
+                }`}
             >
               {st}
             </button>
@@ -5742,9 +5731,8 @@ function FeedbackManager() {
           {filtered.map((item) => (
             <Card
               key={item.id}
-              className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${
-                item.status === "closed" ? "opacity-60 grayscale-[0.5]" : ""
-              }`}
+              className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${item.status === "closed" ? "opacity-60 grayscale-[0.5]" : ""
+                }`}
             >
               <div className="space-y-4">
                 {/* Header details */}
@@ -5774,20 +5762,18 @@ function FeedbackManager() {
                     <div className="flex gap-1.5">
                       {item.type && (
                         <Badge
-                          className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${
-                            item.type === "Bug report"
+                          className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full ${item.type === "Bug report"
                               ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
                               : item.type === "Feature request"
                                 ? "bg-cyan-500/10 text-cyan-500 border border-cyan-500/20"
                                 : "bg-secondary text-foreground border border-border/40"
-                          }`}
+                            }`}
                         >
                           {item.type}
                         </Badge>
                       )}
                       <Badge
-                        className={`text-[9px] px-2 py-0.5 border border-border/40 rounded-full ${
-                          item.status === "new"
+                        className={`text-[9px] px-2 py-0.5 border border-border/40 rounded-full ${item.status === "new"
                             ? "bg-brand/10 text-brand"
                             : item.status === "reviewed"
                               ? "bg-amber-500/10 text-amber-500"
@@ -5796,7 +5782,7 @@ function FeedbackManager() {
                                 : item.status === "rejected"
                                   ? "bg-rose-500/10 text-rose-500"
                                   : "bg-secondary text-muted-foreground"
-                        }`}
+                          }`}
                       >
                         {item.status.toUpperCase()}
                       </Badge>
@@ -5813,11 +5799,10 @@ function FeedbackManager() {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
-                        className={`h-3.5 w-3.5 transition-colors ${
-                          star <= item.rating
+                        className={`h-3.5 w-3.5 transition-colors ${star <= item.rating
                             ? "fill-brand text-brand"
                             : "text-muted-foreground/20"
-                        }`}
+                          }`}
                       />
                     ))}
                   </div>
@@ -6077,13 +6062,12 @@ function StudentVerificationCenter() {
             return (
               <Card
                 key={item.id}
-                className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/45 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${
-                  item.status === "verified"
+                className={`group relative flex flex-col justify-between overflow-hidden border border-border/70 bg-gradient-to-b from-background to-secondary/10 p-5 hover:border-brand/45 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md rounded-xl ${item.status === "verified"
                     ? "border-emerald-500/20 bg-emerald-950/5"
                     : item.status === "rejected"
                       ? "opacity-60 grayscale-[0.4]"
                       : ""
-                }`}
+                  }`}
               >
                 <div className="space-y-4">
                   {/* Header details */}
@@ -6120,13 +6104,12 @@ function StudentVerificationCenter() {
 
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <Badge
-                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${
-                          item.status === "verified"
+                        className={`text-[9px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${item.status === "verified"
                             ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                             : item.status === "rejected"
                               ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
                               : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                        }`}
+                          }`}
                       >
                         {item.status === "new" || item.status === "reviewed"
                           ? "Pending"
@@ -6295,4 +6278,213 @@ function parseVerificationMessage(message: string) {
     console.warn("Failed to parse verification message links", err);
     return defaultLinks;
   }
+}
+
+function ScopePasswordResetsView() {
+  const [resets, setResets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [resolvingReset, setResolvingReset] = useState<any | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [resolvedPassword, setResolvedPassword] = useState("");
+  const [filter, setFilter] = useState<"all" | "pending" | "resolved">("all");
+
+  const fetchResets = async () => {
+    setLoading(true);
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      const items = await backendAdminUsers.listPasswordResets();
+      setResets(items);
+    } catch (error) {
+      console.warn("Failed to load password resets", error);
+      toast.error("Could not load password resets.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchResets();
+  }, []);
+
+  const generatePassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let pwd = "Scope@2026!";
+    for (let i = 0; i < 6; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(pwd);
+  };
+
+  const handleResolveReset = async () => {
+    if (!resolvingReset || !newPassword) return;
+    try {
+      const { backendAdminUsers } = await import("@/lib/api/endpoints");
+      await backendAdminUsers.resolvePasswordReset(resolvingReset.id, { password: newPassword });
+      setResolvedPassword(newPassword);
+      toast.success("Password updated successfully!");
+      fetchResets();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to resolve password request.");
+    }
+  };
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return resets;
+    return resets.filter((r) => r.status === filter);
+  }, [resets, filter]);
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/40 pb-4">
+        <div>
+          <h3 className="text-lg font-bold tracking-tight">Platform Password Resets</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Resolve student and faculty password reset requests from any campus.
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          {(["all", "pending", "resolved"] as const).map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={filter === f ? "default" : "outline"}
+              onClick={() => setFilter(f)}
+              className="h-8 capitalize text-xs px-4"
+            >
+              {f}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto mt-4">
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase text-muted-foreground">
+            <tr className="border-b border-border">
+              <th className="py-2 text-left">User Details</th>
+              <th className="py-2 text-left">Campus</th>
+              <th className="py-2 text-left">Role</th>
+              <th className="py-2 text-left">Requested At</th>
+              <th className="py-2 text-left">Status</th>
+              <th className="py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  Loading requests...
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              filtered.map((r) => (
+                <tr key={r.id} className="border-b border-border/50">
+                  <td className="py-3">
+                    <div className="font-semibold">{r.user?.name || "Unknown"}</div>
+                    <div className="text-xs text-muted-foreground">{r.user?.email || "N/A"}</div>
+                  </td>
+                  <td className="py-3 text-xs">{r.institution?.name || "N/A"}</td>
+                  <td className="py-3 text-xs capitalize">{r.user?.role || "student"}</td>
+                  <td className="py-3 text-xs text-muted-foreground">
+                    {new Date(r.createdAt).toLocaleString()}
+                  </td>
+                  <td className="py-3">
+                    <Badge variant={r.status === "resolved" ? "default" : "destructive"}>
+                      {r.status}
+                    </Badge>
+                  </td>
+                  <td className="py-3 text-right">
+                    {r.status === "pending" ? (
+                      <Button
+                        size="sm"
+                        className="bg-brand text-brand-foreground"
+                        onClick={() => {
+                          setResolvingReset(r);
+                          setNewPassword("");
+                          setResolvedPassword("");
+                          setResetOpen(true);
+                        }}
+                      >
+                        Reset Password
+                      </Button>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">
+                        Resolved by {r.resolvedBy?.name || "Admin"}
+                        {r.tempPasswordUsed && (
+                          <div className="text-[10px] font-mono mt-0.5 select-all">
+                            Pwd: {r.tempPasswordUsed}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            {!loading && filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  No password reset requests found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog open={resetOpen} onOpenChange={(open) => { setResetOpen(open); if (!open) { setResolvingReset(null); setResolvedPassword(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Account Password</DialogTitle>
+          </DialogHeader>
+          {resolvedPassword ? (
+            <div className="space-y-4 py-4 text-center">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-emerald-900 animate-in fade-in">
+                <p className="font-bold text-emerald-800">✅ Password Reset Successful</p>
+                <p className="mt-2 text-xs text-emerald-700">
+                  The new password for **{resolvingReset?.user?.name}** is:
+                </p>
+                <div className="mt-3 select-all rounded-md border border-emerald-300 bg-white p-2.5 font-mono text-base font-bold tracking-wider text-emerald-900 shadow-inner">
+                  {resolvedPassword}
+                </div>
+                <p className="mt-2.5 text-[10px] text-emerald-600/90 leading-relaxed">
+                  Please copy this password and share it securely with the user. They will be forced to log in with this new credential.
+                </p>
+              </div>
+              <Button onClick={() => setResetOpen(false)} className="w-full">
+                Close
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                Set a new password for **{resolvingReset?.user?.name}** ({resolvingReset?.user?.email}).
+              </p>
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 8 chars)"
+                  />
+                  <Button variant="outline" onClick={generatePassword} className="shrink-0">
+                    Generate
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setResetOpen(false)}>Cancel</Button>
+                <Button onClick={handleResolveReset} disabled={!newPassword || newPassword.length < 8} className="bg-gradient-brand text-brand-foreground">
+                  Update & Resolve
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
 }

@@ -28,7 +28,7 @@ export const backendAuth = {
     });
   },
   forgotPassword(body: { email: string }) {
-    return api<{ sent: boolean }>("/api/v1/auth/forgot-password", {
+    return api<{ sent?: boolean; studentReset?: boolean }>("/api/v1/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -679,6 +679,35 @@ export const backendAdminUsers = {
   deleteFeedback(id: string) {
     return api<{ message: string }>(`/api/v1/admin/users/feedback/${id}`, {
       method: "DELETE",
+    });
+  },
+  listPasswordResets(institutionId?: string) {
+    const qs = new URLSearchParams();
+    if (institutionId) qs.set("institutionId", institutionId);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<Array<{
+      id: string;
+      user: {
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        student_status?: string;
+        primary_domain?: string;
+        department_name?: string;
+      };
+      institution: string;
+      status: "pending" | "resolved";
+      resolvedBy?: { id: string; name: string; email: string; role: string } | null;
+      resolvedAt?: string | null;
+      tempPasswordUsed?: string | null;
+      createdAt: string;
+    }>>(`/api/v1/admin/password-resets${suffix}`);
+  },
+  resolvePasswordReset(id: string, body: { password: string }) {
+    return api<{ success: boolean }>(`/api/v1/admin/password-resets/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   },
 };

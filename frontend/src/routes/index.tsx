@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { backendInstitutions, backendReports, backendUsers } from "@/lib/api/endpoints";
+import { backendInstitutions, backendUsers } from "@/lib/api/endpoints";
 import {
   ArrowRight,
   Sparkles,
@@ -601,15 +601,15 @@ function TopInstitutionsSection() {
 
   useEffect(() => {
     let active = true;
-    backendReports.globalLeaderboard()
+    backendUsers.listChaptersByXp()
       .then((res) => {
         if (!active) return;
         setInstitutes(asLeaderboardRows(
           res.items.map((institution) => ({
             id: institution.id,
             name: institution.name,
-            sub: "Ranked by total campus XP",
-            value: institution.xp,
+            sub: institution.sub || "Ranked by total campus XP",
+            value: institution.value,
           })),
           topChapters.slice(0, 6).map((chapter, index) => ({
             id: chapter.campus,
