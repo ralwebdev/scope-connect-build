@@ -568,8 +568,11 @@ function DashboardPage() {
           </div>
         )}
 
+        {/* Commented out per user request
         <PortfolioSpotlight />
+        */}
 
+        {/* Commented out sections below per user request
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <Card className="p-6 hover-lift">
             <Briefcase className="h-5 w-5 text-brand" />
@@ -596,6 +599,7 @@ function DashboardPage() {
           <AdSlot slotId="dashboard_recommended" variant="card" label="Recommended for Builders" />
           <AdSlot slotId="dashboard_featured" variant="card" label="Featured Partner" />
         </div>
+        */}
       </section>
     </AppShell>
   );
