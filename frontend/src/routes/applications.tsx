@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   Briefcase, CheckCircle2, Clock, XCircle, ArrowRight,
   Search, AlertTriangle, Rocket, Calendar, ChevronDown, ExternalLink,
-  Github, FileText, Trophy, Zap, RefreshCw, Eye,
+  Github, FileText, Trophy, Zap, RefreshCw, Eye, MessageSquare,
 } from "lucide-react";
 import { AppShell } from "@/components/site/AppShell";
 import { AuthGate } from "@/components/site/AuthGate";
@@ -359,6 +359,46 @@ function ApplicationTrackingCenter() {
                       })}
                     </div>
 
+                    {/* ── Admin review feedback (visible when changes are requested) ── */}
+                    {app.submission_review_status === "needs_changes" && app.submission?.admin_comment && (
+                      <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+                            <MessageSquare className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-xs font-bold uppercase tracking-wide text-amber-600">
+                                Admin Review Feedback
+                              </div>
+                              <Badge variant="outline" className="h-5 border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-600">
+                                Needs Changes
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm leading-relaxed text-foreground">
+                              {app.submission.admin_comment}
+                            </p>
+                            {app.submission.reviewed_at && (
+                              <p className="mt-2 text-[10px] text-muted-foreground">
+                                Reviewed {timeAgo(app.submission.reviewed_at)}
+                              </p>
+                            )}
+                            {project && (
+                              <Button
+                                asChild
+                                size="sm"
+                                className="mt-3 h-7 bg-amber-500 text-xs text-white hover:bg-amber-600"
+                              >
+                                <Link to={`/projects#${project.id}`}>
+                                  Update & Resubmit Work <ArrowRight className="ml-1.5 h-3 w-3" />
+                                </Link>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* ── Expanded Detail Panel ── */}
                     {isExpanded && (
                       <div className="mt-5 pt-5 border-t border-border space-y-4">
@@ -404,13 +444,24 @@ function ApplicationTrackingCenter() {
                           </div>
                         )}
 
-                        {/* Admin comment */}
-                        {app.submission?.admin_comment && (
-                          <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-4">
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-500 mb-1.5">
-                              <AlertTriangle className="h-3 w-3" /> Reviewer Feedback
+                        {/* Submission review status */}
+                        {app.submission_review_status !== "not_submitted" && (
+                          <div className="rounded-xl border border-border bg-secondary/40 p-4">
+                            <div className="text-xs font-semibold text-foreground">Submission Review</div>
+                            <div className="mt-1 capitalize text-muted-foreground">
+                              {app.submission_review_status.replace("_", " ")}
                             </div>
-                            <p className="text-sm text-foreground">{app.submission.admin_comment}</p>
+                            {app.submission?.admin_comment &&
+                              app.submission_review_status !== "needs_changes" && (
+                              <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600">
+                                  <AlertTriangle className="h-3 w-3" /> Admin Feedback
+                                </div>
+                                <p className="mt-1.5 text-sm leading-relaxed text-foreground">
+                                  {app.submission.admin_comment}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -431,7 +482,7 @@ function ApplicationTrackingCenter() {
                         <div className="flex flex-wrap gap-2 pt-1">
                           {project && (
                             <Button asChild size="sm" variant="outline" className="text-xs">
-                              <Link to="/projects">
+                              <Link to={`/projects#${project.id}`}>
                                 <Eye className="mr-1.5 h-3.5 w-3.5" /> View Project
                               </Link>
                             </Button>

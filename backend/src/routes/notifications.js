@@ -36,6 +36,9 @@ function isFacultyCoordinator(user) {
 notificationsRouter.use(authMiddleware);
 
 notificationsRouter.get("/", asyncHandler(async (req, res) => {
+  const cutoff = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+  await Notification.deleteMany({ user: req.user._id, createdAt: { $lt: cutoff } }).catch(() => null);
+
   const filter = { user: req.user._id };
   if (req.query.unread === "true") filter.readAt = null;
   const limit = Math.min(Number(req.query.limit || 20), 100);

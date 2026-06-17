@@ -1175,7 +1175,20 @@ export function mapBackendNotification(notification: BackendNotification): Notif
         : notification.kind === "achievement" || notification.kind === "opportunity_application_status_changed"
         ? "trophy"
         : "spark",
-    href: notification.link || undefined,
+    href: (() => {
+      let link = notification.link;
+      if (!link) return undefined;
+      if (link.startsWith("/projects/")) {
+        const projectId = link.split("/")[2];
+        if (projectId) {
+          if (notification.kind === "application_status_changed" || notification.kind === "project_submission_reviewed") {
+            return "/applications";
+          }
+          return `/projects#${projectId}`;
+        }
+      }
+      return link;
+    })(),
     dedupKey: `backend:${notification.id}`,
   };
 }

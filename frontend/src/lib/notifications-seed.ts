@@ -34,7 +34,7 @@ const STUDENT: NotificationSeed[] = [
   { kind: "profile_completion", text: "Your profile is 80% complete — finish to unlock matches.", icon: "spark", category: "action", priority: "high", href: "/profile", ago: 5 },
   { kind: "new_open_project", text: "New Open Project available in Design category.", icon: "spark", category: "info", priority: "normal", href: "/challenges", ago: 22 },
   { kind: "rank_climb", text: "You moved to Rank #12 this week. Keep shipping.", icon: "trophy", category: "milestone", priority: "normal", href: "/leaderboards", ago: 60 },
-  { kind: "application_accepted", text: "Application accepted for Campus Project.", icon: "trophy", category: "milestone", priority: "high", href: "/projects", ago: 90 },
+  { kind: "application_accepted", text: "Application accepted for Campus Project.", icon: "trophy", category: "milestone", priority: "high", href: "/applications", ago: 90 },
   { kind: "streak", text: "Login streak: 5 days 🔥 Keep it alive.", icon: "zap", category: "milestone", priority: "low", ago: 180 },
   { kind: "certificate", text: "Certificate available for download.", icon: "trophy", category: "action", priority: "normal", href: "/portfolio", ago: 300 },
 ];

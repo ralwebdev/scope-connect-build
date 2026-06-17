@@ -633,8 +633,9 @@ export const notifications = {
     if (!auth.isLoggedIn()) return notifications.all();
     try {
       const { items } = await backendNotifications.list();
-      const mapped = items.map(mapBackendNotification);
-      const localOnly = notifications.all().filter((n) => !n.dedupKey?.startsWith("backend:") && !n.id.startsWith("seed_") && !n.dedupKey?.startsWith("seed:"));
+      const cutoff = Date.now() - 5 * 24 * 60 * 60 * 1000;
+      const mapped = items.map(mapBackendNotification).filter((n) => n.at >= cutoff);
+      const localOnly = notifications.all().filter((n) => !n.dedupKey?.startsWith("backend:") && !n.id.startsWith("seed_") && !n.dedupKey?.startsWith("seed:") && n.at >= cutoff);
       const next = [...mapped, ...localOnly].slice(0, 100);
       writeNow(KEYS.notifications, next);
       return next;
@@ -649,7 +650,9 @@ export const notifications = {
   },
   /** Role-filtered, priority-sorted list. Pinned items always come first. */
   forRole(role: string): Notification[] {
+    const cutoff = Date.now() - 5 * 24 * 60 * 60 * 1000;
     const list = notifications.all().filter((n) => {
+      if (n.at < cutoff) return false;
       // No `roles` field → legacy/global; show everywhere.
       if (!n.roles || n.roles.length === 0) return true;
       return n.roles.includes(role);

@@ -893,7 +893,11 @@ function ProjectCard({
             size="sm"
             className={`flex-1 ${
               applied && workUnlocked && isSubmitted && !isRejected
-                ? "bg-violet-500/15 text-violet-700 border border-violet-400/40 hover:bg-violet-500/25 shadow-[0_0_14px_-4px_rgba(139,92,246,0.35)]"
+                ? (
+                    application?.submissionReviewStatus === "needs_changes"
+                      ? "bg-amber-500 text-white hover:bg-amber-600 shadow-md"
+                      : "bg-violet-500/15 text-violet-700 border border-violet-400/40 hover:bg-violet-500/25 shadow-[0_0_14px_-4px_rgba(139,92,246,0.35)]"
+                  )
                 : applied && workUnlocked && !isRejected
                   ? "bg-success text-primary-foreground hover:bg-success/90"
                   : applied && underReview
@@ -910,7 +914,11 @@ function ProjectCard({
              applied ? (
                project.team_members_limit === 1 ? (
                  isSubmitted
-                   ? <><Check className="mr-1.5 h-4 w-4" /> Work Submitted</>
+                   ? (
+                       application?.submissionReviewStatus === "needs_changes"
+                         ? <><Check className="mr-1.5 h-4 w-4" /> Resubmit Work</>
+                         : <><Check className="mr-1.5 h-4 w-4" /> Work Submitted</>
+                     )
                    : <><Check className="mr-1.5 h-4 w-4" /> Submit Work</>
                ) : (
                  <><Check className="mr-1.5 h-4 w-4" /> Project Room</>

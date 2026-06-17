@@ -358,7 +358,7 @@ projectsRouter.patch("/:id", authMiddleware, validate(projectSchema.partial()), 
       kind: "admin_action",
       title: "Project Approved",
       body: `Your project "${project.title}" has been approved and is now open.`,
-      link: `/projects/${project._id}`,
+      link: `/projects#${project._id}`,
       dedupeKey: `project:${project._id}:approved:${Date.now()}`,
     }, {
       source: "project_status_opened",
@@ -609,7 +609,7 @@ async function joinProject(req, res) {
     kind: "application_received",
     title: "New project participant",
     body: "A student committed XP and joined your project.",
-    link: `/projects/${project.id}`,
+    link: `/projects#${project.id}`,
     dedupeKey: `app:${application.id}:received`,
   }, {
     source: "project_joined",
@@ -653,7 +653,7 @@ projectsRouter.post("/:id/apply-legacy-disabled", authMiddleware, requirePermiss
     kind: "application_received",
     title: "New project application",
     body: "A student applied to your project.",
-    link: `/projects/${project.id}`,
+    link: `/projects#${project.id}`,
     dedupeKey: `app:${application.id}:received`,
   }, {
     source: "project_applied_legacy",
@@ -1260,7 +1260,7 @@ applicationsRouter.patch("/:id", validate(applicationPatchSchema), asyncHandler(
     kind: "application_status_changed",
     title: "Application status updated",
     body: `Your application is now ${application.status}.`,
-    link: `/projects/${application.project.id}`,
+    link: "/applications",
     dedupeKey: `app:${application.id}:status:${application.status}`,
   }, {
     source: "project_application_status_changed",
@@ -1303,7 +1303,7 @@ applicationsRouter.post("/:id/submission", validate(submissionSchema), asyncHand
     kind: "project_submission_received",
     title: "Project submission received",
     body: "A student submitted their project deliverables for review.",
-    link: `/projects/${application.project.id}`,
+    link: `/projects#${application.project.id}`,
     dedupeKey: `app:${application.id}:submission:${application.updatedAt?.getTime?.() || Date.now()}`,
   }, {
     source: "project_submission_received",
@@ -1380,7 +1380,7 @@ applicationsRouter.patch("/:id/submission-review", validate(submissionReviewSche
     kind: "project_submission_reviewed",
     title: "Project submission reviewed",
     body: `Your submission is marked as ${application.submissionReviewStatus.replace("_", " ")}.`,
-    link: `/projects/${application.project.id}`,
+    link: "/applications",
     dedupeKey: `app:${application.id}:submission-review:${application.submissionReviewStatus}`,
   }, {
     source: "project_submission_reviewed",

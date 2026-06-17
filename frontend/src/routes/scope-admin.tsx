@@ -2229,12 +2229,83 @@ function ScopeEventsManager() {
   );
 }
 
+function NeedsChangesDialog({
+  application,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  application: BackendApplication | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (applicationId: string, comment: string) => Promise<void>;
+}) {
+  const [comment, setComment] = useState("");
+
+  useEffect(() => {
+    if (application) {
+      setComment(application.submission?.admin_comment || "");
+    } else {
+      setComment("");
+    }
+  }, [application?.id]);
+
+  if (!application) return null;
+
+  const handleSubmit = async () => {
+    const trimmed = comment.trim();
+    if (!trimmed) {
+      toast.error("Please describe the changes required before submitting.");
+      return;
+    }
+    await onSubmit(application.id, trimmed);
+  };
+
+  return (
+    <Dialog open={!!application} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Request Changes</DialogTitle>
+          <DialogDescription>
+            Tell {application.user_name || "the student"} what needs to be updated in their project
+            submission.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="needs-changes-feedback">Required changes</Label>
+          <Textarea
+            id="needs-changes-feedback"
+            placeholder="e.g. Update the live URL, fix the GitHub README, add a screenshot of the dashboard..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={5}
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="outline"
+            className="border-warning/50 text-warning hover:bg-warning/10"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "Saving..." : "Submit Feedback"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ScopeProjectsManager() {
   const [projects, setProjects] = useState<BackendProject[]>([]);
   const [applications, setApplications] = useState<BackendApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingApplicationId, setUpdatingApplicationId] = useState<string | null>(null);
+  const [needsChangesApp, setNeedsChangesApp] = useState<BackendApplication | null>(null);
   const [rosterProject, setRosterProject] = useState<BackendProject | null>(null);
   const { institutions } = useStoreValue(() => crm.all());
   const [activeSubTab, setActiveSubTab] = useState("active");
@@ -2489,21 +2560,30 @@ function ScopeProjectsManager() {
   const updateSubmissionReviewStatus = async (
     applicationId: string,
     submissionReviewStatus: "submitted" | "passed" | "needs_changes",
+    adminComment?: string,
   ) => {
     setUpdatingApplicationId(applicationId);
     try {
       const { application: updated } = await backendApplications.reviewSubmission(applicationId, {
         submission_review_status: submissionReviewStatus,
+        ...(adminComment !== undefined ? { admin_comment: adminComment } : {}),
       });
       setApplications((current) =>
         current.map((app) => (app.id === applicationId ? updated : app)),
       );
+      if (submissionReviewStatus === "needs_changes") {
+        setNeedsChangesApp(null);
+      }
       toast.success(`Submission marked as ${submissionReviewStatus.replace("_", " ")}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update submission review.");
     } finally {
       setUpdatingApplicationId(null);
     }
+  };
+
+  const submitNeedsChanges = async (applicationId: string, comment: string) => {
+    await updateSubmissionReviewStatus(applicationId, "needs_changes", comment);
   };
 
   const projectsWithStats = useMemo(() => {
@@ -3051,9 +3131,7 @@ function ScopeProjectsManager() {
                                           variant="outline"
                                           className="h-7 px-2 text-[10px]"
                                           disabled={updatingApplicationId === app.id}
-                                          onClick={() =>
-                                            updateSubmissionReviewStatus(app.id, "needs_changes")
-                                          }
+                                          onClick={() => setNeedsChangesApp(app)}
                                         >
                                           Needs Changes
                                         </Button>
@@ -3528,7 +3606,14 @@ function ScopeProjectsManager() {
         updatingApplicationId={updatingApplicationId}
         updateApplicationStatus={updateApplicationStatus}
         updateSubmissionReviewStatus={updateSubmissionReviewStatus}
+        onRequestNeedsChanges={setNeedsChangesApp}
         refreshData={fetchData}
+      />
+      <NeedsChangesDialog
+        application={needsChangesApp}
+        submitting={needsChangesApp ? updatingApplicationId === needsChangesApp.id : false}
+        onClose={() => setNeedsChangesApp(null)}
+        onSubmit={submitNeedsChanges}
       />
     </div>
   );
@@ -3541,6 +3626,7 @@ function ProjectRosterDialog({
   updatingApplicationId,
   updateApplicationStatus,
   updateSubmissionReviewStatus,
+  onRequestNeedsChanges,
   refreshData,
 }: {
   project: BackendProject | null;
@@ -3548,7 +3634,8 @@ function ProjectRosterDialog({
   onClose: () => void;
   updatingApplicationId: string | null;
   updateApplicationStatus: (id: string, status: any) => Promise<void>;
-  updateSubmissionReviewStatus: (id: string, reviewStatus: any) => Promise<void>;
+  updateSubmissionReviewStatus: (id: string, reviewStatus: any, adminComment?: string) => Promise<void>;
+  onRequestNeedsChanges: (application: BackendApplication) => void;
   refreshData: () => Promise<void>;
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -3859,7 +3946,7 @@ function ProjectRosterDialog({
                                   variant="outline"
                                   className="h-6 px-2 text-[9px]"
                                   disabled={updatingApplicationId === app.id}
-                                  onClick={() => updateSubmissionReviewStatus(app.id, "needs_changes")}
+                                  onClick={() => onRequestNeedsChanges(app)}
                                 >
                                   Needs Changes
                                 </Button>
